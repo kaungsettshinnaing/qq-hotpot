@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 env:
+  # ghcr.io/kaungsettshinnaing/qq-hotpot  (resolves automatically from repo)
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:

@@ -6,6 +6,7 @@ import {
   MenuItemCode,
   MenuUnit,
   SoupApplies,
+  AttendanceStatus,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -136,6 +137,63 @@ async function main() {
       update: {},
       create: { name },
     });
+  }
+
+  // ---- Demo Employee profiles (linked to seeded Users) ----
+  const waiterUser = await prisma.user.findUnique({ where: { username: "waiter" } });
+  const cashierUser = await prisma.user.findUnique({ where: { username: "cashier" } });
+  const kitchenUser = await prisma.user.findUnique({ where: { username: "kitchen" } });
+
+  const demoEmployees = [
+    {
+      userId: waiterUser!.id,
+      employeeNo: "EMP001",
+      startDate: new Date("2024-01-15"),
+      basicSalary: 350000,
+      attendanceBonus: 50000,
+      restDays: [0], // Sunday
+      phone: "09-111-222-333",
+    },
+    {
+      userId: cashierUser!.id,
+      employeeNo: "EMP002",
+      startDate: new Date("2024-02-01"),
+      basicSalary: 400000,
+      attendanceBonus: 50000,
+      restDays: [0], // Sunday
+      phone: "09-444-555-666",
+    },
+    {
+      userId: kitchenUser!.id,
+      employeeNo: "EMP003",
+      startDate: new Date("2024-01-01"),
+      basicSalary: 380000,
+      attendanceBonus: 50000,
+      restDays: [0, 1], // Sunday + Monday
+      phone: "09-777-888-999",
+    },
+  ];
+
+  for (const emp of demoEmployees) {
+    await prisma.employee.upsert({
+      where: { userId: emp.userId },
+      update: {},
+      create: emp,
+    });
+  }
+
+  // ---- Demo Employee Field Definitions ----
+  const fieldDefs = [
+    { label: "NRC Number", fieldType: "TEXT" as const, sortOrder: 1 },
+    { label: "Bank Account", fieldType: "TEXT" as const, sortOrder: 2 },
+    { label: "Emergency Contact Name", fieldType: "TEXT" as const, sortOrder: 3 },
+    { label: "Emergency Contact Phone", fieldType: "TEXT" as const, sortOrder: 4 },
+  ];
+  for (const f of fieldDefs) {
+    const existing = await prisma.employeeFieldDef.findFirst({ where: { label: f.label } });
+    if (!existing) {
+      await prisma.employeeFieldDef.create({ data: f });
+    }
   }
 
   // eslint-disable-next-line no-console

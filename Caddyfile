@@ -1,5 +1,13 @@
-# Caddy reverse proxy with automatic HTTPS (Let's Encrypt).
-# {$APP_DOMAIN} and {$ACME_EMAIL} come from the environment (see docker-compose.yml).
+# Caddy reverse proxy.
+# {$APP_DOMAIN} is set in .env (see .env.example).
+#
+# Phase 1 — IP-only (187.127.106.81):
+#   Caddy serves HTTP on port 80 only. No TLS cert needed.
+#   Let's Encrypt is NOT used for bare IPs — this is intentional and safe.
+#
+# Phase 2 — real domain (qqhotpotbbq.com):
+#   Change APP_DOMAIN in .env to the domain. Caddy will automatically
+#   provision a free HTTPS cert from Let's Encrypt on first start.
 
 {
 	email {$ACME_EMAIL}

@@ -1,5 +1,5 @@
 // QQ Hotpot BBQ — Prisma schema (PostgreSQL)
-// POS phase. Auth/role foundation included; HR module will later own User.
+// POS + HR & Payroll phase.
 
 generator client {
   provider = "prisma-client-js"
@@ -44,6 +44,17 @@ model User {
   reservations   Reservation[]
   expenses       Expense[]
   shifts         CashierShift[]
+
+  // HR relations
+  employee          Employee?
+  uploadedDocuments EmployeeDocument[]  @relation("docUploadedBy")
+  approvedAttendances Attendance[]      @relation("attendanceApprovedBy")
+  reviewedLeaves    LeaveRequest[]      @relation("leaveReviewedBy")
+  createdAdvances   SalaryAdvance[]     @relation("advanceCreatedBy")
+  createdFines      EmployeeFine[]      @relation("fineCreatedBy")
+  createdBonuses    AdHocBonus[]        @relation("bonusCreatedBy")
+  lockedPayrolls    Payroll[]           @relation("payrollLockedBy")
+  notifications     Notification[]
 }
 
 // ---------------------------------------------------------------------------
@@ -338,4 +349,265 @@ model CashierShift {
   expenses Expense[]
 
   @@index([cashierId, status])
+}
+
+// ---------------------------------------------------------------------------
+// HR & Payroll
+// ---------------------------------------------------------------------------
+
+model Employee {
+  userId           String    @id
+  user             User      @relation(fields: [userId], references: [id])
+  employeeNo       String?   @unique
+  dateOfBirth      DateTime?
+  phone            String?
+  address          String?
+  emergencyContact String?
+  bankAccount      String?
+  startDate        DateTime
+  endDate          DateTime?
+  basicSalary      Int       @default(0)
+  attendanceBonus  Int       @default(0)
+  restDays         Int[]     // weekday numbers 0=Sun … 6=Sat
+  isActive         Boolean   @default(true)
+
+  customValues  EmployeeFieldValue[]
+  documents     EmployeeDocument[]
+  attendances   Attendance[]
+  leaveRequests LeaveRequest[]
+  advances      SalaryAdvance[]
+  fines         EmployeeFine[]
+  adHocBonuses  AdHocBonus[]
+  payrollItems  PayrollItem[]
+}
+
+// Admin-defined extra profile fields
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  DROPDOWN
+}
+
+model EmployeeFieldDef {
+  id        String    @id @default(cuid())
+  label     String
+  fieldType FieldType @default(TEXT)
+  options   String[]  // only used for DROPDOWN
+  isRequired Boolean  @default(false)
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+
+  values EmployeeFieldValue[]
+}
+
+model EmployeeFieldValue {
+  id         String           @id @default(cuid())
+  employee   Employee         @relation(fields: [employeeId], references: [userId])
+  employeeId String
+  fieldDef   EmployeeFieldDef @relation(fields: [fieldDefId], references: [id])
+  fieldDefId String
+  value      String
+
+  @@unique([employeeId, fieldDefId])
+  @@index([employeeId])
+}
+
+model EmployeeDocument {
+  id           String   @id @default(cuid())
+  employee     Employee @relation(fields: [employeeId], references: [userId])
+  employeeId   String
+  name         String
+  filePath     String
+  uploadedBy   User     @relation("docUploadedBy", fields: [uploadedById], references: [id])
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+
+  @@index([employeeId])
+}
+
+// Attendance
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  REST_DAY
+  OT
+}
+
+model Attendance {
+  id           String           @id @default(cuid())
+  employee     Employee         @relation(fields: [employeeId], references: [userId])
+  employeeId   String
+  date         DateTime         @db.Date
+  status       AttendanceStatus @default(PRESENT)
+  clockInAt    DateTime?
+  clockOutAt   DateTime?
+  breakOutAt   DateTime?
+  breakInAt    DateTime?
+  isApproved   Boolean          @default(false)
+  approvedBy   User?            @relation("attendanceApprovedBy", fields: [approvedById], references: [id])
+  approvedById String?
+  note         String?
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+}
+
+// Leave requests
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  employee     Employee    @relation(fields: [employeeId], references: [userId])
+  employeeId   String
+  startDate    DateTime    @db.Date
+  endDate      DateTime    @db.Date
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  reviewedBy   User?       @relation("leaveReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+// Salary advances
+model SalaryAdvance {
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [userId])
+  employeeId  String
+  totalAmount Int
+  note        String?
+  createdBy   User     @relation("advanceCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  instalments AdvanceInstalment[]
+
+  @@index([employeeId])
+}
+
+model AdvanceInstalment {
+  id        String        @id @default(cuid())
+  advance   SalaryAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  advanceId String
+  month     Int
+  year      Int
+  amount    Int
+  deducted  Boolean       @default(false)
+
+  @@index([advanceId])
+  @@index([year, month])
+}
+
+// Fines
+model EmployeeFine {
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [userId])
+  employeeId  String
+  amount      Int
+  reason      String
+  deductMonth Int
+  deductYear  Int
+  deducted    Boolean  @default(false)
+  createdBy   User     @relation("fineCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([deductYear, deductMonth])
+}
+
+// Ad-hoc bonuses
+model AdHocBonus {
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [userId])
+  employeeId  String
+  amount      Int
+  label       String
+  month       Int
+  year        Int
+  createdBy   User     @relation("bonusCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([year, month])
+}
+
+// Payroll
+enum PayrollStatus {
+  DRAFT
+  LOCKED
+}
+
+model Payroll {
+  id         String        @id @default(cuid())
+  month      Int
+  year       Int
+  status     PayrollStatus @default(DRAFT)
+  lockedAt   DateTime?
+  lockedBy   User?         @relation("payrollLockedBy", fields: [lockedById], references: [id])
+  lockedById String?
+  createdAt  DateTime      @default(now())
+
+  items PayrollItem[]
+
+  @@unique([month, year])
+}
+
+model PayrollItem {
+  id                   String   @id @default(cuid())
+  payroll              Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  payrollId            String
+  employee             Employee @relation(fields: [employeeId], references: [userId])
+  employeeId           String
+  basicSalary          Int
+  workingDays          Int
+  absentDays           Int
+  otDays               Int
+  attendanceBonusAmt   Int
+  dailyRate            Int
+  absenceDeduction     Int
+  otPremium            Int
+  adHocBonuses         Int
+  advanceDeduction     Int
+  fineDeduction        Int
+  netPay               Int
+
+  @@unique([payrollId, employeeId])
+  @@index([payrollId])
+  @@index([employeeId])
+}
+
+// In-app notifications (for managers: break events, leave requests, etc.)
+enum NotifType {
+  BREAK_OUT
+  BREAK_IN
+  LEAVE_REQUEST
+  ATTENDANCE_APPROVED
+  LEAVE_APPROVED
+  LEAVE_REJECTED
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  type      NotifType
+  message   String
+  isRead    Boolean   @default(false)
+  relatedId String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId])
 }

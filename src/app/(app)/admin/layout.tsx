@@ -9,6 +9,7 @@ const TABS = [
   { href: "/admin/flavours", label: "Soup Flavours" },
   { href: "/admin/categories", label: "Expense Categories" },
   { href: "/admin/users", label: "Users & Roles" },
+  { href: "/admin/hr-fields", label: "Employee Fields" },
 ];
 
 export default async function AdminLayout({

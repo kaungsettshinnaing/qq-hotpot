@@ -28,14 +28,15 @@ export interface ModuleDef {
   icon: string;
 }
 
-// Modules available in the POS phase. Managers/Admins get oversight access to
-// operational screens; HR/Marketing are seeded for future modules.
 export const MODULES: ModuleDef[] = [
-  { key: "waiter", label: "Waiter", href: "/waiter", roles: ["WAITER", "MANAGER", "ADMIN"], icon: "🍽️" },
-  { key: "kitchen", label: "Kitchen", href: "/kitchen", roles: ["KITCHEN", "MANAGER", "ADMIN"], icon: "🍲" },
-  { key: "cashier", label: "Cashier", href: "/cashier", roles: ["CASHIER", "MANAGER", "ADMIN"], icon: "💵" },
-  { key: "reports", label: "Reports", href: "/reports", roles: ["MANAGER", "ADMIN"], icon: "📊" },
-  { key: "admin", label: "Admin", href: "/admin", roles: ["ADMIN"], icon: "⚙️" },
+  { key: "waiter",     label: "Waiter",    href: "/waiter",      roles: ["WAITER", "MANAGER", "ADMIN"],             icon: "🍽️" },
+  { key: "kitchen",    label: "Kitchen",   href: "/kitchen",     roles: ["KITCHEN", "MANAGER", "ADMIN"],            icon: "🍲" },
+  { key: "cashier",    label: "Cashier",   href: "/cashier",     roles: ["CASHIER", "MANAGER", "ADMIN"],            icon: "💵" },
+  { key: "reports",    label: "Reports",   href: "/reports",     roles: ["MANAGER", "ADMIN"],                       icon: "📊" },
+  { key: "hr",         label: "HR",        href: "/hr",          roles: ["HR", "ADMIN"],                            icon: "👥" },
+  { key: "manager",    label: "Team",      href: "/manager",     roles: ["MANAGER", "ADMIN"],                       icon: "📋" },
+  { key: "myaccount",  label: "My Account",href: "/my-account",  roles: ["WAITER","KITCHEN","CASHIER","MANAGER","ADMIN","HR","MARKETING"], icon: "👤" },
+  { key: "admin",      label: "Admin",     href: "/admin",       roles: ["ADMIN"],                                  icon: "⚙️" },
 ];
 
 export function hasAnyRole(userRoles: Role[], allowed: Role[]): boolean {
@@ -47,15 +48,15 @@ export function modulesFor(userRoles: Role[]): ModuleDef[] {
 }
 
 // Where to send a user after login, based on their highest-priority role.
-const ROLE_PRIORITY: Role[] = ["ADMIN", "MANAGER", "CASHIER", "KITCHEN", "WAITER", "HR", "MARKETING"];
+const ROLE_PRIORITY: Role[] = ["ADMIN", "MANAGER", "HR", "CASHIER", "KITCHEN", "WAITER", "MARKETING"];
 const LANDING: Record<Role, string> = {
   ADMIN: "/admin",
-  MANAGER: "/reports",
+  MANAGER: "/manager",
+  HR: "/hr",
   CASHIER: "/cashier",
   KITCHEN: "/kitchen",
   WAITER: "/waiter",
-  HR: "/",
-  MARKETING: "/",
+  MARKETING: "/my-account",
 };
 
 export function landingFor(userRoles: Role[]): string | null {
@@ -72,9 +73,12 @@ export function landingFor(userRoles: Role[]): string | null {
 
 // Access rules per top-level route, enforced server-side in each layout.
 export const ROUTE_ROLES: Record<string, Role[]> = {
-  "/waiter": ["WAITER", "MANAGER", "ADMIN"],
-  "/kitchen": ["KITCHEN", "MANAGER", "ADMIN"],
-  "/cashier": ["CASHIER", "MANAGER", "ADMIN"],
-  "/reports": ["MANAGER", "ADMIN"],
-  "/admin": ["ADMIN"],
+  "/waiter":     ["WAITER", "MANAGER", "ADMIN"],
+  "/kitchen":    ["KITCHEN", "MANAGER", "ADMIN"],
+  "/cashier":    ["CASHIER", "MANAGER", "ADMIN"],
+  "/reports":    ["MANAGER", "ADMIN"],
+  "/hr":         ["HR", "ADMIN"],
+  "/manager":    ["MANAGER", "ADMIN"],
+  "/my-account": ["WAITER", "KITCHEN", "CASHIER", "MANAGER", "ADMIN", "HR", "MARKETING"],
+  "/admin":      ["ADMIN"],
 };

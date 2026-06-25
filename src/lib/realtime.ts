@@ -10,6 +10,7 @@ const g = globalThis as unknown as { __qq_io?: IOServer };
 
 export const ROOM_KITCHEN = "kitchen";
 export const ROOM_FLOOR = "floor";
+export const ROOM_HR = "hr";
 
 export function setIO(io: IOServer): void {
   g.__qq_io = io;
@@ -30,6 +31,14 @@ export function emitKitchen(event: string, payload: unknown): void {
 export function emitFloor(event: string, payload: unknown): void {
   try {
     g.__qq_io?.to(ROOM_FLOOR).emit(event, payload);
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function emitHR(event: string, payload: unknown): void {
+  try {
+    g.__qq_io?.to(ROOM_HR).emit(event, payload);
   } catch {
     /* best-effort */
   }

@@ -1,8 +1,6 @@
 # POS Module — Developer Reference
 
-This document is the definitive reference for the Point of Sale module of
-**QQ Hotpot BBQ**. Read it before making changes to avoid breaking locked
-business rules.
+This document is the definitive reference for the Point of Sale module of **QQ Hotpot BBQ**. Read it before making changes and update accordingly to avoid breaking locked business rules.
 
 ---
 
