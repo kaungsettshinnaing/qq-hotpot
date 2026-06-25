@@ -1,7 +1,6 @@
 # QQ Hotpot BBQ — production stack for the Hostinger VPS.
 #   1) copy .env.example -> .env and fill values
-#   2) docker compose up -d
-# Caddy auto-provisions HTTPS for ${APP_DOMAIN}.
+#   2) docker compose up -d --build
 
 services:
   db:
@@ -20,8 +19,6 @@ services:
       retries: 12
 
   app:
-    # CI publishes the image; for a local build run: docker compose up -d --build
-    image: ${APP_IMAGE:-qq-app:local}
     build: .
     restart: unless-stopped
     environment:
@@ -30,33 +27,15 @@ services:
       TZ: ${TZ:-Asia/Yangon}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
       AUTH_SECRET: ${AUTH_SECRET}
-      APP_URL: ${APP_URL:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:8080}
     depends_on:
       db:
         condition: service_healthy
-    expose:
-      - "3000"
+    ports:
+      - "8080:3000"
     volumes:
       - uploads:/app/uploads
 
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      APP_DOMAIN: ${APP_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:
   uploads:
