@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env*.local
+npm-debug.log*
+Dockerfile
+.dockerignore
+README.md
+*.md
+caddy_data
+caddy_config
+pgdata

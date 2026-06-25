@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#b91c1c"/>
+  <circle cx="256" cy="300" r="120" fill="#fff"/>
+  <path d="M156 300 h200 a100 100 0 0 1 -200 0 z" fill="#b91c1c"/>
+  <rect x="150" y="284" width="212" height="20" rx="10" fill="#7f1d1d"/>
+  <path d="M210 170 q-14 26 0 52 M256 160 q-14 26 0 52 M302 170 q-14 26 0 52"
+        stroke="#fff" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <text x="256" y="470" font-family="Arial, sans-serif" font-size="64" font-weight="bold"
+        fill="#fff" text-anchor="middle">QQ</text>
+</svg>

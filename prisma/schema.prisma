@@ -1,0 +1,341 @@
+// QQ Hotpot BBQ — Prisma schema (PostgreSQL)
+// POS phase. Auth/role foundation included; HR module will later own User.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth / users
+// ---------------------------------------------------------------------------
+
+enum Role {
+  WAITER
+  KITCHEN
+  CASHIER
+  MANAGER
+  ADMIN
+  HR
+  MARKETING
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  username     String   @unique
+  passwordHash String
+  pinHash      String? // manager approval PIN (e.g. void after send)
+  roles        Role[]
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  openedSessions TableSession[] @relation("openedBy")
+  closedSessions TableSession[] @relation("closedBy")
+  orderItems     OrderItem[]
+  potsCreated    PotOrder[]     @relation("potCreatedBy")
+  potsDelivered  PotOrder[]     @relation("potDeliveredBy")
+  payments       Payment[]
+  reservations   Reservation[]
+  expenses       Expense[]
+  shifts         CashierShift[]
+}
+
+// ---------------------------------------------------------------------------
+// Floor: areas & tables
+// ---------------------------------------------------------------------------
+
+model Area {
+  id        String  @id @default(cuid())
+  name      String  @unique
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+  tables    Table[]
+}
+
+model Table {
+  id       String  @id @default(cuid())
+  area     Area    @relation(fields: [areaId], references: [id])
+  areaId   String
+  number   Int
+  label    String  @unique // e.g. "A1"
+  capacity Int?
+  isActive Boolean @default(true)
+
+  sessions     TableSession[]
+  reservations Reservation[]
+
+  @@unique([areaId, number])
+}
+
+// ---------------------------------------------------------------------------
+// Menu & settings
+// ---------------------------------------------------------------------------
+
+enum MenuItemCode {
+  ADULT
+  CHILD
+  BEER
+  POT_ADDON
+  WASTAGE
+}
+
+enum MenuUnit {
+  UNIT
+  GRAM
+}
+
+model MenuItem {
+  id       String       @id @default(cuid())
+  code     MenuItemCode @unique
+  name     String
+  unit     MenuUnit     @default(UNIT)
+  price    Int          @default(0) // MMK per unit (or per gram for WASTAGE)
+  isActive Boolean      @default(true)
+}
+
+// Flexible key/value settings (freePotRatio, tax/service toggles, etc.)
+model Setting {
+  key       String   @id
+  valueJson Json
+  updatedAt DateTime @updatedAt
+}
+
+enum SoupApplies {
+  HOTPOT
+  BBQ
+  BOTH
+}
+
+model SoupFlavour {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  appliesTo   SoupApplies       @default(BOTH)
+  isActive    Boolean           @default(true)
+  sortOrder   Int               @default(0)
+  potFlavours PotOrderFlavour[]
+}
+
+// ---------------------------------------------------------------------------
+// Orders: table sessions, items, pots
+// ---------------------------------------------------------------------------
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+model TableSession {
+  id             String        @id @default(cuid())
+  table          Table         @relation(fields: [tableId], references: [id])
+  tableId        String
+  openedBy       User          @relation("openedBy", fields: [openedById], references: [id])
+  openedById     String
+  openedAt       DateTime      @default(now())
+  adults         Int           @default(0)
+  children       Int           @default(0)
+  wastageGrams   Int           @default(0)
+  status         SessionStatus @default(OPEN)
+  closedBy       User?         @relation("closedBy", fields: [closedById], references: [id])
+  closedById     String?
+  closedAt       DateTime?
+  discountType   DiscountType?
+  discountValue  Int?
+  discountReason String?
+  note           String?
+
+  orderItems OrderItem[]
+  potOrders  PotOrder[]
+  payments   Payment[]
+
+  @@index([tableId, status])
+  @@index([status])
+}
+
+model OrderItem {
+  id          String       @id @default(cuid())
+  session     TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId   String
+  itemCode    MenuItemCode // BEER (extensible to future a-la-carte items)
+  qty         Int          @default(1)
+  unitPrice   Int          @default(0) // price snapshot at time of order
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime     @default(now())
+  voidedAt    DateTime?
+
+  @@index([sessionId])
+}
+
+enum PotKind {
+  HOTPOT
+  BBQ
+}
+
+enum PotStatus {
+  PENDING
+  DELIVERED
+}
+
+model PotOrder {
+  id            String       @id @default(cuid())
+  session       TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId     String
+  kind          PotKind
+  isFree        Boolean      @default(false)
+  status        PotStatus    @default(PENDING)
+  createdBy     User         @relation("potCreatedBy", fields: [createdById], references: [id])
+  createdById   String
+  createdAt     DateTime     @default(now())
+  deliveredBy   User?        @relation("potDeliveredBy", fields: [deliveredById], references: [id])
+  deliveredById String?
+  deliveredAt   DateTime?
+  voidedAt      DateTime?
+
+  flavours PotOrderFlavour[]
+
+  @@index([sessionId])
+  @@index([status])
+}
+
+model PotOrderFlavour {
+  id         String      @id @default(cuid())
+  potOrder   PotOrder    @relation(fields: [potOrderId], references: [id], onDelete: Cascade)
+  potOrderId String
+  flavour    SoupFlavour @relation(fields: [flavourId], references: [id])
+  flavourId  String
+
+  @@index([potOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+enum PaymentMethod {
+  CASH
+  KBZPAY
+  OTHER
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  session      TableSession  @relation(fields: [sessionId], references: [id])
+  sessionId    String
+  shift        CashierShift? @relation(fields: [shiftId], references: [id])
+  shiftId      String?
+  method       PaymentMethod
+  amount       Int
+  reference    String?
+  receivedBy   User          @relation(fields: [receivedById], references: [id])
+  receivedById String
+  receivedAt   DateTime      @default(now())
+
+  @@index([sessionId])
+  @@index([shiftId])
+}
+
+// ---------------------------------------------------------------------------
+// Reservations
+// ---------------------------------------------------------------------------
+
+enum ReservationStatus {
+  BOOKED
+  SEATED
+  CANCELLED
+  NO_SHOW
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  table        Table?            @relation(fields: [tableId], references: [id])
+  tableId      String?
+  customerName String
+  phone        String?
+  partySize    Int
+  bookingAt    DateTime
+  durationMin  Int               @default(120)
+  status       ReservationStatus @default(BOOKED)
+  note         String?
+  createdBy    User              @relation(fields: [createdById], references: [id])
+  createdById  String
+  createdAt    DateTime          @default(now())
+
+  @@index([tableId, bookingAt])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------------
+
+model ExpenseCategory {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  isActive Boolean   @default(true)
+  expenses Expense[]
+}
+
+enum ExpenseSource {
+  CASH_DRAWER // paid from cashier cash -> affects reconciliation
+  BANK_TRANSFER // does NOT affect cashier cash
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  businessDate  DateTime
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  amount        Int
+  paymentSource ExpenseSource
+  description   String
+  vendor        String?
+  shift         CashierShift?   @relation(fields: [shiftId], references: [id])
+  shiftId       String?
+  enteredBy     User            @relation(fields: [enteredById], references: [id])
+  enteredById   String
+  receiptUrl    String?
+  createdAt     DateTime        @default(now())
+
+  @@index([businessDate])
+  @@index([shiftId])
+}
+
+// ---------------------------------------------------------------------------
+// Cashier shift / cash reconciliation
+// ---------------------------------------------------------------------------
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model CashierShift {
+  id           String      @id @default(cuid())
+  cashier      User        @relation(fields: [cashierId], references: [id])
+  cashierId    String
+  openedAt     DateTime    @default(now())
+  openingFloat Int         @default(0)
+  closedAt     DateTime?
+  countedCash  Int?
+  expectedCash Int?
+  variance     Int?
+  status       ShiftStatus @default(OPEN)
+  note         String?
+
+  payments Payment[]
+  expenses Expense[]
+
+  @@index([cashierId, status])
+}

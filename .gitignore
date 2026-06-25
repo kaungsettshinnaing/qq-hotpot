@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production build
+/build
+
+# env
+.env
+.env*.local
+
+# misc
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# prisma local sqlite (if ever used)
+prisma/*.db
+
+# docker volumes (if bind-mounted locally)
+/caddy_data
+/caddy_config
+/pgdata
