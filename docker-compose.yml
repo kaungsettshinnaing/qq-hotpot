@@ -34,7 +34,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.qq-hotpot.entrypoints=websecure"
-      - "traefik.http.routers.qq-hotpot.rule=Host(`qqhotpotbbq.com`) || Host(`www.qqhotpotbbq.com`)"
+      - "traefik.http.routers.qq-hotpot.rule=Host(`app.qqhotpotbbq.com`)"
       - "traefik.http.routers.qq-hotpot.tls.certresolver=letsencrypt"
       - "traefik.http.services.qq-hotpot.loadbalancer.server.port=3000"
     networks:
