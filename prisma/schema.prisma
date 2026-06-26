@@ -57,6 +57,8 @@ model User {
   lockedPayrolls    Payroll[]           @relation("payrollLockedBy")
   notifications     Notification[]
 
+  cashCollections    CashCollection[]   @relation("CashCollectionRecorder")
+
   // Inventory relations
   deliveriesCreated  StockDelivery[]    @relation("DeliveryCreator")
   deliveriesCashier  StockDelivery[]    @relation("DeliveryCashier")
@@ -778,6 +780,28 @@ model StockMovement {
   @@index([createdAt])
 }
 
+// ---------------------------------------------------------------------------
+// Cash collection / injection log
+// ---------------------------------------------------------------------------
+
+enum CollectionType {
+  COLLECT // admin takes money out of drawer
+  INJECT  // admin adds money into drawer
+}
+
+model CashCollection {
+  id           String         @id @default(cuid())
+  type         CollectionType
+  amount       Int
+  note         String?
+  recordedById String
+  recordedBy   User           @relation("CashCollectionRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime       @default(now())
+
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
 // In-app notifications (for managers: break events, leave requests, etc.)
 enum NotifType {
   BREAK_OUT

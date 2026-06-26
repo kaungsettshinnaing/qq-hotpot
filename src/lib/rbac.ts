@@ -38,6 +38,7 @@ export const MODULES: ModuleDef[] = [
   { key: "manager",    label: "Team",      href: "/manager",     roles: ["MANAGER", "ADMIN"],                                              icon: "📋" },
   { key: "myaccount",  label: "My Account",href: "/my-account",  roles: ["WAITER","KITCHEN","CASHIER","MANAGER","ADMIN","HR","MARKETING"], icon: "👤" },
   { key: "admin",      label: "Admin",     href: "/admin",       roles: ["ADMIN"],                                                         icon: "⚙️" },
+  { key: "cashcol",   label: "Cash",      href: "/cash-collection", roles: ["ADMIN"],                                                     icon: "🏦" },
 ];
 
 export function hasAnyRole(userRoles: Role[], allowed: Role[]): boolean {
@@ -82,5 +83,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/hr":         ["HR", "ADMIN"],
   "/manager":    ["MANAGER", "ADMIN"],
   "/my-account": ["WAITER", "KITCHEN", "CASHIER", "MANAGER", "ADMIN", "HR", "MARKETING"],
-  "/admin":      ["ADMIN"],
+  "/admin":            ["ADMIN"],
+  "/cash-collection":  ["ADMIN"],
 };
