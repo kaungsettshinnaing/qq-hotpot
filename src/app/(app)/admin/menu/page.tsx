@@ -1,53 +1,101 @@
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import SubmitButton from "@/components/SubmitButton";
-import { updateMenuItem, updateSettings } from "../actions";
+import { updateMenuItem, createMenuItem, toggleMenuItem, updateSettings } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMenuPage() {
   const [items, settings] = await Promise.all([
-    prisma.menuItem.findMany({ orderBy: { code: "asc" } }),
+    prisma.menuItem.findMany({ orderBy: { name: "asc" } }),
     getSettings(),
   ]);
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-      {/* Prices */}
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">
-          Menu prices ({settings.currency})
-        </h3>
-        <div className="space-y-2">
-          {items.map((it) => (
-            <form
-              key={it.code}
-              action={updateMenuItem}
-              className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2"
-            >
-              <input type="hidden" name="code" value={it.code} />
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      {/* Menu prices + add item */}
+      <div className="space-y-4 lg:col-span-2">
+        <section className="rounded-xl bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">
+            Menu prices ({settings.currency})
+          </h3>
+          <div className="space-y-2">
+            {items.map((it) => (
+              <div key={it.code} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2">
+                <form action={updateMenuItem} className="flex flex-1 items-center gap-2">
+                  <input type="hidden" name="code" value={it.code} />
+                  <input
+                    name="name"
+                    defaultValue={it.name}
+                    className={
+                      "flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm " +
+                      (!it.isActive ? "text-gray-400 line-through" : "")
+                    }
+                  />
+                  <input
+                    name="price"
+                    type="number"
+                    min={0}
+                    defaultValue={it.price}
+                    className="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                  />
+                  <span className="w-14 text-xs text-gray-400">
+                    /{it.unit === "GRAM" ? "gram" : "unit"}
+                  </span>
+                  <SubmitButton className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-900 disabled:opacity-60">
+                    Save
+                  </SubmitButton>
+                </form>
+                <form action={toggleMenuItem}>
+                  <input type="hidden" name="code" value={it.code} />
+                  <button className="text-xs text-gray-500 hover:underline">
+                    {it.isActive ? "Hide" : "Show"}
+                  </button>
+                </form>
+              </div>
+            ))}
+            {items.length === 0 && (
+              <p className="text-sm text-gray-400">No menu items yet. Add one below.</p>
+            )}
+          </div>
+        </section>
+
+        {/* Add new item */}
+        <section className="rounded-xl bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">Add menu item</h3>
+          <form action={createMenuItem} className="flex flex-wrap items-end gap-2 text-sm">
+            <label className="block flex-1 min-w-40">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Item name</span>
               <input
                 name="name"
-                defaultValue={it.name}
-                className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                required
+                placeholder="e.g. Soft Drink"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2"
               />
+            </label>
+            <label className="block w-32">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Price ({settings.currency})</span>
               <input
                 name="price"
                 type="number"
                 min={0}
-                defaultValue={it.price}
-                className="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                defaultValue={0}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2"
               />
-              <span className="w-14 text-xs text-gray-400">
-                /{it.unit === "GRAM" ? "gram" : "unit"}
-              </span>
-              <SubmitButton className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-900 disabled:opacity-60">
-                Save
-              </SubmitButton>
-            </form>
-          ))}
-        </div>
-      </section>
+            </label>
+            <label className="block w-28">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Unit</span>
+              <select name="unit" className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <option value="UNIT">per unit</option>
+                <option value="GRAM">per gram</option>
+              </select>
+            </label>
+            <SubmitButton className="rounded-lg bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
+              Add item
+            </SubmitButton>
+          </form>
+        </section>
+      </div>
 
       {/* Settings */}
       <section className="rounded-xl bg-white p-4 shadow-sm">

@@ -3,7 +3,6 @@ import {
   PrismaClient,
   Prisma,
   Role,
-  MenuItemCode,
   MenuUnit,
   SoupApplies,
   AttendanceStatus,
@@ -48,11 +47,11 @@ async function main() {
 
   // ---- Menu items (MMK; admin-editable, prices preserved on re-seed) ----
   const menu = [
-    { code: MenuItemCode.ADULT, name: "Adult Buffet", unit: MenuUnit.UNIT, price: 25000 },
-    { code: MenuItemCode.CHILD, name: "Child Buffet", unit: MenuUnit.UNIT, price: 15000 },
-    { code: MenuItemCode.BEER, name: "Beer", unit: MenuUnit.UNIT, price: 3000 },
-    { code: MenuItemCode.POT_ADDON, name: "Extra Pot (Add-on)", unit: MenuUnit.UNIT, price: 5000 },
-    { code: MenuItemCode.WASTAGE, name: "Wastage", unit: MenuUnit.GRAM, price: 50 },
+    { code: "ADULT",    name: "Adult Buffet",         unit: MenuUnit.UNIT, price: 25000 },
+    { code: "CHILD",    name: "Child Buffet",          unit: MenuUnit.UNIT, price: 15000 },
+    { code: "BEER",     name: "Beer",                  unit: MenuUnit.UNIT, price: 3000 },
+    { code: "POT_ADDON",name: "Extra Pot (Add-on)",    unit: MenuUnit.UNIT, price: 5000 },
+    { code: "WASTAGE",  name: "Wastage",               unit: MenuUnit.GRAM, price: 50 },
   ];
   for (const m of menu) {
     await prisma.menuItem.upsert({

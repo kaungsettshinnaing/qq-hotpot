@@ -2,15 +2,41 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAnyRole } from "@/lib/auth";
+import { requireAnyRole, hashPassword, hashPin } from "@/lib/auth";
+import { ALL_ROLES, type Role } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 export async function createEmployee(fd: FormData) {
-  const session = await requireAnyRole(["HR", "ADMIN"]);
+  await requireAnyRole(["HR", "ADMIN"]);
 
-  const userId = fd.get("userId") as string;
+  const accountMode = (fd.get("accountMode") as string) ?? "link";
+  let userId: string;
+
+  if (accountMode === "create") {
+    const name = (fd.get("name") as string).trim();
+    const username = (fd.get("username") as string).trim().toLowerCase();
+    const password = fd.get("password") as string;
+    const pin = (fd.get("pin") as string | null)?.trim() ?? "";
+    const roles = ALL_ROLES.filter((r) => fd.get(`role_${r}`) === "on") as Role[];
+    if (!name || !username || !password) redirect("/hr/employees/new?error=missing");
+    const existing = await prisma.user.findUnique({ where: { username } });
+    if (existing) redirect("/hr/employees/new?error=exists");
+    const user = await prisma.user.create({
+      data: {
+        name,
+        username,
+        passwordHash: hashPassword(password),
+        pinHash: pin ? hashPin(pin) : null,
+        roles,
+      },
+    });
+    userId = user.id;
+  } else {
+    userId = fd.get("userId") as string;
+  }
+
   const employeeNo = (fd.get("employeeNo") as string).trim() || undefined;
   const startDate = new Date(fd.get("startDate") as string);
   const dateOfBirth = fd.get("dateOfBirth") ? new Date(fd.get("dateOfBirth") as string) : undefined;

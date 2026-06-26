@@ -96,22 +96,14 @@ model Table {
 // Menu & settings
 // ---------------------------------------------------------------------------
 
-enum MenuItemCode {
-  ADULT
-  CHILD
-  BEER
-  POT_ADDON
-  WASTAGE
-}
-
 enum MenuUnit {
   UNIT
   GRAM
 }
 
 model MenuItem {
-  id       String       @id @default(cuid())
-  code     MenuItemCode @unique
+  id       String   @id @default(cuid())
+  code     String   @unique
   name     String
   unit     MenuUnit     @default(UNIT)
   price    Int          @default(0) // MMK per unit (or per gram for WASTAGE)
@@ -186,7 +178,7 @@ model OrderItem {
   id          String       @id @default(cuid())
   session     TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sessionId   String
-  itemCode    MenuItemCode // BEER (extensible to future a-la-carte items)
+  itemCode    String       // BEER, SOFT_DRINK, etc.
   qty         Int          @default(1)
   unitPrice   Int          @default(0) // price snapshot at time of order
   createdBy   User         @relation(fields: [createdById], references: [id])

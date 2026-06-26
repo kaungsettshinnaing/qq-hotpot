@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { MenuItemCode } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAnyRole, hashPassword, hashPin } from "@/lib/auth";
 import { setSetting } from "@/lib/settings";
@@ -96,13 +95,37 @@ export async function toggleTable(formData: FormData): Promise<void> {
 
 export async function updateMenuItem(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
-  const code = str(formData.get("code")) as MenuItemCode;
+  const code = str(formData.get("code"), 50);
   const name = str(formData.get("name"), 100);
   const price = clampInt(formData.get("price"), 0, 1_000_000_000);
   await prisma.menuItem.update({
     where: { code },
     data: { price, ...(name ? { name } : {}) },
   });
+  revalidatePath("/admin/menu");
+}
+
+export async function createMenuItem(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const name = str(formData.get("name"), 100);
+  const price = clampInt(formData.get("price"), 0, 1_000_000_000);
+  const unit = str(formData.get("unit")) === "GRAM" ? ("GRAM" as const) : ("UNIT" as const);
+  if (!name) redirect("/admin/menu?error=missing");
+  const code = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 50);
+  await prisma.menuItem.upsert({
+    where: { code },
+    update: { name, price, unit, isActive: true },
+    create: { code, name, price, unit },
+  });
+  revalidatePath("/admin/menu");
+  redirect("/admin/menu");
+}
+
+export async function toggleMenuItem(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const code = str(formData.get("code"), 50);
+  const item = await prisma.menuItem.findUnique({ where: { code } });
+  if (item) await prisma.menuItem.update({ where: { code }, data: { isActive: !item.isActive } });
   revalidatePath("/admin/menu");
 }
 
@@ -130,12 +153,12 @@ export async function createFlavour(formData: FormData): Promise<void> {
   const appliesToRaw = str(formData.get("appliesTo"));
   const appliesTo =
     appliesToRaw === "HOTPOT" || appliesToRaw === "BBQ" ? appliesToRaw : "BOTH";
-  const sortOrder = clampInt(formData.get("sortOrder"), 0, 9999);
   if (!name) redirect("/admin/flavours?error=missing");
+  const count = await prisma.soupFlavour.count();
   await prisma.soupFlavour.upsert({
     where: { name },
-    update: { appliesTo, sortOrder, isActive: true },
-    create: { name, appliesTo, sortOrder },
+    update: { appliesTo, isActive: true },
+    create: { name, appliesTo, sortOrder: count },
   });
   revalidatePath("/admin/flavours");
   redirect("/admin/flavours");
@@ -147,6 +170,22 @@ export async function toggleFlavour(formData: FormData): Promise<void> {
   const f = await prisma.soupFlavour.findUnique({ where: { id } });
   if (f) await prisma.soupFlavour.update({ where: { id }, data: { isActive: !f.isActive } });
   revalidatePath("/admin/flavours");
+}
+
+export async function moveFlavour(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  const direction = str(formData.get("direction")) as "up" | "down";
+  const all = await prisma.soupFlavour.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  const idx = all.findIndex((f) => f.id === id);
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapIdx < 0 || swapIdx >= all.length) return;
+  await prisma.$transaction([
+    prisma.soupFlavour.update({ where: { id: all[idx].id },     data: { sortOrder: all[swapIdx].sortOrder } }),
+    prisma.soupFlavour.update({ where: { id: all[swapIdx].id }, data: { sortOrder: all[idx].sortOrder } }),
+  ]);
+  revalidatePath("/admin/flavours");
+  revalidatePath("/waiter");
 }
 
 // ---- Expense categories ----

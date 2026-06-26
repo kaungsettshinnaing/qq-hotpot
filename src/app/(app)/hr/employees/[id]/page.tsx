@@ -7,15 +7,22 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const emp = await prisma.employee.findUnique({
-    where: { userId: id },
-    include: {
-      user: true,
-      customValues: { include: { fieldDef: true } },
-      documents: true,
-    },
-  });
+  const [emp, fieldDefs] = await Promise.all([
+    prisma.employee.findUnique({
+      where: { userId: id },
+      include: {
+        user: true,
+        customValues: { include: { fieldDef: true } },
+        documents: true,
+      },
+    }),
+    prisma.employeeFieldDef.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+  ]);
   if (!emp) notFound();
+  const valueMap = Object.fromEntries(emp.customValues.map((v) => [v.fieldDefId, v.value]));
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -57,12 +64,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           ))}
         </div>
 
-        {emp.customValues.length > 0 && (
+        {fieldDefs.length > 0 && (
           <div className="mt-4 border-t pt-4 grid gap-3 sm:grid-cols-2 text-sm">
-            {emp.customValues.map((v) => (
-              <div key={v.id}>
-                <div className="text-xs text-gray-400">{v.fieldDef.label}</div>
-                <div className="font-medium">{v.value || "—"}</div>
+            {fieldDefs.map((def) => (
+              <div key={def.id}>
+                <div className="text-xs text-gray-400">{def.label}</div>
+                <div className="font-medium">{valueMap[def.id] || "—"}</div>
               </div>
             ))}
           </div>

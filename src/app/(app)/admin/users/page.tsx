@@ -1,128 +1,131 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { ALL_ROLES } from "@/lib/rbac";
 import SubmitButton from "@/components/SubmitButton";
-import {
-  createUser,
-  updateUserRoles,
-  setUserActive,
-  resetUserPassword,
-} from "../actions";
+import { updateUserRoles, setUserActive, resetUserPassword } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-  const users = await prisma.user.findMany({ orderBy: { username: "asc" } });
+const ROLE_COLORS: Record<string, string> = {
+  ADMIN:     "bg-brand/10 text-brand border-brand/20",
+  MANAGER:   "bg-purple-50 text-purple-700 border-purple-200",
+  HR:        "bg-emerald-50 text-emerald-700 border-emerald-200",
+  WAITER:    "bg-orange-50 text-orange-700 border-orange-200",
+  KITCHEN:   "bg-yellow-50 text-yellow-700 border-yellow-200",
+  CASHIER:   "bg-blue-50 text-blue-700 border-blue-200",
+  MARKETING: "bg-pink-50 text-pink-700 border-pink-200",
+};
+
+export default async function AdminUsersPage() {
+  const users = await prisma.user.findMany({
+    orderBy: { name: "asc" },
+    include: { employee: { select: { employeeNo: true } } },
+  });
 
   return (
     <div className="space-y-5">
-      {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error === "exists" ? "That username already exists." : "Please fill all required fields."}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          Manage roles for each user. To create a new staff account, go to{" "}
+          <Link href="/hr/employees/new" className="text-brand hover:underline font-medium">
+            HR → New Employee
+          </Link>.
         </p>
-      )}
+      </div>
 
-      {/* Add user */}
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Add user</h3>
-        <form action={createUser} className="space-y-3 text-sm">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-            <input
-              name="name"
-              required
-              placeholder="Full name"
-              className="rounded-lg border border-gray-300 px-3 py-2"
-            />
-            <input
-              name="username"
-              required
-              placeholder="Username"
-              className="rounded-lg border border-gray-300 px-3 py-2"
-            />
-            <input
-              name="password"
-              required
-              placeholder="Password"
-              className="rounded-lg border border-gray-300 px-3 py-2"
-            />
-            <input
-              name="pin"
-              placeholder="Manager PIN (optional)"
-              className="rounded-lg border border-gray-300 px-3 py-2"
-            />
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {ALL_ROLES.map((r) => (
-              <label key={r} className="flex items-center gap-1 text-xs">
-                <input type="checkbox" name={`role_${r}`} /> {r}
-              </label>
-            ))}
-          </div>
-          <SubmitButton className="rounded-lg bg-brand px-5 py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-            Create user
-          </SubmitButton>
-        </form>
-      </section>
-
-      {/* Users list */}
-      <section className="space-y-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {users.map((u) => (
-          <div key={u.id} className="rounded-xl bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div
+            key={u.id}
+            className={
+              "rounded-2xl border bg-white p-4 shadow-sm flex flex-col gap-3 " +
+              (!u.isActive ? "opacity-60" : "")
+            }
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2">
               <div>
-                <span className="font-semibold">{u.name}</span>
-                <span className="ml-2 text-sm text-gray-400">@{u.username}</span>
-                {!u.isActive && (
-                  <span className="ml-2 rounded bg-gray-200 px-1.5 text-xs text-gray-500">
-                    inactive
-                  </span>
+                <p className="font-semibold text-gray-900">{u.name}</p>
+                <p className="text-xs text-gray-400">@{u.username}</p>
+                {u.employee?.employeeNo && (
+                  <p className="text-xs text-gray-400">{(u as any).employee.employeeNo}</p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <form action={setUserActive}>
-                  <input type="hidden" name="id" value={u.id} />
-                  <button className="rounded-lg border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50">
-                    {u.isActive ? "Deactivate" : "Activate"}
-                  </button>
-                </form>
+              <div className="flex flex-col items-end gap-1">
+                <span className={
+                  "rounded-full px-2 py-0.5 text-[10px] font-semibold " +
+                  (u.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")
+                }>
+                  {u.isActive ? "Active" : "Inactive"}
+                </span>
               </div>
             </div>
 
-            <form action={updateUserRoles} className="mt-3 flex flex-wrap items-center gap-3">
+            {/* Current roles (pill badges) */}
+            {(u.roles as string[]).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {(u.roles as string[]).map((r) => (
+                  <span
+                    key={r}
+                    className={
+                      "rounded-full border px-2 py-0.5 text-[11px] font-medium " +
+                      (ROLE_COLORS[r] ?? "bg-gray-50 text-gray-600 border-gray-200")
+                    }
+                  >
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Role checkboxes */}
+            <form action={updateUserRoles} className="space-y-2">
               <input type="hidden" name="id" value={u.id} />
-              {ALL_ROLES.map((r) => (
-                <label key={r} className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
-                    name={`role_${r}`}
-                    defaultChecked={(u.roles as string[]).includes(r)}
-                  />
-                  {r}
-                </label>
-              ))}
-              <SubmitButton className="rounded-lg bg-gray-800 px-3 py-1 text-xs font-medium text-white hover:bg-gray-900 disabled:opacity-60">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {ALL_ROLES.map((r) => (
+                  <label key={r} className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      name={`role_${r}`}
+                      defaultChecked={(u.roles as string[]).includes(r)}
+                      className="accent-brand"
+                    />
+                    {r}
+                  </label>
+                ))}
+              </div>
+              <SubmitButton className="w-full rounded-lg bg-brand py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
                 Save roles
               </SubmitButton>
             </form>
 
-            <form action={resetUserPassword} className="mt-2 flex items-center gap-2">
-              <input type="hidden" name="id" value={u.id} />
-              <input
-                name="password"
-                placeholder="New password"
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs"
-              />
-              <SubmitButton className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50">
-                Reset password
-              </SubmitButton>
-            </form>
+            {/* Footer actions */}
+            <div className="flex items-center gap-2 border-t pt-2">
+              <form action={setUserActive} className="flex-none">
+                <input type="hidden" name="id" value={u.id} />
+                <button className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50">
+                  {u.isActive ? "Deactivate" : "Activate"}
+                </button>
+              </form>
+              <form action={resetUserPassword} className="flex flex-1 items-center gap-1 min-w-0">
+                <input type="hidden" name="id" value={u.id} />
+                <input
+                  name="password"
+                  placeholder="New password"
+                  className="min-w-0 flex-1 rounded-lg border border-gray-200 px-2 py-1 text-xs"
+                />
+                <SubmitButton className="flex-none rounded-lg border border-gray-200 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-60">
+                  Reset
+                </SubmitButton>
+              </form>
+            </div>
           </div>
         ))}
-      </section>
+
+        {users.length === 0 && (
+          <p className="col-span-full text-sm text-gray-400">No users yet.</p>
+        )}
+      </div>
     </div>
   );
 }
