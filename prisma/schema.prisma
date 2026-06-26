@@ -1,5 +1,5 @@
 // QQ Hotpot BBQ — Prisma schema (PostgreSQL)
-// POS + HR & Payroll phase.
+// POS + HR & Payroll + Inventory phase.
 
 generator client {
   provider = "prisma-client-js"
@@ -55,6 +55,14 @@ model User {
   createdBonuses    AdHocBonus[]        @relation("bonusCreatedBy")
   lockedPayrolls    Payroll[]           @relation("payrollLockedBy")
   notifications     Notification[]
+
+  // Inventory relations
+  deliveriesCreated  StockDelivery[]    @relation("DeliveryCreator")
+  deliveriesCashier  StockDelivery[]    @relation("DeliveryCashier")
+  deliveriesCounter  StockDelivery[]    @relation("DeliveryCounter")
+  deliveriesResolved StockDelivery[]    @relation("DeliveryResolver")
+  deliveryLogs       StockDeliveryLog[] @relation("DeliveryLogActor")
+  stockMovements     StockMovement[]    @relation("MovementRecorder")
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +302,7 @@ model Reservation {
 model ExpenseCategory {
   id       String    @id @default(cuid())
   name     String    @unique
+  isStock  Boolean   @default(false) // true = linked to stock deliveries
   isActive Boolean   @default(true)
   expenses Expense[]
 }
@@ -435,24 +444,40 @@ enum AttendanceStatus {
   OT
 }
 
+enum DayType {
+  FULL
+  HALF
+}
+
 model Attendance {
   id           String           @id @default(cuid())
   employee     Employee         @relation(fields: [employeeId], references: [userId])
   employeeId   String
   date         DateTime         @db.Date
   status       AttendanceStatus @default(PRESENT)
+  dayType      DayType          @default(FULL)
   clockInAt    DateTime?
   clockOutAt   DateTime?
-  breakOutAt   DateTime?
-  breakInAt    DateTime?
   isApproved   Boolean          @default(false)
   approvedBy   User?            @relation("attendanceApprovedBy", fields: [approvedById], references: [id])
   approvedById String?
   note         String?
+  breaks       AttendanceBreak[]
 
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
+}
+
+model AttendanceBreak {
+  id           String     @id @default(cuid())
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  attendanceId String
+  startAt      DateTime
+  endAt        DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([attendanceId])
 }
 
 // Leave requests
@@ -586,6 +611,155 @@ model PayrollItem {
   @@unique([payrollId, employeeId])
   @@index([payrollId])
   @@index([employeeId])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+enum StockUnit {
+  UNIT
+  GRAM
+  KG
+  LITRE
+  BOX
+  BOTTLE
+  PACK
+}
+
+enum DeliveryStatus {
+  DRAFT          // created, no action yet
+  PREPAID        // paid upfront, goods still at vendor
+  OPEN           // goods arrived, awaiting cashier + counter input
+  PENDING_REVIEW // both sides submitted, discrepancy flagged to manager
+  PARTIAL        // this batch reconciled, more expected
+  COMPLETE       // all items received and reconciled
+}
+
+enum PaymentStatus {
+  UNPAID   // pay on delivery
+  PREPAID  // paid in advance, goods pending
+  PAID     // paid at time of delivery
+}
+
+enum MovementType {
+  DELIVERY_IN // stock received via delivery
+  USAGE_OUT   // stock consumed/used
+  ADJUSTMENT  // manual stock correction
+}
+
+model Supplier {
+  id         String          @id @default(cuid())
+  name       String
+  contact    String?
+  phone      String?
+  address    String?
+  notes      String?
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  deliveries StockDelivery[]
+}
+
+model StockItem {
+  id           String              @id @default(cuid())
+  name         String
+  unit         StockUnit           @default(UNIT)
+  minStock     Int?                // below this → "Low Stock" red alert
+  optimalStock Int?                // target level; order qty = optimalStock − currentStock
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  deliveryItems StockDeliveryItem[]
+  movements    StockMovement[]
+}
+
+model StockDelivery {
+  id             String         @id @default(cuid())
+  deliveryDate   DateTime
+  invoiceNo      String?
+  supplierId     String?
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  status         DeliveryStatus @default(DRAFT)
+  paymentStatus  PaymentStatus  @default(UNPAID)
+  prepaidAt      DateTime?
+
+  // Batch delivery link (optional — for partial orders)
+  parentDeliveryId String?
+  parentDelivery   StockDelivery?  @relation("DeliveryBatches", fields: [parentDeliveryId], references: [id])
+  batches          StockDelivery[] @relation("DeliveryBatches")
+
+  // Cashier side (invoice data + payment)
+  cashierEnteredById  String?
+  cashierEnteredBy    User?         @relation("DeliveryCashier", fields: [cashierEnteredById], references: [id])
+  cashierSubmittedAt  DateTime?
+  totalCost           Int?          // Σ orderedQty × unitCost (expense amount)
+  paymentSource       ExpenseSource?
+  expenseId           String?       @unique // linked Expense created at payment time
+
+  // Counter side (physical count by waiter/kitchen)
+  counterEnteredById  String?
+  counterEnteredBy    User?         @relation("DeliveryCounter", fields: [counterEnteredById], references: [id])
+  counterSubmittedAt  DateTime?
+
+  // Manager resolution
+  resolvedById   String?
+  resolvedBy     User?             @relation("DeliveryResolver", fields: [resolvedById], references: [id])
+  resolvedAt     DateTime?
+  resolutionNote String?
+
+  createdById  String
+  createdBy    User               @relation("DeliveryCreator", fields: [createdById], references: [id])
+  createdAt    DateTime           @default(now())
+
+  items StockDeliveryItem[]
+  logs  StockDeliveryLog[]
+
+  @@index([status])
+  @@index([supplierId])
+}
+
+model StockDeliveryItem {
+  id          String        @id @default(cuid())
+  deliveryId  String
+  delivery    StockDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  stockItemId String
+  stockItem   StockItem     @relation(fields: [stockItemId], references: [id])
+  orderedQty  Int?          // total qty on the purchase order (spans all batches)
+  cashierQty  Int?          // this batch — from invoice
+  counterQty  Int?          // this batch — from physical count
+  finalQty    Int?          // set on COMPLETE/PARTIAL for this batch
+  unitCost    Int?          // MMK per unit
+
+  @@unique([deliveryId, stockItemId])
+  @@index([deliveryId])
+}
+
+model StockDeliveryLog {
+  id         String        @id @default(cuid())
+  deliveryId String
+  delivery   StockDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  actorId    String
+  actor      User          @relation("DeliveryLogActor", fields: [actorId], references: [id])
+  action     String        // CREATED | PREPAID | CASHIER_SUBMITTED | COUNTER_SUBMITTED | AUTO_COMPLETED | MANAGER_RESOLVED | MARKED_PARTIAL
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  @@index([deliveryId])
+}
+
+model StockMovement {
+  id           String       @id @default(cuid())
+  stockItemId  String
+  stockItem    StockItem    @relation(fields: [stockItemId], references: [id])
+  type         MovementType
+  qty          Int          // positive = in, negative = out
+  note         String?
+  deliveryId   String?      // set for DELIVERY_IN movements
+  recordedById String
+  recordedBy   User         @relation("MovementRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@index([stockItemId])
+  @@index([createdAt])
 }
 
 // In-app notifications (for managers: break events, leave requests, etc.)

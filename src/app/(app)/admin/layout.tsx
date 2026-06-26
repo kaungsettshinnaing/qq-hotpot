@@ -4,12 +4,14 @@ import { requireAnyRole } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { href: "/admin/tables", label: "Areas & Tables" },
-  { href: "/admin/menu", label: "Menu & Settings" },
-  { href: "/admin/flavours", label: "Soup Flavours" },
-  { href: "/admin/categories", label: "Expense Categories" },
-  { href: "/admin/users", label: "Users & Roles" },
-  { href: "/admin/hr-fields", label: "Employee Fields" },
+  { href: "/admin/tables",      label: "Areas & Tables" },
+  { href: "/admin/menu",        label: "Menu & Settings" },
+  { href: "/admin/flavours",    label: "Soup Flavours" },
+  { href: "/admin/categories",  label: "Expense Categories" },
+  { href: "/admin/stock-items", label: "Stock Items" },
+  { href: "/admin/suppliers",   label: "Suppliers" },
+  { href: "/admin/users",       label: "Users & Roles" },
+  { href: "/admin/hr-fields",   label: "Employee Fields" },
 ];
 
 export default async function AdminLayout({

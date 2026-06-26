@@ -138,11 +138,12 @@ export async function toggleFlavour(formData: FormData): Promise<void> {
 export async function createCategory(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
   const name = str(formData.get("name"), 100);
+  const isStock = formData.get("isStock") === "on";
   if (!name) redirect("/admin/categories?error=missing");
   await prisma.expenseCategory.upsert({
     where: { name },
     update: { isActive: true },
-    create: { name },
+    create: { name, isStock },
   });
   revalidatePath("/admin/categories");
   redirect("/admin/categories");
@@ -153,6 +154,14 @@ export async function toggleCategory(formData: FormData): Promise<void> {
   const id = str(formData.get("id"));
   const c = await prisma.expenseCategory.findUnique({ where: { id } });
   if (c) await prisma.expenseCategory.update({ where: { id }, data: { isActive: !c.isActive } });
+  revalidatePath("/admin/categories");
+}
+
+export async function toggleCategoryStock(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  const c = await prisma.expenseCategory.findUnique({ where: { id } });
+  if (c) await prisma.expenseCategory.update({ where: { id }, data: { isStock: !c.isStock } });
   revalidatePath("/admin/categories");
 }
 

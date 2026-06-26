@@ -46,9 +46,19 @@ export async function clockOut() {
   const date = todayDate();
   const att = await prisma.attendance.findUnique({
     where: { employeeId_date: { employeeId: emp.userId, date } },
+    include: { breaks: true },
   });
   if (!att || !att.clockInAt) throw new Error("Not clocked in today");
   if (att.clockOutAt) throw new Error("Already clocked out");
+
+  // Close any open break before clocking out
+  const openBreak = att.breaks.find((b) => !b.endAt);
+  if (openBreak) {
+    await prisma.attendanceBreak.update({
+      where: { id: openBreak.id },
+      data: { endAt: new Date() },
+    });
+  }
 
   await prisma.attendance.update({
     where: { id: att.id },
@@ -70,22 +80,20 @@ export async function breakOut() {
   const date = todayDate();
   const att = await prisma.attendance.findUnique({
     where: { employeeId_date: { employeeId: emp.userId, date } },
+    include: { breaks: true },
   });
   if (!att || !att.clockInAt) throw new Error("Not clocked in");
-  if (att.breakOutAt && !att.breakInAt) throw new Error("Already on break");
   if (att.clockOutAt) throw new Error("Already clocked out");
 
-  await prisma.attendance.update({
-    where: { id: att.id },
-    data: { breakOutAt: new Date(), breakInAt: null },
+  const openBreak = att.breaks.find((b) => !b.endAt);
+  if (openBreak) throw new Error("Already on break");
+
+  await prisma.attendanceBreak.create({
+    data: { attendanceId: att.id, startAt: new Date() },
   });
 
   emitHR("break:out", { employeeId: emp.userId, name: emp.user.name });
-  await notifyManagers(
-    "BREAK_OUT",
-    `${emp.user.name} went on break`,
-    att.id,
-  );
+  await notifyManagers("BREAK_OUT", `${emp.user.name} went on break`, att.id);
   revalidatePath("/my-account/clock");
 }
 
@@ -100,20 +108,20 @@ export async function breakIn() {
   const date = todayDate();
   const att = await prisma.attendance.findUnique({
     where: { employeeId_date: { employeeId: emp.userId, date } },
+    include: { breaks: true },
   });
-  if (!att || !att.breakOutAt) throw new Error("Not on break");
+  if (!att) throw new Error("No attendance record today");
   if (att.clockOutAt) throw new Error("Already clocked out");
 
-  await prisma.attendance.update({
-    where: { id: att.id },
-    data: { breakInAt: new Date() },
+  const openBreak = att.breaks.find((b) => !b.endAt);
+  if (!openBreak) throw new Error("Not on break");
+
+  await prisma.attendanceBreak.update({
+    where: { id: openBreak.id },
+    data: { endAt: new Date() },
   });
 
   emitHR("break:in", { employeeId: emp.userId, name: emp.user.name });
-  await notifyManagers(
-    "BREAK_IN",
-    `${emp.user.name} returned from break`,
-    att.id,
-  );
+  await notifyManagers("BREAK_IN", `${emp.user.name} returned from break`, att.id);
   revalidatePath("/my-account/clock");
 }

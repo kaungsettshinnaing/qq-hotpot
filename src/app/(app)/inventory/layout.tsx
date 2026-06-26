@@ -4,14 +4,14 @@ import { requireAnyRole } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { href: "/manager",            label: "Dashboard" },
-  { href: "/manager/attendance", label: "Live Attendance" },
-  { href: "/manager/leave",      label: "Leave Requests" },
-  { href: "/manager/inventory",  label: "Inventory" },
+  { href: "/inventory",          label: "Stock Levels" },
+  { href: "/inventory/deliveries", label: "Deliveries" },
+  { href: "/inventory/usage",    label: "Usage" },
+  { href: "/inventory/reports",  label: "Reports" },
 ];
 
-export default async function ManagerLayout({ children }: { children: React.ReactNode }) {
-  await requireAnyRole(["MANAGER", "ADMIN"]);
+export default async function InventoryLayout({ children }: { children: React.ReactNode }) {
+  await requireAnyRole(["CASHIER", "WAITER", "KITCHEN", "MANAGER", "ADMIN"]);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">

@@ -7,6 +7,7 @@ import {
   MenuUnit,
   SoupApplies,
   AttendanceStatus,
+  StockUnit,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -121,22 +122,49 @@ async function main() {
     }
   }
 
-  // ---- Expense categories ----
-  const cats = [
-    "Market / Groceries",
-    "Utilities",
-    "Gas / Fuel",
-    "Wages / Salary",
-    "Maintenance",
-    "Supplies",
-    "Misc",
+  // ---- Expense categories (isStock = true for categories tied to deliveries) ----
+  const cats: Array<{ name: string; isStock: boolean }> = [
+    { name: "Market / Groceries",  isStock: true  },
+    { name: "Beverages / Drinks",  isStock: true  },
+    { name: "Utilities",           isStock: false },
+    { name: "Gas / Fuel",          isStock: false },
+    { name: "Wages / Salary",      isStock: false },
+    { name: "Maintenance",         isStock: false },
+    { name: "Supplies",            isStock: true  },
+    { name: "Misc",                isStock: false },
   ];
-  for (const name of cats) {
+  for (const cat of cats) {
     await prisma.expenseCategory.upsert({
-      where: { name },
+      where: { name: cat.name },
       update: {},
-      create: { name },
+      create: cat,
     });
+  }
+
+  // ---- Suppliers ----
+  const suppliers = [
+    { name: "ABC Beverages", phone: "09-100-200-300", contact: "Ko Aung" },
+    { name: "Fresh Market Co.", phone: "09-200-300-400", contact: "Ma Thida" },
+  ];
+  for (const s of suppliers) {
+    const existing = await prisma.supplier.findFirst({ where: { name: s.name } });
+    if (!existing) await prisma.supplier.create({ data: s });
+  }
+
+  // ---- Stock items ----
+  const stockItems: Array<{ name: string; unit: StockUnit; minStock?: number; optimalStock?: number }> = [
+    { name: "Dagon Beer Bottle",      unit: StockUnit.BOTTLE, minStock: 24,  optimalStock: 120 },
+    { name: "Myanmar Beer Bottle",    unit: StockUnit.BOTTLE, minStock: 24,  optimalStock: 120 },
+    { name: "Cooking Oil (5L)",       unit: StockUnit.UNIT,   minStock: 2,   optimalStock: 10  },
+    { name: "LP Gas Cylinder",        unit: StockUnit.UNIT,   minStock: 2,   optimalStock: 6   },
+    { name: "Fresh Vegetables (Box)", unit: StockUnit.BOX,    minStock: 5,   optimalStock: 20  },
+    { name: "Charcoal (10kg Bag)",    unit: StockUnit.UNIT,   minStock: 5,   optimalStock: 20  },
+    { name: "Meat Pack (1kg)",        unit: StockUnit.PACK,   minStock: 10,  optimalStock: 50  },
+    { name: "Seafood Mix (1kg)",      unit: StockUnit.PACK,   minStock: 5,   optimalStock: 30  },
+  ];
+  for (const item of stockItems) {
+    const existing = await prisma.stockItem.findFirst({ where: { name: item.name } });
+    if (!existing) await prisma.stockItem.create({ data: item });
   }
 
   // ---- Demo Employee profiles (linked to seeded Users) ----

@@ -7,9 +7,9 @@ type StatusEntry = {
   name: string;
   status: "not_started" | "working" | "on_break" | "clocked_out";
   clockInAt: string | null;
-  breakOutAt: string | null;
-  breakInAt: string | null;
   clockOutAt: string | null;
+  breakCount: number;
+  currentBreakStartAt: string | null;
 };
 
 const STATUS_LABEL: Record<StatusEntry["status"], string> = {
@@ -42,8 +42,7 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
             <th className="px-4 py-2">Employee</th>
             <th className="px-4 py-2">Status</th>
             <th className="px-4 py-2">Clock In</th>
-            <th className="px-4 py-2">Break Out</th>
-            <th className="px-4 py-2">Break In</th>
+            <th className="px-4 py-2">Breaks</th>
             <th className="px-4 py-2">Clock Out</th>
           </tr>
         </thead>
@@ -57,13 +56,24 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
                 </span>
               </td>
               <td className="px-4 py-2">{fmt(e.clockInAt)}</td>
-              <td className="px-4 py-2">{fmt(e.breakOutAt)}</td>
-              <td className="px-4 py-2">{fmt(e.breakInAt)}</td>
+              <td className="px-4 py-2 text-xs text-gray-600">
+                {e.currentBreakStartAt ? (
+                  <span className="font-medium text-yellow-700">
+                    Since {fmt(e.currentBreakStartAt)}
+                  </span>
+                ) : e.breakCount > 0 ? (
+                  `${e.breakCount} break${e.breakCount > 1 ? "s" : ""}`
+                ) : (
+                  "—"
+                )}
+              </td>
               <td className="px-4 py-2">{fmt(e.clockOutAt)}</td>
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No active employees</td></tr>
+            <tr>
+              <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No active employees</td>
+            </tr>
           )}
         </tbody>
       </table>

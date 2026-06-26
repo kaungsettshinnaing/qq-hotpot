@@ -27,8 +27,19 @@ export async function getAttendanceSummary(
   });
 
   const workingDays = workingDaysInMonth(year, month, restDays);
-  const absentDays = rows.filter((r) => r.status === "ABSENT" || r.status === "LEAVE").length;
-  const otDays = rows.filter((r) => r.status === "OT").length;
+
+  // Half-day rows count as 0.5; PRESENT+HALF means worked half, absent half
+  const absentDays = rows.reduce((sum, r) => {
+    const factor = r.dayType === "HALF" ? 0.5 : 1;
+    if (r.status === "ABSENT" || r.status === "LEAVE") return sum + factor;
+    if (r.status === "PRESENT" && r.dayType === "HALF") return sum + 0.5;
+    return sum;
+  }, 0);
+
+  const otDays = rows.reduce((sum, r) => {
+    if (r.status !== "OT") return sum;
+    return sum + (r.dayType === "HALF" ? 0.5 : 1);
+  }, 0);
 
   return { workingDays, absentDays, otDays };
 }
@@ -54,6 +65,7 @@ export async function getLiveAttendanceStatus() {
       attendances: {
         where: { date: today },
         take: 1,
+        include: { breaks: { orderBy: { startAt: "asc" } } },
       },
     },
     orderBy: { user: { name: "asc" } },
@@ -61,10 +73,11 @@ export async function getLiveAttendanceStatus() {
 
   return employees.map((emp) => {
     const att = emp.attendances[0] ?? null;
+    const openBreak = att?.breaks.find((b) => !b.endAt) ?? null;
     let status: "not_started" | "working" | "on_break" | "clocked_out" = "not_started";
     if (att) {
       if (att.clockOutAt) status = "clocked_out";
-      else if (att.breakOutAt && !att.breakInAt) status = "on_break";
+      else if (openBreak) status = "on_break";
       else if (att.clockInAt) status = "working";
     }
     return {
@@ -72,6 +85,8 @@ export async function getLiveAttendanceStatus() {
       name: emp.user.name,
       attendance: att,
       status,
+      openBreak,
+      breakCount: att?.breaks.length ?? 0,
     };
   });
 }
