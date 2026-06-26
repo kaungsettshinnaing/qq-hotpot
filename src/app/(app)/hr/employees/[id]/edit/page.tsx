@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { updateEmployee } from "../../actions";
 
+export const dynamic = "force-dynamic";
+
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {

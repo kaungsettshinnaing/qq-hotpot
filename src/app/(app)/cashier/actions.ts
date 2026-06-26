@@ -103,10 +103,13 @@ export async function settleSession(formData: FormData): Promise<void> {
   if (!detail || detail.session.status !== "OPEN") redirect("/cashier");
   if (detail.balance > 0) redirect(`/cashier/checkout/${sessionId}`);
 
-  await prisma.tableSession.update({
-    where: { id: sessionId },
-    data: { status: "CLOSED", closedById: user.id, closedAt: new Date() },
-  });
+  await prisma.$transaction([
+    prisma.tableMerge.deleteMany({ where: { sessionId } }),
+    prisma.tableSession.update({
+      where: { id: sessionId },
+      data: { status: "CLOSED", closedById: user.id, closedAt: new Date() },
+    }),
+  ]);
   emitFloor("table:update", { tableId: detail.session.tableId });
   revalidatePath("/cashier");
   revalidatePath("/waiter");

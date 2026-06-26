@@ -161,12 +161,17 @@ export async function cancelSession(formData: FormData): Promise<void> {
   const sessionId = String(formData.get("sessionId") ?? "");
   const s = await prisma.tableSession.findUnique({
     where: { id: sessionId },
-    include: { potOrders: { where: { voidedAt: null } }, payments: true },
+    include: {
+      potOrders: { where: { voidedAt: null } },
+      payments: true,
+      mergedTables: { select: { tableId: true } },
+    },
   });
   if (!s || s.status !== "OPEN") redirect("/waiter");
   if (s.payments.length > 0) redirect(`/waiter/session/${sessionId}`);
 
   await prisma.$transaction([
+    prisma.tableMerge.deleteMany({ where: { sessionId } }),
     prisma.potOrder.updateMany({ where: { sessionId }, data: { voidedAt: new Date() } }),
     prisma.tableSession.update({
       where: { id: sessionId },
@@ -178,4 +183,35 @@ export async function cancelSession(formData: FormData): Promise<void> {
   revalidatePath("/waiter");
   revalidatePath("/kitchen");
   redirect("/waiter");
+}
+
+export async function mergeTable(formData: FormData): Promise<void> {
+  await requireAnyRole(WAITER_ROLES);
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const tableId = String(formData.get("tableId") ?? "");
+  if (!sessionId || !tableId) return;
+
+  const [session, taken] = await Promise.all([
+    prisma.tableSession.findUnique({ where: { id: sessionId } }),
+    prisma.tableSession.findFirst({ where: { tableId, status: "OPEN" } }),
+  ]);
+  if (!session || session.status !== "OPEN") redirect("/waiter");
+  if (taken) { revalidatePath(`/waiter/session/${sessionId}`); redirect(`/waiter/session/${sessionId}`); }
+
+  await prisma.tableMerge.create({ data: { sessionId, tableId } });
+  emitFloor("table:update", { tableId });
+  revalidatePath(`/waiter/session/${sessionId}`);
+  revalidatePath("/waiter");
+  redirect(`/waiter/session/${sessionId}`);
+}
+
+export async function unmergeTable(formData: FormData): Promise<void> {
+  await requireAnyRole(WAITER_ROLES);
+  const mergeId = String(formData.get("mergeId") ?? "");
+  const merge = await prisma.tableMerge.findUnique({ where: { id: mergeId } });
+  if (!merge) return;
+  await prisma.tableMerge.delete({ where: { id: mergeId } });
+  emitFloor("table:update", { tableId: merge.tableId });
+  revalidatePath(`/waiter/session/${merge.sessionId}`);
+  revalidatePath("/waiter");
 }

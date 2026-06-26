@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/rbac";
 import SubmitButton from "@/components/SubmitButton";
+import { formatDateTime } from "@/lib/format";
 import { recordAdjustment } from "./actions";
 import { computeAllStockLevels } from "@/lib/inventory";
 
@@ -102,8 +103,7 @@ export default async function UsagePage() {
               return (
                 <tr key={m.id}>
                   <td className="px-4 py-2 text-gray-500 text-xs">
-                    {new Date(m.createdAt).toLocaleDateString("en-GB")}{" "}
-                    {new Date(m.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                    {formatDateTime(m.createdAt)}
                   </td>
                   <td className="px-4 py-2 font-medium text-gray-800">{m.stockItem.name}</td>
                   <td className={`px-4 py-2 text-center text-xs font-semibold ${t.cls}`}>{t.label}</td>

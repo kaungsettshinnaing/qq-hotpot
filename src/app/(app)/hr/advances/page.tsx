@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { createAdvance, addInstalment, deleteInstalment } from "./actions";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -64,7 +65,7 @@ export default async function AdvancesPage() {
                   </span>
                   {adv.note && <span className="ml-3 text-xs text-gray-400">({adv.note})</span>}
                 </div>
-                <span className="text-xs text-gray-400">{adv.createdAt.toLocaleDateString()}</span>
+                <span className="text-xs text-gray-400">{formatDate(adv.createdAt)}</span>
               </div>
 
               {/* Instalments */}

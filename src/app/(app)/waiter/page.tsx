@@ -17,7 +17,7 @@ export default async function WaiterPage() {
   await requireAnyRole(["WAITER", "MANAGER", "ADMIN"]);
   const settings = await getSettings();
 
-  const [areas, openSessions, reservations] = await Promise.all([
+  const [areas, openSessions, reservations, merges] = await Promise.all([
     prisma.area.findMany({
       where: { isActive: true },
       include: { tables: { where: { isActive: true }, orderBy: { number: "asc" } } },
@@ -31,9 +31,13 @@ export default async function WaiterPage() {
       where: { status: "BOOKED" },
       select: { tableId: true, bookingAt: true, durationMin: true },
     }),
+    prisma.tableMerge.findMany({
+      select: { tableId: true, sessionId: true },
+    }),
   ]);
 
   const openByTable = new Map(openSessions.map((s) => [s.tableId, s]));
+  const mergedToSession = new Map(merges.map((m) => [m.tableId, m.sessionId]));
   const now = new Date();
 
   return (
@@ -46,6 +50,7 @@ export default async function WaiterPage() {
           <Legend className="bg-emerald-300" label="Available" />
           <Legend className="bg-red-300" label="Occupied" />
           <Legend className="bg-amber-300" label="Reserved" />
+          <Legend className="bg-violet-300" label="Merged" />
         </div>
       </div>
 
@@ -57,10 +62,14 @@ export default async function WaiterPage() {
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {area.tables.map((t) => {
               const sess = openByTable.get(t.id);
+              const mergedSessId = mergedToSession.get(t.id);
               let status: TableStatus = "AVAILABLE";
               let resAt: Date | null = null;
+
               if (sess) {
                 status = "OCCUPIED";
+              } else if (mergedSessId) {
+                status = "MERGED";
               } else {
                 const res = reservations.find(
                   (r) =>
@@ -72,7 +81,13 @@ export default async function WaiterPage() {
                   resAt = res.bookingAt;
                 }
               }
-              const href = sess ? `/waiter/session/${sess.id}` : `/waiter/open/${t.id}`;
+
+              const href =
+                sess ? `/waiter/session/${sess.id}`
+                : mergedSessId ? `/waiter/session/${mergedSessId}`
+                : status === "AVAILABLE" ? `/waiter/open/${t.id}`
+                : "#";
+
               return (
                 <Link
                   key={t.id}

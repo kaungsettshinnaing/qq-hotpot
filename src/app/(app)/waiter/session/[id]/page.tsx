@@ -7,7 +7,7 @@ import { formatTime } from "@/lib/format";
 import BillSummary from "@/components/BillSummary";
 import LiveRefresh from "@/components/LiveRefresh";
 import SessionControls from "./SessionControls";
-import { voidPot, cancelSession } from "../../actions";
+import { voidPot, cancelSession, mergeTable, unmergeTable } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +22,19 @@ export default async function SessionPage({
   const detail = await getSessionDetail(id);
   if (!detail || detail.session.status !== "OPEN") redirect("/waiter");
 
-  const flavours = await prisma.soupFlavour.findMany({
-    where: { isActive: true },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, appliesTo: true },
-  });
+  const [flavours, merges, allMergedIds, allOpenTableIds] = await Promise.all([
+    prisma.soupFlavour.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, appliesTo: true },
+    }),
+    prisma.tableMerge.findMany({
+      where: { sessionId: id },
+      include: { table: true },
+    }),
+    prisma.tableMerge.findMany({ select: { tableId: true } }),
+    prisma.tableSession.findMany({ where: { status: "OPEN" }, select: { tableId: true } }),
+  ]);
 
   const { session } = detail;
   const canCancel =
@@ -34,6 +42,20 @@ export default async function SessionPage({
     detail.beerQty === 0 &&
     session.wastageGrams === 0 &&
     detail.paid === 0;
+
+  const occupiedTableIds = new Set([
+    session.tableId,
+    ...allMergedIds.map((m) => m.tableId),
+    ...allOpenTableIds.map((s) => s.tableId),
+  ]);
+
+  const availableTables = await prisma.table.findMany({
+    where: { isActive: true, id: { notIn: [...occupiedTableIds] } },
+    include: { area: true },
+    orderBy: [{ area: { sortOrder: "asc" } }, { number: "asc" }],
+  });
+
+  const mergedLabels = merges.map((m) => m.table.label);
 
   return (
     <div className="space-y-4">
@@ -45,7 +67,7 @@ export default async function SessionPage({
             ← Tables
           </Link>
           <h1 className="text-xl font-bold">
-            Table {session.table.label}
+            Table {[session.table.label, ...mergedLabels].join(" + ")}
             <span className="ml-2 text-sm font-normal text-gray-400">
               {detail.diners} pax · opened {formatTime(session.openedAt)}
             </span>
@@ -56,6 +78,46 @@ export default async function SessionPage({
             <input type="hidden" name="sessionId" value={session.id} />
             <button className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50">
               Cancel table
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Merge controls */}
+      <div className="flex flex-wrap items-center gap-2">
+        {merges.map((m) => (
+          <form key={m.id} action={unmergeTable} className="flex items-center gap-1">
+            <input type="hidden" name="mergeId" value={m.id} />
+            <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
+              +{m.table.label}
+            </span>
+            <button
+              type="submit"
+              className="rounded-full bg-violet-100 px-2 py-1 text-xs text-violet-600 hover:bg-violet-200"
+            >
+              ✕
+            </button>
+          </form>
+        ))}
+        {availableTables.length > 0 && (
+          <form action={mergeTable} className="flex items-center gap-2">
+            <input type="hidden" name="sessionId" value={session.id} />
+            <select
+              name="tableId"
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:border-brand focus:outline-none"
+            >
+              <option value="">Merge table…</option>
+              {availableTables.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-lg bg-violet-600 px-3 py-1 text-xs font-semibold text-white hover:bg-violet-700"
+            >
+              + Merge
             </button>
           </form>
         )}

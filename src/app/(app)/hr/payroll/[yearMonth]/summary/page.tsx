@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { formatDate } from "@/lib/format";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -79,7 +80,7 @@ export default async function PayrollSummaryPage({
         </table>
 
         <div className="mt-8 text-xs text-gray-400">
-          Generated on {new Date().toLocaleDateString()}
+          Generated on {formatDate(new Date())}
         </div>
       </div>
     </div>

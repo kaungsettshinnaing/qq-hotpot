@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { hrReviewLeave, hrMarkAbsence } from "./actions";
 
 export default async function HRLeavePage() {
@@ -40,7 +41,7 @@ export default async function HRLeavePage() {
                 <div>
                   <span className="font-medium">{r.employee.user.name}</span>
                   <span className="ml-2 text-sm text-gray-500">
-                    {r.startDate.toLocaleDateString()} – {r.endDate.toLocaleDateString()}
+                    {formatDate(r.startDate)} – {formatDate(r.endDate)}
                   </span>
                   {r.reason && <p className="mt-1 text-sm text-gray-600">"{r.reason}"</p>}
                 </div>
@@ -98,7 +99,7 @@ export default async function HRLeavePage() {
                   <tr key={r.id}>
                     <td className="px-4 py-2">{r.employee.user.name}</td>
                     <td className="px-4 py-2 text-gray-500">
-                      {r.startDate.toLocaleDateString()} – {r.endDate.toLocaleDateString()}
+                      {formatDate(r.startDate)} – {formatDate(r.endDate)}
                     </td>
                     <td className="px-4 py-2">
                       <span className={`badge ${r.status === "APPROVED" ? "badge-green" : "badge-red"}`}>{r.status}</span>

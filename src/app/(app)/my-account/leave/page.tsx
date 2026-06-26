@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 
 export default async function MyLeavePage() {
   const session = await requireSession();
@@ -33,8 +34,8 @@ export default async function MyLeavePage() {
             <tbody className="divide-y">
               {requests.map((r) => (
                 <tr key={r.id}>
-                  <td className="px-4 py-2">{r.startDate.toLocaleDateString()}</td>
-                  <td className="px-4 py-2">{r.endDate.toLocaleDateString()}</td>
+                  <td className="px-4 py-2">{formatDate(r.startDate)}</td>
+                  <td className="px-4 py-2">{formatDate(r.endDate)}</td>
                   <td className="px-4 py-2 text-gray-500">{r.reason ?? "—"}</td>
                   <td className="px-4 py-2">
                     <span className={`badge ${

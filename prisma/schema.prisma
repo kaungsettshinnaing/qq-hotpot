@@ -88,6 +88,7 @@ model Table {
 
   sessions     TableSession[]
   reservations Reservation[]
+  mergeTo      TableMerge?
 
   @@unique([areaId, number])
 }
@@ -166,12 +167,21 @@ model TableSession {
   discountReason String?
   note           String?
 
-  orderItems OrderItem[]
-  potOrders  PotOrder[]
-  payments   Payment[]
+  orderItems   OrderItem[]
+  potOrders    PotOrder[]
+  payments     Payment[]
+  mergedTables TableMerge[]
 
   @@index([tableId, status])
   @@index([status])
+}
+
+model TableMerge {
+  id        String       @id @default(cuid())
+  session   TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  table     Table        @relation(fields: [tableId], references: [id])
+  tableId   String       @unique
 }
 
 model OrderItem {

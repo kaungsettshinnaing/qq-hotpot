@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { generatePayroll, lockPayroll } from "./actions";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -66,7 +67,7 @@ export default async function PayrollDetailPage({
 
       {isLocked && payroll?.lockedBy && (
         <p className="text-sm text-gray-400">
-          Locked by {payroll.lockedBy.name} on {payroll.lockedAt?.toLocaleDateString()}
+          Locked by {payroll.lockedBy.name} on {formatDate(payroll.lockedAt)}
         </p>
       )}
 

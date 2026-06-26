@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { toggleEmployeeActive } from "../actions";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -49,8 +50,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             ["Role", emp.staffRole?.name ?? "—"],
             ["Permissions", emp.user.roles.join(", ")],
             ["Status", emp.isActive ? "Active" : "Inactive"],
-            ["Start Date", emp.startDate.toLocaleDateString()],
-            ["Date of Birth", emp.dateOfBirth?.toLocaleDateString() ?? "—"],
+            ["Start Date", formatDate(emp.startDate)],
+            ["Date of Birth", formatDate(emp.dateOfBirth)],
             ["Phone", emp.phone ?? "—"],
             ["Address", emp.address ?? "—"],
             ["Emergency Contact", emp.emergencyContact ?? "—"],
@@ -87,7 +88,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 <a href={d.filePath} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                   {d.name}
                 </a>
-                <span className="ml-2 text-xs text-gray-400">{d.uploadedAt.toLocaleDateString()}</span>
+                <span className="ml-2 text-xs text-gray-400">{formatDate(d.uploadedAt)}</span>
               </li>
             ))}
           </ul>

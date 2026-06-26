@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { notifyManagers } from "@/lib/notifications";
+import { formatDate } from "@/lib/format";
 
 async function submitLeave(fd: FormData) {
   "use server";
@@ -18,7 +19,7 @@ async function submitLeave(fd: FormData) {
   });
 
   await notifyManagers("LEAVE_REQUEST",
-    `${session.name ?? "An employee"} has requested leave: ${startDate.toLocaleDateString()} – ${endDate.toLocaleDateString()}`,
+    `${session.name ?? "An employee"} has requested leave: ${formatDate(startDate)} – ${formatDate(endDate)}`,
     req.id,
   );
 

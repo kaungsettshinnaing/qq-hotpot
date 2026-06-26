@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { uploadDocument, deleteDocument } from "../../actions";
 
 export default async function DocumentsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,7 +43,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ id: 
                   <a href={d.filePath} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
                     {d.name}
                   </a>
-                  <div className="text-xs text-gray-400">{d.uploadedAt.toLocaleDateString()}</div>
+                  <div className="text-xs text-gray-400">{formatDate(d.uploadedAt)}</div>
                 </div>
                 <form action={deleteDocument}>
                   <input type="hidden" name="id" value={d.id} />

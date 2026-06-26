@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/rbac";
+import { formatDate } from "@/lib/format";
 import { resolveDelivery } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export default async function DeliveryDetailPage({
           </div>
           <p className="mt-0.5 text-sm text-gray-500">
             {delivery.supplier?.name ?? "No supplier"} ·{" "}
-            {new Date(delivery.deliveryDate).toLocaleDateString("en-GB")} ·{" "}
+            {formatDate(delivery.deliveryDate)} ·{" "}
             Created by {delivery.createdBy.name}
           </p>
           {delivery.parentDelivery && (
@@ -143,7 +144,7 @@ export default async function DeliveryDetailPage({
             <div className="mt-2 text-right text-sm font-semibold text-gray-700">
               Total: {delivery.totalCost.toLocaleString()} MMK
               {delivery.paymentStatus === "PREPAID" && (
-                <span className="ml-2 text-xs text-yellow-600">(pre-paid {delivery.prepaidAt ? `on ${new Date(delivery.prepaidAt).toLocaleDateString("en-GB")}` : ""})</span>
+                <span className="ml-2 text-xs text-yellow-600">(pre-paid {delivery.prepaidAt ? `on ${formatDate(delivery.prepaidAt)}` : ""})</span>
               )}
             </div>
           )}
@@ -289,7 +290,7 @@ export default async function DeliveryDetailPage({
       {delivery.resolvedBy && (
         <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
           Resolved by <strong>{delivery.resolvedBy.name}</strong>
-          {delivery.resolvedAt && ` on ${new Date(delivery.resolvedAt).toLocaleDateString("en-GB")}`}
+          {delivery.resolvedAt && ` on ${formatDate(delivery.resolvedAt)}`}
           {delivery.resolutionNote && ` — "${delivery.resolutionNote}"`}
         </div>
       )}

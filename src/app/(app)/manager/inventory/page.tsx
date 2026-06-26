@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { resolveDelivery } from "@/app/(app)/inventory/deliveries/[id]/actions";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ export default async function ManagerInventoryPage() {
                 <div>
                   <p className="font-medium text-gray-800">{d.supplier?.name ?? "Unknown supplier"}</p>
                   <p className="text-xs text-gray-500">
-                    Pre-paid {d.prepaidAt ? new Date(d.prepaidAt).toLocaleDateString("en-GB") : "—"} ·{" "}
+                    Pre-paid {d.prepaidAt ? formatDate(d.prepaidAt) : "—"} ·{" "}
                     {d.totalCost != null ? `${d.totalCost.toLocaleString()} MMK` : "—"}
                     {d.invoiceNo && ` · #${d.invoiceNo}`}
                   </p>
@@ -77,7 +78,7 @@ export default async function ManagerInventoryPage() {
                     className="text-xs text-blue-600 hover:underline">Full view</Link>
                 </div>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  {new Date(delivery.deliveryDate).toLocaleDateString("en-GB")} ·
+                  {formatDate(delivery.deliveryDate)} ·
                   Cashier: {delivery.cashierEnteredBy?.name ?? "—"} ·
                   Counter: {delivery.counterEnteredBy?.name ?? "—"}
                 </p>

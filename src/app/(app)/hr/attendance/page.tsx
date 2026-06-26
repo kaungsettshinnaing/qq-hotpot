@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { markAttendance, approveAttendance } from "./actions";
 
 const STATUSES = ["PRESENT", "ABSENT", "LEAVE", "REST_DAY", "OT"] as const;
@@ -63,7 +64,7 @@ export default async function HRAttendancePage({
           <div className="rounded-xl border bg-orange-50 p-3 space-y-1">
             {pending.map((a) => (
               <div key={a.id} className="flex items-center justify-between text-sm">
-                <span>{a.employee.user.name} — {a.date.toLocaleDateString()} ({a.status})</span>
+                <span>{a.employee.user.name} — {formatDate(a.date)} ({a.status})</span>
                 <form action={approveAttendance}>
                   <input type="hidden" name="id" value={a.id} />
                   <button type="submit" className="text-xs text-brand hover:underline">Approve</button>

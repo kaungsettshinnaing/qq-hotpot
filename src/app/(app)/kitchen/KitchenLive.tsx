@@ -4,20 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRoomRefresh } from "@/lib/socket-client";
 
-function playBeep(ctx: AudioContext | null) {
-  if (!ctx) return;
+function playBeep(ctx: AudioContext, offset = 0) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.type = "sine";
   osc.frequency.value = 880;
-  const t = ctx.currentTime;
+  const t = ctx.currentTime + offset;
   gain.gain.setValueAtTime(0.0001, t);
   gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
   osc.start(t);
-  osc.stop(t + 0.42);
+  osc.stop(t + 0.37);
+}
+
+function playThreeBeeps(ctx: AudioContext | null) {
+  if (!ctx) return;
+  playBeep(ctx, 0);
+  playBeep(ctx, 0.18);
+  playBeep(ctx, 0.36);
 }
 
 export default function KitchenLive({ pendingCount }: { pendingCount: number }) {
@@ -30,7 +36,7 @@ export default function KitchenLive({ pendingCount }: { pendingCount: number }) 
     return () => clearInterval(id);
   }, [router]);
 
-  // 15s beep while any order is pending (needs a user gesture to start audio).
+  // 3 beeps every 10s while any order is pending (needs a user gesture to start audio).
   const [soundOn, setSoundOn] = useState(false);
   const ctxRef = useRef<AudioContext | null>(null);
   const countRef = useRef(pendingCount);
@@ -39,10 +45,10 @@ export default function KitchenLive({ pendingCount }: { pendingCount: number }) 
   useEffect(() => {
     if (!soundOn) return;
     const beep = () => {
-      if (countRef.current > 0) playBeep(ctxRef.current);
+      if (countRef.current > 0) playThreeBeeps(ctxRef.current);
     };
     beep();
-    const id = setInterval(beep, 15000);
+    const id = setInterval(beep, 10000);
     return () => clearInterval(id);
   }, [soundOn]);
 

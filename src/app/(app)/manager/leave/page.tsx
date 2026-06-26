@@ -2,6 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { notifyManagers } from "@/lib/notifications";
+import { formatDate } from "@/lib/format";
 
 async function reviewLeave(fd: FormData) {
   "use server";
@@ -33,7 +34,7 @@ async function reviewLeave(fd: FormData) {
       data: {
         userId: req.employee.userId,
         type: "LEAVE_APPROVED",
-        message: `Your leave request (${req.startDate.toLocaleDateString()} – ${req.endDate.toLocaleDateString()}) was approved`,
+        message: `Your leave request (${formatDate(req.startDate)} – ${formatDate(req.endDate)}) was approved`,
         relatedId: id,
       },
     });
@@ -42,7 +43,7 @@ async function reviewLeave(fd: FormData) {
       data: {
         userId: req.employee.userId,
         type: "LEAVE_REJECTED",
-        message: `Your leave request (${req.startDate.toLocaleDateString()} – ${req.endDate.toLocaleDateString()}) was rejected`,
+        message: `Your leave request (${formatDate(req.startDate)} – ${formatDate(req.endDate)}) was rejected`,
         relatedId: id,
       },
     });
@@ -80,7 +81,7 @@ export default async function ManagerLeavePage() {
                 <div>
                   <span className="font-medium">{r.employee.user.name}</span>
                   <span className="ml-2 text-sm text-gray-500">
-                    {r.startDate.toLocaleDateString()} – {r.endDate.toLocaleDateString()}
+                    {formatDate(r.startDate)} – {formatDate(r.endDate)}
                   </span>
                   {r.reason && <p className="mt-1 text-sm text-gray-600">"{r.reason}"</p>}
                 </div>
@@ -125,7 +126,7 @@ export default async function ManagerLeavePage() {
                 {recent.map((r) => (
                   <tr key={r.id}>
                     <td className="px-4 py-2">{r.employee.user.name}</td>
-                    <td className="px-4 py-2 text-gray-500">{r.startDate.toLocaleDateString()} – {r.endDate.toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-gray-500">{formatDate(r.startDate)} – {formatDate(r.endDate)}</td>
                     <td className="px-4 py-2">
                       <span className={`badge ${r.status === "APPROVED" ? "badge-green" : "badge-red"}`}>{r.status}</span>
                     </td>

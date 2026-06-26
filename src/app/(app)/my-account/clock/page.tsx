@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { clockIn, clockOut, breakOut, breakIn } from "./actions";
 
 function fmt(d: Date | null | undefined) {
@@ -46,7 +47,7 @@ export default async function ClockPage() {
           {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </div>
         <div className="text-gray-500">
-          {new Date().toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          {formatDate(new Date())}
         </div>
       </div>
 

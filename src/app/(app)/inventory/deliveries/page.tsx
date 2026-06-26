@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,7 @@ export default async function DeliveriesPage() {
               return (
                 <tr key={d.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-gray-600">
-                    {new Date(d.deliveryDate).toLocaleDateString("en-GB")}
+                    {formatDate(d.deliveryDate)}
                   </td>
                   <td className="px-4 py-2 font-medium text-gray-800">
                     {d.supplier?.name ?? <span className="text-gray-400">—</span>}
