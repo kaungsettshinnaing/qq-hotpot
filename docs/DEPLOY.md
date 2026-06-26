@@ -1,39 +1,77 @@
 # Deployment Guide — QQ Hotpot BBQ
 
-VPS IP: **187.127.106.81** (Hostinger)  
-GitHub repo: **kaungsettshinnaing/qq-hotpot**  
-Domain (pending transfer): qqhotpotbbq.com
+**Live URL:** https://app.qqhotpotbbq.com  
+**VPS IP:** 187.127.106.81 (Hostinger)  
+**GitHub repo:** kaungsettshinnaing/qq-hotpot  
 
 ---
 
-## Phase 1 — Deploy via IP (domain not ready yet)
+## Infrastructure overview
 
-The app will be accessible at **http://187.127.106.81** over plain HTTP.  
-When the domain transfer completes, see Phase 2 at the bottom.
+```
+Internet → Traefik (external reverse proxy, handles TLS)
+              └── app.qqhotpotbbq.com → app container (port 3000)
+
+Docker services:
+  db   — postgres:16, localhost-only (127.0.0.1:5432)
+  app  — Next.js + Socket.IO, exposes port 3000 internally
+
+Networks:
+  default        — db ↔ app
+  traefik-public — external network shared with Traefik container
+```
+
+Traefik is configured via **labels** on the `app` service in `docker-compose.yml`. It auto-provisions a Let's Encrypt TLS certificate for `app.qqhotpotbbq.com`.
 
 ---
 
-### Step 1 — First-time VPS setup (do once only)
+## First-time VPS setup (do once)
 
-SSH into your VPS:
+### 1. SSH into the VPS
+
 ```bash
 ssh root@187.127.106.81
 ```
 
-Install Docker and Docker Compose:
+### 2. Install Docker
+
 ```bash
 apt update && apt install -y docker.io docker-compose-plugin
 systemctl enable docker && systemctl start docker
 ```
 
-Clone your repo onto the VPS:
+### 3. Set up Traefik (if not already running)
+
+Traefik needs to be running as a separate container on the `traefik-public` network before the app can start.
+
+```bash
+docker network create traefik-public
+
+docker run -d \
+  --name traefik \
+  --network traefik-public \
+  -p 80:80 -p 443:443 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/traefik/acme.json:/acme.json \
+  traefik:v3 \
+  --providers.docker=true \
+  --providers.docker.network=traefik-public \
+  --entrypoints.web.address=:80 \
+  --entrypoints.websecure.address=:443 \
+  --entrypoints.web.http.redirections.entrypoint.to=websecure \
+  --certificatesresolvers.letsencrypt.acme.httpchallenge=true \
+  --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web \
+  --certificatesresolvers.letsencrypt.acme.email=kaungsettshinnaing@gmail.com \
+  --certificatesresolvers.letsencrypt.acme.storage=/acme.json
+```
+
+### 4. Clone the repo
+
 ```bash
 git clone https://github.com/kaungsettshinnaing/qq-hotpot.git /opt/qq-hotpot
 ```
 
----
-
-### Step 2 — Create the `.env` file on the VPS
+### 5. Create the `.env` file
 
 ```bash
 cd /opt/qq-hotpot/qq-app
@@ -41,50 +79,23 @@ cp .env.example .env
 nano .env
 ```
 
-Fill in these values (everything else can stay as-is for now):
-
-| Variable | Value to set |
+| Variable | Value |
 |---|---|
-| `AUTH_SECRET` | A long random string — run `openssl rand -base64 48` to generate one |
-| `POSTGRES_PASSWORD` | A strong password of your choice |
-| `APP_DOMAIN` | `187.127.106.81` |
-| `APP_URL` | `http://187.127.106.81` |
+| `AUTH_SECRET` | Long random string — run `openssl rand -base64 48` |
+| `POSTGRES_PASSWORD` | Strong password of your choice |
+| `POSTGRES_USER` | e.g. `qquser` |
+| `POSTGRES_DB` | e.g. `qqdb` |
+| `APP_URL` | `https://app.qqhotpotbbq.com` |
 | `APP_IMAGE` | `ghcr.io/kaungsettshinnaing/qq-hotpot:latest` |
+| `TZ` | `Asia/Yangon` |
 
-Save and close (`Ctrl+X`, then `Y`, then `Enter` in nano).
-
----
-
-### Step 3 — Run the first deployment
+### 6. Start the app
 
 ```bash
-cd /opt/qq-hotpot/qq-app
-docker compose pull
-docker compose up -d
+docker compose up -d --build
 ```
 
-Wait about 30 seconds, then check everything is running:
-```bash
-docker compose ps
-```
-
-You should see `db`, `app`, and `caddy` all showing `Up`.
-
----
-
-### Step 4 — Run database migrations
-
-This needs to run once after the first deployment (and again after any schema change):
-
-```bash
-docker compose exec app npx prisma migrate deploy
-```
-
----
-
-### Step 5 — Seed initial data (first time only)
-
-This creates the default ADMIN user and menu categories:
+### 7. Seed the database (first time only)
 
 ```bash
 docker compose exec app npx prisma db seed
@@ -92,105 +103,79 @@ docker compose exec app npx prisma db seed
 
 ---
 
-### Step 6 — Test it
+## Updating after code changes
 
-Open your browser and go to: **http://187.127.106.81**
+Auto-deploy is configured: every push to `main` triggers GitHub Actions → builds the image → pushes to GHCR → SSH deploys to the VPS.
 
-Log in with the default ADMIN credentials set in `prisma/seed.ts`.
+### Manual update on the VPS
 
----
-
-## GitHub Actions — automatic deploys on push
-
-Every time you push to `main`, GitHub Actions will:
-1. Build and typecheck the app
-2. Build a Docker image and push it to `ghcr.io/kaungsettshinnaing/qq-hotpot:latest`
-3. SSH into your VPS and run `docker compose pull && docker compose up -d`
-
-### Configure GitHub Secrets (one-time setup)
-
-Go to your repo → **Settings → Secrets and variables → Actions** and add:
-
-| Secret name | Value |
-|---|---|
-| `VPS_HOST` | `187.127.106.81` |
-| `VPS_USER` | `root` |
-| `VPS_SSH_KEY` | Your private SSH key (see note below) |
-| `VPS_APP_DIR` | `/opt/qq-hotpot/qq-app` |
-| `GHCR_PAT` | A GitHub Personal Access Token with `read:packages` scope |
-
-Then go to **Settings → Variables → Actions** and add:
-
-| Variable name | Value |
-|---|---|
-| `DEPLOY_ENABLED` | `true` |
-
-**How to get your SSH key for `VPS_SSH_KEY`:**  
-If you SSH into the VPS using a password, generate a key pair:
-```bash
-# On your LOCAL machine (not the VPS):
-ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/qq_deploy
-# Copy the public key to the VPS:
-ssh-copy-id -i ~/.ssh/qq_deploy.pub root@187.127.106.81
-# Then paste the PRIVATE key (~/.ssh/qq_deploy) into the VPS_SSH_KEY secret.
-```
-
----
-
-## Updating the app after code changes
-
-If auto-deploy is set up (Step above), just push to `main` — it deploys automatically.
-
-For a manual update on the VPS:
 ```bash
 cd /opt/qq-hotpot/qq-app
 git pull
 docker compose pull
 docker compose up -d
-# If schema changed:
-docker compose exec app npx prisma migrate deploy
 ```
+
+### After a schema change (`prisma/schema.prisma` modified)
+
+```bash
+docker compose exec app npx prisma db push
+docker compose up -d --build
+```
+
+> **Note:** This project uses `prisma db push` (not `prisma migrate deploy`) for schema changes. The `.env` on the VPS does not have migration history.
 
 ---
 
-## Phase 2 — Switch to domain + HTTPS (when qqhotpotbbq.com transfer completes)
+## GitHub Actions CI/CD
 
-1. Point the domain's A record to `187.127.106.81` in your DNS registrar.
-2. Wait for DNS to propagate (usually 10–60 minutes).
-3. SSH into the VPS and edit `.env`:
-   ```bash
-   cd /opt/qq-hotpot/qq-app
-   nano .env
-   ```
-   Change:
-   ```
-   APP_DOMAIN=qqhotpotbbq.com
-   APP_URL=https://qqhotpotbbq.com
-   ```
-4. Restart Caddy to pick up the new domain (it will auto-provision the HTTPS cert):
-   ```bash
-   docker compose restart caddy
-   ```
-5. Update `VPS_HOST` GitHub secret to the domain if you prefer (optional — the IP still works).
+Workflow file: `.github/workflows/deploy.yml`
 
-Caddy will automatically obtain a free Let's Encrypt HTTPS certificate. No manual cert setup needed.
+On every push to `main`:
+1. Typecheck (`tsc --noEmit`)
+2. Build Docker image → push to `ghcr.io/kaungsettshinnaing/qq-hotpot:latest`
+3. SSH into VPS → `docker compose pull && docker compose up -d`
+
+### Required GitHub Secrets
+
+Go to repo → **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|---|---|
+| `VPS_HOST` | `187.127.106.81` |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | Private SSH key (ed25519) |
+| `VPS_APP_DIR` | `/opt/qq-hotpot/qq-app` |
+| `GHCR_PAT` | GitHub PAT with `read:packages` scope |
+
+### Required GitHub Variables
+
+| Variable | Value |
+|---|---|
+| `DEPLOY_ENABLED` | `true` |
 
 ---
 
 ## Useful commands on the VPS
 
 ```bash
-# View live logs
+# View live app logs
 docker compose logs -f app
 
-# View Caddy logs
-docker compose logs -f caddy
+# View all service status
+docker compose ps
 
-# Restart everything
-docker compose restart
+# Restart app only
+docker compose restart app
 
 # Stop everything
 docker compose down
+
+# Connect to the database directly
+docker compose exec db psql -U qquser -d qqdb
+
+# Run a Prisma command
+docker compose exec app npx prisma <command>
 
 # Check disk usage
 docker system df
@@ -198,3 +183,18 @@ docker system df
 # Clean up old images
 docker image prune -f
 ```
+
+---
+
+## Environment variables reference
+
+| Var | Purpose |
+|---|---|
+| `AUTH_SECRET` | Signs session JWTs — must be long & random in prod |
+| `DATABASE_URL` | Auto-composed from POSTGRES_* vars in docker-compose |
+| `POSTGRES_USER` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | PostgreSQL password |
+| `POSTGRES_DB` | Database name |
+| `APP_URL` | Used in notifications and absolute links (`https://app.qqhotpotbbq.com`) |
+| `APP_IMAGE` | Docker image path (pulled by VPS on deploy) |
+| `TZ` | Timezone (`Asia/Yangon`) |

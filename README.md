@@ -1,13 +1,8 @@
-# QQ Hotpot BBQ — Restaurant Management (POS)
+# QQ Hotpot BBQ — Restaurant Management System
 
-A web app for **QQ Hotpot BBQ** (a buffet restaurant). This first phase delivers
-the **Point of Sale** module — waiter ordering, a realtime kitchen display,
-cashier checkout with shift/cash reconciliation, reservations, expenses, and an
-admin panel — on a role-based login foundation that the future **HR** module
-will own and extend.
+A full-stack web app for **QQ Hotpot BBQ** (a buffet restaurant). Covers POS, HR & Payroll, and Inventory, deployed at **https://app.qqhotpotbbq.com**.
 
-Built to deploy to a **Hostinger VPS with Docker**, an automated **CI/CD**
-pipeline, and one-command environment setup.
+Built on **Next.js 15 App Router + PostgreSQL + Socket.IO** with role-based access, Docker deployment, and GitHub Actions CI/CD.
 
 ---
 
@@ -15,161 +10,147 @@ pipeline, and one-command environment setup.
 
 | Module | Who uses it | Roles with access |
 |---|---|---|
-| **Waiter** (tablet) | Seat tables, order pots/beer/wastage, send to kitchen | WAITER, MANAGER, ADMIN |
-| **Kitchen** (PC display) | See pending pots, mark delivered, 15s beep | KITCHEN, MANAGER, ADMIN |
-| **Cashier** (PC) | Checkout, split payments, discounts, reservations, expenses, shift | CASHIER, MANAGER, ADMIN |
-| **Reports** | Daily sales / covers / cash / shift variance | MANAGER, ADMIN |
-| **Admin** | Areas/tables, menu prices & settings, flavours, categories, users/roles | ADMIN |
+| **Waiter** (tablet) | Open tables, order pots/beer/menu items/wastage, send to kitchen | WAITER, MANAGER, ADMIN |
+| **Kitchen** (PC display) | See pending pot tickets, mark delivered, mute/unmute 15s beep | KITCHEN, MANAGER, ADMIN |
+| **Cashier** (PC) | Checkout with full bill, split payments, discounts, reservations, expenses, shift reconciliation | CASHIER, MANAGER, ADMIN |
+| **Reports** | Daily sales, covers, cash, shift variance | MANAGER, ADMIN |
+| **Manager** | Live attendance, leave approvals, add fines, inventory discrepancy resolution | MANAGER, ADMIN |
+| **HR & Payroll** | Employee onboarding, attendance, leave, payroll, advances, fines | HR, ADMIN |
+| **Inventory** | Deliveries, blind-count reconciliation, stock levels, supplier spend | CASHIER, WAITER, KITCHEN, MANAGER, ADMIN |
+| **My Account** | Own payslips, clock in/out/break, leave requests, password change | All roles |
+| **Admin** | Tables, menu & settings, flavours, expense categories, stock items, suppliers, roles, custom fields | ADMIN |
 
-Users can hold **multiple roles**; the top navigation only shows modules the
-user may access. `HR` and `MARKETING` roles are seeded for upcoming modules.
+Users can hold **multiple roles**; navigation auto-hides inaccessible modules. Server-side `requireAnyRole()` is the real enforcement.
 
-### How the POS works
-- **Free pots:** each table gets free pots based on headcount —
-  `free = ceil(diners / ratio)` (ratio defaults to 4, configurable). Extra pots
-  bill automatically as a **Pot Add-on**.
-- **Pots → kitchen:** a Hotpot picks **2** soup flavours, BBQ picks **1**; both
-  count as one pot. New pots appear instantly on the kitchen display and beep
-  every 15s until **Delivered**.
-- **Cashier:** computes the bill from headcount + beer + paid pots + wastage
-  grams, applies **% or fixed** discounts, takes **split** payments
-  (Cash / KBZPay / Other — only **cash** affects the drawer), prints a receipt,
-  and settles to free the table.
-- **Shift reconciliation:** open a shift with a float → expected cash =
-  `float + cash sales − cash-drawer expenses` → count drawer at close → variance.
-- **Reservations:** a table is blocked from walk-ins for `reservationBlockMins`
-  (default 90) before the booking time.
+---
+
+## How the POS works
+
+- **Free pots:** each table gets free pots based on headcount — `free = ceil(diners / ratio)` (ratio defaults to 4, configurable). Extra pots bill as **Pot Add-on**.
+- **Pots → kitchen:** Hotpot picks **2** soup flavours, BBQ picks **1**; both count as one pot. New pots appear instantly on the kitchen display.
+- **Menu items:** any non-system active menu item appears in the waiter session with +/− qty steppers. Charges appear as extra line items on the bill.
+- **Overdue tables:** sessions open ≥ 105 minutes show an orange **OVERDUE** badge on both the waiter and cashier floor views.
+- **Cashier:** computes bill (headcount + beer + paid pots + wastage + menu items), applies % or fixed discounts, takes split payments (Cash/KBZPay/Other — only **cash** affects the drawer), prints receipt, settles table.
+- **Shift reconciliation:** `expected = float + cash sales − cash-drawer expenses` → variance at close.
+- **Reservations:** table blocked from walk-ins for `reservationBlockMins` (default 90) before booking.
+
+## How HR & Payroll works
+
+- **Employees** are onboarded with login credentials, salary, rest days, and optional custom fields. Mark as **System** to create view-only accounts excluded from attendance and payroll.
+- **Attendance:** tracked via clock in/out/break from My Account. Managers see live status. HR reviews the monthly grid (shows rest days automatically). Manual mark + approval workflow.
+- **Leave:** employees submit single-day requests from My Account. HR/Manager approves → auto-creates LEAVE attendance record. Both ABSENT and LEAVE are unpaid.
+- **Payroll:** generated per month for all active non-system employees. Formula: `basicSalary − absenceDeduction + otPremium + attendanceBonus + adHocBonuses − advances − fines`. Locked payrolls are immutable.
+- **Fines & Advances:** HR, Admin, and Manager can create fines. Advances are linked to a target deduction month. Both are deducted at payroll generation.
+
+## How Inventory works
+
+- **Blind-count reconciliation:** cashier enters invoice quantities; counter (kitchen/waiter) independently counts physical stock without seeing the invoice. System auto-completes if they match; flags discrepancy for manager to resolve.
+- **Stock levels** are computed from movements (no cached field): sum of all `DELIVERY_IN`, `USAGE_OUT`, and `ADJUSTMENT` movements.
+- **Expenses auto-created** at payment time (pre-pay or invoice submit) — integrates with the cashier expense system.
+- **Partial deliveries:** manager can mark a delivery partial, creating a new batch. Each batch goes through its own cashier+counter flow.
 
 ---
 
 ## Tech stack
 
-Next.js 15 (App Router, TypeScript) · PostgreSQL + Prisma · Socket.IO (realtime,
-via a custom server) · Tailwind · JWT cookie auth (jose + bcrypt) · Docker +
-Caddy (auto-HTTPS) · GitHub Actions → GHCR → VPS.
+- **Frontend/backend:** Next.js 15 (App Router, TypeScript, Server Actions)
+- **Database:** PostgreSQL 16 + Prisma ORM
+- **Realtime:** Socket.IO on a custom `server.ts` (rooms: `kitchen`, `floor`, `hr`)
+- **Auth:** JWT cookies (jose) + bcryptjs; role-based access
+- **Styles:** Tailwind CSS
+- **Infra:** Docker + Traefik (auto-HTTPS via Let's Encrypt) + Hostinger VPS
+- **CI/CD:** GitHub Actions → GHCR → SSH deploy
+
+---
 
 ## Repository layout
 
 ```
 qq-app/
-  server.ts                 # custom Next.js + Socket.IO server
-  middleware.ts             # session gate (edge)
+  server.ts                  # custom Next.js + Socket.IO server
+  middleware.ts              # session gate (edge)
   prisma/
-    schema.prisma           # data model
-    seed.ts                 # roles, admin, menu, settings, sample tables…
-    migrations/             # SQL migrations (prisma migrate deploy)
+    schema.prisma            # full data model
+    seed.ts                  # demo data, roles, menu, settings, tables…
   src/
     app/
-      (auth)/login/         # login
-      (app)/                # authenticated shell + modules
-        waiter/ kitchen/ cashier/ reports/ admin/
-    components/             # AppShell, NavBar, BillSummary, LiveRefresh…
-    lib/                    # auth, rbac, pricing, orders, shift, settings…
-  Dockerfile  docker-compose.yml  Caddyfile  docker-entrypoint.sh
+      (auth)/login/          # login page + action
+      (app)/                 # authenticated shell + all modules
+        waiter/  kitchen/  cashier/  reports/
+        admin/   hr/  manager/  inventory/  my-account/
+    components/              # AppShell, NavBar, BillSummary, SubmitButton…
+    lib/                     # auth, rbac, pricing, orders, hr-payroll,
+                             # hr-attendance, inventory, format, realtime…
+  Dockerfile
+  docker-compose.yml         # app + db, Traefik labels
   .github/workflows/deploy.yml
-  scripts/bootstrap-vps.sh
+  docs/
+    POS.md                   # POS developer reference
+    HR.md                    # HR & Payroll developer reference
+    INVENTORY.md             # Inventory developer reference
+    DEPLOY.md                # Deployment guide
 ```
 
 ---
 
-## Quick start (Docker — recommended)
+## Quick start (local dev)
 
-```bash
-cd qq-app
-cp .env.example .env          # then edit values (AUTH_SECRET, passwords…)
-docker compose up -d --build
-docker compose exec app npm run db:seed   # first time only
-# open http://localhost  (Caddy serves :80/:443; for localhost use http)
-```
-
-## Quick start (local dev, no Docker)
-
-Requires Node 18.18+ and a PostgreSQL you can reach.
+Requires Node 20+ and a running PostgreSQL.
 
 ```bash
 cd qq-app
 npm install
-cp .env.example .env          # set DATABASE_URL to your Postgres
-npx prisma migrate deploy     # or: npx prisma db push
+cp .env.example .env        # set DATABASE_URL to your Postgres
+npx prisma db push
 npm run db:seed
-npm run dev                   # http://localhost:3000
+npm run dev                 # http://localhost:3000
 ```
 
-## Environment variables (`.env`)
+## Quick start (Docker)
 
-| Var | Purpose |
-|---|---|
-| `AUTH_SECRET` | Signs session JWTs — **must be long & random in prod** |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `POSTGRES_USER/PASSWORD/DB` | Used by the `db` service + `DATABASE_URL` |
-| `APP_DOMAIN` | Domain Caddy serves + gets HTTPS for (e.g. `app.qqhotpotbbq.com`) |
-| `ACME_EMAIL` | Let's Encrypt registration email |
-| `APP_IMAGE` | Image CI publishes (e.g. `ghcr.io/<owner>/<repo>:latest`) |
-| `TZ` | Timezone (default `Asia/Yangon`) |
+```bash
+cd qq-app
+cp .env.example .env        # edit AUTH_SECRET, POSTGRES_PASSWORD
+docker compose up -d --build
+docker compose exec app npx prisma db seed   # first time only
+# open http://localhost:3000
+```
 
-## Default logins (change after first run, in Admin → Users)
+---
+
+## Default logins
+
+Change all passwords after first run (HR → Employees → profile → Account tab, or the Account tab in My Account).
 
 | Username | Password | Roles |
 |---|---|---|
 | `admin` | `admin123` | Admin + Manager |
-| `owner` | `owner123` | all operational roles |
+| `owner` | `owner123` | All operational roles |
+| `manager` | `manager123` | Manager |
 | `waiter` | `waiter123` | Waiter |
 | `kitchen` | `kitchen123` | Kitchen |
 | `cashier` | `cashier123` | Cashier |
+| `hr` | `hr123` | HR |
 
 ---
 
-## Deploy to Hostinger VPS
+## Deployment
 
-1. **DNS:** in Hostinger, add an **A record** `app.qqhotpotbbq.com → <VPS IP>`.
-   (`cashbackapp.cloud` is reserved for a future customer loyalty/cashback app.)
-2. **Bootstrap the VPS** (installs Docker, clones, configures, starts):
-   ```bash
-   ssh root@<VPS_IP>
-   REPO_URL=https://github.com/<you>/<repo>.git \
-     bash <(curl -fsSL https://raw.githubusercontent.com/<you>/<repo>/main/qq-app/scripts/bootstrap-vps.sh)
-   # edit /opt/qq-app/qq-app/.env (domain, email, db password, APP_IMAGE), then re-run
-   ```
-3. **CI/CD:** every push to `main` runs typecheck + lint, builds the Docker image,
-   and pushes it to **GHCR**. To auto-deploy, set repo **Variable**
-   `DEPLOY_ENABLED=true` and these **Secrets**:
+See [`docs/DEPLOY.md`](docs/DEPLOY.md) for the full guide.
 
-   | Secret | Description |
-   |---|---|
-   | `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` | SSH into the VPS |
-   | `VPS_APP_DIR` | e.g. `/opt/qq-app/qq-app` |
-   | `GHCR_PAT` | PAT with `read:packages` (to pull the image on the VPS) |
+CI/CD is configured: every push to `main` runs typecheck, builds the Docker image, and deploys to the VPS automatically when `DEPLOY_ENABLED=true` is set in GitHub repo Variables.
 
-   Migrations run automatically on container start (`prisma migrate deploy`).
+**After a schema change**, run on the VPS:
+```bash
+docker compose exec app npx prisma db push
+docker compose up -d --build
+```
 
 ---
-
-## Verification checklist (end-to-end)
-
-Run the stack, seed, then:
-1. **RBAC** — log in as each demo user; confirm only permitted modules appear.
-2. **Waiter→Kitchen** — open A1 with 5 diners → add 2 pots (auto **FREE**,
-   ceil(5/4)=2) → a 3rd pot is **PAID** → BBQ enforces 1 flavour, Hotpot 2 →
-   Kitchen shows tickets and beeps every 15s until **Delivered**.
-3. **Cashier** — open a shift (float) → checkout A1 → verify the bill →
-   discount → **split** Cash + KBZPay → settle → only cash hits the drawer →
-   print receipt.
-4. **Reservations** — book a table within 90 min → it shows **Reserved** on the
-   floor; **Seat** opens a session.
-5. **Expenses + Shift** — add a cash-drawer and a bank-transfer expense → close
-   shift → variance reflects only cash sales − cash-drawer expenses.
-6. **Admin** — add an area/table, change a price or the free-pot ratio, toggle
-   service charge → confirm it flows into new bills. **Reports** shows the day.
-
----
-
-## Roadmap (next modules)
-HR & Payroll (owns logins/staff) · Inventory & Procurement · Accounting ·
-Reservations/CRM & **Loyalty/Cashback** (fits `cashbackapp.cloud`) ·
-Staff scheduling/attendance · BI dashboard · Audit log.
 
 ## Notes
+
 - Money is whole-number **MMK**; currency/prices/rates are admin-configurable.
-- Realtime is best-effort Socket.IO **with a polling fallback**, so screens stay
-  correct even if the socket drops.
-- UI is English now; structure leaves room for Burmese i18n later.
+- Realtime is best-effort Socket.IO **with polling fallback** — screens stay correct if the socket drops.
+- Date inputs across the app use **DD-MMM-YYYY** format (e.g. `26-Jun-2026`), parsed by `parseInputDate()` in `src/lib/format.ts`.
+- UI is in English; structure leaves room for Burmese i18n.

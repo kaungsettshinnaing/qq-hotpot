@@ -24,7 +24,7 @@ The POS module covers the complete dine-in flow for a **buffet hotpot
 restaurant** (currency: **MMK**, whole numbers only):
 
 ```
-Guest arrives → Waiter opens table → Waiter adds pots/beer/wastage
+Guest arrives → Waiter opens table → Waiter adds pots/beer/wastage/menu items
     → Kitchen sees pots, marks Delivered
     → Cashier computes bill, takes split payment, settles table
     → Cashier closes shift, reconciles cash drawer
@@ -32,7 +32,7 @@ Guest arrives → Waiter opens table → Waiter adds pots/beer/wastage
 
 Alongside the core flow: **table reservations**, **shift-based cash
 reconciliation**, **expenses**, and a **Manager/Admin** oversight layer
-(reports, configuration, user management).
+(reports, configuration).
 
 ---
 
@@ -43,10 +43,10 @@ reconciliation**, **expenses**, and a **Manager/Admin** oversight layer
 | `WAITER` | `/waiter` | `/waiter` |
 | `KITCHEN` | `/kitchen` | `/kitchen` |
 | `CASHIER` | `/cashier` | `/cashier` |
-| `MANAGER` | `/waiter` `/kitchen` `/cashier` `/reports` | `/reports` |
+| `MANAGER` | `/waiter` `/kitchen` `/cashier` `/reports` `/manager` | `/reports` |
 | `ADMIN` | everything + `/admin` | `/admin` |
-| `HR` | (future) | `/` |
-| `MARKETING` | (future) | `/` |
+| `HR` | `/hr` `/my-account` | `/hr` |
+| `MARKETING` | `/my-account` | `/my-account` |
 
 Users can hold **multiple roles** simultaneously. Navigation auto-hides
 modules the user cannot access — but server-side `requireAnyRole()` in
@@ -61,7 +61,8 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
 ### 3.1 Waiter (tablet)
 
 1. Open `/waiter` — sees live table grid (colour-coded: Available / Occupied /
-   Reserved / Inactive).
+   Reserved / Inactive). Tables occupied ≥ **105 minutes** show an orange
+   **OVERDUE** badge on the table card.
 2. Tap an available table → `/waiter/open/[tableId]` → enter **Adults** and
    **Children** counts → **Open Table** creates a `TableSession` (OPEN).
 3. Session page `/waiter/session/[id]`:
@@ -70,6 +71,10 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
      using the free-pot formula (see §6.1). Sends `kitchen:pot:new` event.
    - **Set Beer** — quantity of beer bottles for the table.
    - **Set Wastage** — grams of food wasted (also editable by cashier).
+   - **Menu items** — +/− qty steppers for all active orderable menu items
+     (items with codes NOT in `SYSTEM_CODES`). Each quantity change calls
+     `setItemQty(sessionId, itemCode, qty)` which upserts an `OrderItem` row.
+     These items appear on the bill as extra line items.
    - **Update Headcount** — changing adults/children recalculates which pots
      are free/paid on the bill (note: `isFree` flag on historical pots is NOT
      retroactively changed; only the computed bill view changes).
@@ -80,9 +85,9 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
 
 1. Open `/kitchen` — sees all PENDING pot tickets across all open sessions,
    grouped by table.
-2. **Enable Sound** button must be clicked once to unlock the browser audio
-   context. After that, a **15-second beep** fires automatically while any
-   pot has PENDING status.
+2. Sound control — a **Mute / Unmute** toggle in the top bar. Sound must be
+   enabled once per browser session (autoplay policy). When unmuted, a
+   **15-second beep** fires automatically while any pot has PENDING status.
 3. Click **Delivered** on a ticket — marks `PotOrder.status = DELIVERED`,
    emits `kitchen:pot:delivered`. Ticket moves to history.
 4. The screen auto-refreshes via Socket.IO events **and** a 5-second polling
@@ -93,8 +98,8 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
 **Checkout flow:**
 1. `/cashier` — sees open sessions list (table label, diners, time open).
 2. Click a session → `/cashier/checkout/[sessionId]`:
-   - View full bill breakdown (headcount, beer, paid pots, wastage, discount,
-     service, tax, total already paid, balance due).
+   - View full bill breakdown (headcount, beer, paid pots, wastage, extra menu
+     items, discount, service, tax, total already paid, balance due).
    - **Set Discount** — % or fixed, with a mandatory reason. No approval needed.
    - **Edit Wastage** — cashier can also enter/correct wastage grams.
    - **Add Payment** — Cash, KBZPay, or Other; partial amounts allowed (split
@@ -105,7 +110,8 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
      `.receipt` block (thermal-friendly).
 
 **Tables / Reservations:**
-- `/cashier/tables` — live floor map + reservation list.
+- `/cashier/tables` — live floor map + reservation list. Tables occupied
+  ≥ **105 minutes** show an orange **OVERDUE** badge.
 - Create reservation: customer name, phone, party size, date/time, optional
   table. Table is **blocked** from `bookingAt − blockMins` to `bookingAt + durationMin`.
 - Actions: **Seat** (opens a session), **Cancel**, **No-show**.
@@ -124,19 +130,25 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
 
 ### 3.4 Manager
 
-Has access to Waiter + Kitchen + Cashier + Reports. Can view all shifts and
-daily reports. Has an optional **PIN** (`User.pinHash`) for future manager
-approval flows (void-after-send, overrides).
+Has access to Waiter + Kitchen + Cashier + Reports + Manager dashboard.
+Can view all shifts and daily reports. Can view live attendance and add/delete
+**fines** for employees directly from the Teams tab on the manager dashboard.
+Has an optional **PIN** (`User.pinHash`) for future manager approval flows.
 
 ### 3.5 Admin
 
 Full access including `/admin`:
-- **Tables** — create/toggle Areas and Tables.
-- **Menu** — change prices for Adult, Child, Beer, Pot Add-on, Wastage.
-- **Settings** — free-pot ratio, rounding, reservation block minutes, tax/service toggles + rates, currency, restaurant name.
-- **Flavours** — add/toggle soup flavours; set `appliesTo` (HOTPOT/BBQ/BOTH).
-- **Categories** — add/toggle expense categories.
-- **Users** — create users, assign roles, reset passwords, deactivate.
+- **Tables** — create/toggle Areas and Tables (▲/▼ buttons reorder areas).
+- **Menu & Settings** — price editing (save button only appears when a row is
+  dirty); items grouped by category. Also: free-pot ratio, rounding,
+  reservation block minutes, tax/service toggles + rates, currency, restaurant name.
+- **Flavours** — add/edit/delete/hide soup flavours; set `appliesTo`
+  (HOTPOT/BBQ/BOTH). Two preview buckets (Hotpot | BBQ) show which flavours
+  are in each category. Unified list with ▲/▼/Edit/Hide/Delete.
+- **Categories** — add/toggle expense categories; mark categories as "stock" type.
+- **Stock Items / Suppliers** — manage inventory items and vendors (ADMIN only).
+
+User account management is done via **HR → Employees**, not Admin.
 
 ---
 
@@ -146,57 +158,57 @@ Full access including `/admin`:
 
 | File | Purpose |
 |---|---|
-| [`auth.ts`](../src/lib/auth.ts) | JWT sessions (12h), cookie `qq_session`, `requireSession()`, `requireAnyRole()`, `hashPassword`, `hashPin` |
+| [`auth.ts`](../src/lib/auth.ts) | JWT sessions (12h), cookie `qq_session`, `requireSession()`, `requireAnyRole()`, `hashPassword`, `verifyPassword`, `hashPin` |
 | [`rbac.ts`](../src/lib/rbac.ts) | Role enum, `MODULES` array, `modulesFor()`, `landingFor()`, `ROUTE_ROLES` |
 | [`db.ts`](../src/lib/db.ts) | Singleton `PrismaClient` via `globalThis.__qq_prisma` |
-| [`realtime.ts`](../src/lib/realtime.ts) | `emitKitchen()`, `emitFloor()`, `setIO()` — Socket.IO bridge |
-| [`pricing.ts`](../src/lib/pricing.ts) | `freePotsAllowed()`, `paidPotCount()`, `computeBill()` — pure, no DB |
-| [`orders.ts`](../src/lib/orders.ts) | `getSessionDetail()` — loads session + computes full bill |
+| [`realtime.ts`](../src/lib/realtime.ts) | `emitKitchen()`, `emitFloor()`, `emitHR()`, `setIO()` — Socket.IO bridge |
+| [`pricing.ts`](../src/lib/pricing.ts) | `freePotsAllowed()`, `paidPotCount()`, `computeBill(input)` — pure, no DB. `BillInput` now accepts `extraItems?: ExtraItem[]` for non-system orderable items |
+| [`orders.ts`](../src/lib/orders.ts) | `getSessionDetail()` — loads session + all menu items, extracts non-system `OrderItem` rows as `extraItems`, computes full bill |
 | [`shift.ts`](../src/lib/shift.ts) | `getOpenShift()`, `computeShiftTotals()` |
 | [`settings.ts`](../src/lib/settings.ts) | `getSettings()` — reads `Setting` rows from DB |
 | [`menu.ts`](../src/lib/menu.ts) | `getMenuPrices()` — reads `MenuItem` prices from DB |
 | [`floor.ts`](../src/lib/floor.ts) | Floor / table availability helpers |
-| [`format.ts`](../src/lib/format.ts) | `formatMMK()`, date/time formatters |
+| [`format.ts`](../src/lib/format.ts) | `formatMMK()`, `formatDate()`, `parseInputDate()` (DD-MMM-YYYY), date/time formatters |
 | [`action-result.ts`](../src/lib/action-result.ts) | Shared `ActionResult` type (`{ ok: true } \| { ok: false; error: string }`) |
 | [`socket-client.ts`](../src/lib/socket-client.ts) | `useRoomRefresh()` hook — joins a Socket.IO room, triggers `router.refresh()` on events |
-| [`session-actions.ts`](../src/lib/session-actions.ts) | Shared session/auth server utilities |
 
 ### Server actions (per module)
 
 | File | Key actions |
 |---|---|
-| [`(app)/waiter/actions.ts`](../src/app/(app)/waiter/actions.ts) | `openTable`, `addPot`, `setBeerQty`, `setWastage`, `updateHeadcount`, `voidPot`, `cancelSession` |
+| [`(app)/waiter/actions.ts`](../src/app/(app)/waiter/actions.ts) | `openTable`, `addPot`, `setBeerQty`, `setItemQty`, `setWastage`, `updateHeadcount`, `voidPot`, `cancelSession` |
 | [`(app)/kitchen/actions.ts`](../src/app/(app)/kitchen/actions.ts) | `deliverPot` |
 | [`(app)/cashier/actions.ts`](../src/app/(app)/cashier/actions.ts) | `addPayment`, `setDiscount`, `setWastage`, `settleSession`, `openShift`, `closeShift`, `addExpense`, `createReservation`, `seatReservation`, `cancelReservation`, `noShowReservation` |
-| [`(app)/admin/actions.ts`](../src/app/(app)/admin/actions.ts) | `createArea`, `toggleArea`, `createTable`, `toggleTable`, `updateMenuItem`, `updateSettings`, `createFlavour`, `toggleFlavour`, `createCategory`, `toggleCategory`, `createUser`, `updateUserRoles`, `setUserActive`, `resetUserPassword` |
+| [`(app)/admin/actions.ts`](../src/app/(app)/admin/actions.ts) | `createArea`, `moveArea`, `toggleArea`, `createTable`, `toggleTable`, `updateMenuItem`, `updateSettings`, `createFlavour`, `updateFlavour`, `deleteFlavour`, `toggleFlavour`, `createCategory`, `toggleCategory`, `toggleCategoryStock` |
 | [`(auth)/login/actions.ts`](../src/app/(auth)/login/actions.ts) | `loginAction` |
 
 ### Pages & components
 
 | Path | What it renders |
 |---|---|
-| `/waiter` | Table grid (live status) |
+| `/waiter` | Table grid (live status, OVERDUE badge ≥ 105 min) |
 | `/waiter/open/[tableId]` | Headcount form to open a session |
-| `/waiter/session/[id]` | Active session: pots, beer, wastage controls |
-| `/kitchen` | Pending pot tickets + beep; `KitchenLive.tsx` is the client component |
+| `/waiter/session/[id]` | Active session: pots, beer, wastage, menu item qty controls |
+| `/kitchen` | Pending pot tickets + mute/unmute toggle; `KitchenLive.tsx` is the client component |
 | `/cashier` | Open sessions list |
-| `/cashier/checkout/[sessionId]` | Full bill, discount, payment, settle, print |
-| `/cashier/tables` | Floor map + reservations |
+| `/cashier/checkout/[sessionId]` | Full bill (inc. extra menu items), discount, payment, settle, print |
+| `/cashier/tables` | Floor map + reservations (OVERDUE badge) |
 | `/cashier/expenses` | Expense form + today's list |
 | `/cashier/shift` | Open/close shift, totals |
 | `/reports` | Daily sales summary |
 | `/admin` | Admin sub-nav |
-| `/admin/tables` | Area + table CRUD |
-| `/admin/menu` | Price editing |
-| `/admin/flavours` | Soup flavour management |
-| `/admin/categories` | Expense category management |
-| `/admin/users` | User + role management |
+| `/admin/tables` | Area + table CRUD with ▲/▼ reordering |
+| `/admin/menu` | Price editing (dirty-row save button, grouped by category) |
+| `/admin/flavours` | Soup flavour management (edit/delete inline, bucket preview) |
+| `/admin/categories` | Expense category management + isStock toggle |
+| `/admin/stock-items` | Stock item CRUD |
+| `/admin/suppliers` | Supplier CRUD |
 
 ### Shared components
 
 | Component | Purpose |
 |---|---|
-| `AppShell.tsx` | Auth'd layout wrapper + nav |
+| `AppShell.tsx` | Auth'd layout wrapper + nav, loads notifications |
 | `NavBar.tsx` | Role-filtered top navigation |
 | `BillSummary.tsx` | Reusable bill breakdown display |
 | `LiveRefresh.tsx` | Socket.IO + polling combo refresh |
@@ -210,8 +222,7 @@ Full access including `/admin`:
 | [`server.ts`](../server.ts) | Custom Next.js + Socket.IO server (entry point for `npm start`) |
 | [`middleware.ts`](../middleware.ts) | Edge middleware: JWT check → `/login` redirect |
 | [`Dockerfile`](../Dockerfile) | Multi-stage build (deps → build → runtime) |
-| [`docker-compose.yml`](../docker-compose.yml) | `app` + `db` (postgres:16) + `caddy` |
-| [`Caddyfile`](../Caddyfile) | Auto-HTTPS + WebSocket passthrough → `app:3000` |
+| [`docker-compose.yml`](../docker-compose.yml) | `app` + `db` (postgres:16). Traefik labels route `app.qqhotpotbbq.com` → port 3000 via external `traefik-public` network |
 | [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) | CI/CD: typecheck → build image → push GHCR → SSH deploy |
 | [`scripts/bootstrap-vps.sh`](../scripts/bootstrap-vps.sh) | One-shot VPS setup (Docker, `.env`, seed) |
 
@@ -225,6 +236,7 @@ Key relationships (see full schema at [`prisma/schema.prisma`](../prisma/schema.
 User
 ├── TableSession (openedBy / closedBy)
 ├── PotOrder (createdBy / deliveredBy)
+├── OrderItem (line items: BEER, other menu items)
 ├── Payment (receivedBy)
 ├── Expense (enteredBy)
 ├── CashierShift
@@ -238,7 +250,7 @@ Area
 TableSession
 ├── PotOrder
 │   └── PotOrderFlavour → SoupFlavour
-├── OrderItem (BEER; extensible)
+├── OrderItem  (itemCode, qty, unitPrice — includes BEER and any extra menu items)
 └── Payment → CashierShift
 
 CashierShift
@@ -246,12 +258,19 @@ CashierShift
 └── Expense (CASH_DRAWER only → affects reconciliation)
 ```
 
+### SYSTEM_CODES
+
+Codes treated specially by `computeBill()`; never shown as orderable items in the waiter UI:
+`["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"]`
+
+Any `OrderItem` whose code is NOT in SYSTEM_CODES is an **extra item** (a regular menu item). These are exposed as `extraItems` in `BillInput` and shown as a separate section in the waiter session controls.
+
 ### Key enums
 
 | Enum | Values |
 |---|---|
 | `Role` | WAITER / KITCHEN / CASHIER / MANAGER / ADMIN / HR / MARKETING |
-| `MenuItemCode` | ADULT / CHILD / BEER / POT_ADDON / WASTAGE |
+| `MenuItemCode` | ADULT / CHILD / BEER / POT_ADDON / WASTAGE (plus any custom items — `String` field, not a DB enum) |
 | `PotKind` | HOTPOT / BBQ |
 | `PotStatus` | PENDING / DELIVERED |
 | `SessionStatus` | OPEN / CLOSED / CANCELLED |
@@ -300,6 +319,7 @@ subtotal = adults × priceAdult
          + paidPots × pricePotAddon      (free pots not charged)
          + beerQty × priceBeer
          + wastageGrams × priceWastage   (MMK per gram)
+         + Σ(extraItems[i].qty × extraItems[i].unitPrice)  ← orderable menu items
 
 afterDiscount = subtotal − discount
   where discount = subtotal × pct/100    (PERCENT)
@@ -311,7 +331,7 @@ tax           = (afterDiscount + serviceCharge) × taxRate/100  (if taxEnabled)
 total = afterDiscount + serviceCharge + tax
 ```
 
-Source: [`src/lib/pricing.ts:71`](../src/lib/pricing.ts#L71) — `computeBill()`.
+Source: [`src/lib/pricing.ts`](../src/lib/pricing.ts) — `computeBill()`.
 
 All amounts are **whole MMK** (Math.round applied to percent calculations).
 
@@ -321,8 +341,7 @@ All amounts are **whole MMK** (Math.round applied to percent calculations).
 - `balance = bill.total − Σ(payments.amount)`.
 - **Settle** is only enabled when `balance ≤ 0`.
 - Only `CASH` payments are linked to `CashierShift` and affect cash
-  reconciliation. `KBZPAY` and `OTHER` are recorded but excluded from the
-  drawer.
+  reconciliation. `KBZPAY` and `OTHER` are recorded but excluded from the drawer.
 
 ### 6.5 Shift reconciliation
 
@@ -331,7 +350,7 @@ expected = openingFloat + Σ(CASH payments in shift) − Σ(CASH_DRAWER expenses
 variance = countedCash − expected
 ```
 
-Source: [`src/lib/shift.ts:18`](../src/lib/shift.ts#L18) — `computeShiftTotals()`.
+Source: [`src/lib/shift.ts`](../src/lib/shift.ts) — `computeShiftTotals()`.
 
 One cashier → one OPEN shift at a time. Multiple shifts per day are allowed.
 BANK_TRANSFER expenses are **excluded** from reconciliation.
@@ -370,6 +389,14 @@ Both are **off by default**. Configured via admin settings:
 Service is applied to `afterDiscount`; tax is applied to
 `afterDiscount + serviceCharge`.
 
+### 6.10 Table overdue
+
+A table session is considered **overdue** when it has been open for ≥ **105 minutes**. This is displayed as an orange "OVERDUE" badge on:
+- The waiter table grid (`/waiter`)
+- The cashier tables floor view (`/cashier/tables`)
+
+No server-side enforcement — purely a display warning to prompt checkout.
+
 ---
 
 ## 7. Realtime events
@@ -384,6 +411,7 @@ in `globalThis.__qq_io` via `setIO()`.
 |---|---|
 | `kitchen` | Kitchen page |
 | `floor` | Waiter table grid, cashier pages |
+| `hr` | Manager live attendance dashboard, notification bell |
 
 ### Events emitted by server actions
 
@@ -393,22 +421,21 @@ in `globalThis.__qq_io` via `setIO()`.
 | `pot:void` | `kitchen` | `voidPot` | `{ sessionId, potId }` |
 | `pot:delivered` | `kitchen` | `deliverPot` | `{ potId }` |
 | `table:update` | `floor` | `openTable`, `settleSession`, `cancelSession`, `seatReservation`, `addPot` | `{ tableId }` |
+| `attendance:update` | `hr` | Clock in/out | employee data |
+| `break:out` / `break:in` | `hr` | Break start/end | employee data + notification |
+| `notification:new` | `hr` | Any `createNotification()` | notification object |
 
 All emits are **best-effort** (try/catch, no error thrown). If the socket is
 unavailable, clients poll via `AutoRefresh` (5-second interval on kitchen,
 `router.refresh()` driven).
 
-Source: [`src/lib/realtime.ts`](../src/lib/realtime.ts),
-[`src/lib/socket-client.ts`](../src/lib/socket-client.ts),
-[`src/components/LiveRefresh.tsx`](../src/components/LiveRefresh.tsx)
-
-### Kitchen beep
+### Kitchen beep / mute
 
 - Implemented in `KitchenLive.tsx` using **Web Audio API** (`AudioContext`,
   880 Hz sine, 0.4 s).
 - Fires every **15 seconds** while `pendingCount > 0`.
-- Requires a user click ("Enable Sound") to unlock the `AudioContext` — browser
-  autoplay policy.
+- A **Mute / Unmute** toggle persists the preference in component state.
+  The first unmute also unlocks the `AudioContext` (browser autoplay policy).
 
 ---
 
@@ -429,24 +456,29 @@ All stored as `Setting` rows with `key` / `valueJson`. Read via
 | `currency` | string | `"MMK"` | Display currency label |
 | `restaurantName` | string | `"QQ Hotpot BBQ"` | Shown on login + receipts |
 
-Changed via Admin → Settings (server action `updateSettings`).
+Changed via Admin → Menu & Settings (server action `updateSettings`).
 
 ---
 
 ## 9. Common change patterns
 
-### Add a new menu item type
+### Add a new orderable menu item
 
-1. Add code to `MenuItemCode` enum in `prisma/schema.prisma`.
-2. Add a seed row in `prisma/seed.ts`.
-3. Add a `MenuUnit` if needed.
+1. Add a `MenuItem` row in the DB (or via seed) with a unique `code` that is NOT in `SYSTEM_CODES`.
+2. The item automatically appears in the waiter session "Menu items" section with qty steppers.
+3. It is picked up as an `extraItem` by `getSessionDetail()` and added to the bill via `computeBill()`.
+4. No code changes needed unless you want special billing logic.
+
+### Add a new system-level item (like BEER)
+
+1. Add code to `SYSTEM_CODES` constant in `src/lib/pricing.ts` and `src/app/(app)/waiter/session/[id]/page.tsx`.
+2. Add dedicated UI controls in `SessionControls.tsx`.
+3. Add a server action in `waiter/actions.ts`.
 4. Add an `add()` line in `computeBill()` in `pricing.ts`.
-5. Add it to the waiter session controls in `waiter/session/[id]/SessionControls.tsx`.
-6. Add the corresponding server action in `waiter/actions.ts`.
 
 ### Change the free-pot formula
 
-Edit `freePotsAllowed()` in [`src/lib/pricing.ts:48`](../src/lib/pricing.ts#L48).
+Edit `freePotsAllowed()` in [`src/lib/pricing.ts`](../src/lib/pricing.ts).
 The `ratio` and `rounding` args come from `getSettings()`. To change defaults,
 update the seed values for `freePotRatio` and `freePotRounding` in
 [`prisma/seed.ts`](../prisma/seed.ts).
@@ -454,15 +486,14 @@ update the seed values for `freePotRatio` and `freePotRounding` in
 ### Add a new payment method
 
 1. Add the value to `PaymentMethod` enum in the schema.
-2. Add a migration.
+2. Run `prisma db push` on the VPS.
 3. Update the cashier checkout UI to offer the new method.
-4. Decide whether it affects shift reconciliation (update `computeShiftTotals`
-   if so — currently only `CASH` does).
+4. Decide whether it affects shift reconciliation (update `computeShiftTotals` if so).
 
 ### Add a new role
 
 1. Add to `Role` enum in `prisma/schema.prisma`.
-2. Add a migration.
+2. Run `prisma db push` on the VPS.
 3. Add to `ALL_ROLES` in `src/lib/rbac.ts`.
 4. Add a `LANDING` entry and `ROLE_PRIORITY` position in `rbac.ts`.
 5. Add module access in `MODULES` and/or `ROUTE_ROLES` in `rbac.ts`.
@@ -486,31 +517,27 @@ print. `PrintButton.tsx` calls `window.print()`.
 ### Add a realtime event
 
 1. Define the event name and payload shape.
-2. Call `emitKitchen(event, payload)` or `emitFloor(event, payload)` inside
+2. Call `emitKitchen(event, payload)`, `emitFloor(event, payload)`, or `emitHR(event, payload)` inside
    the relevant server action (after the DB write).
 3. Add the event name to the `events` array in the `useRoomRefresh()` call
    inside the client component that should react to it.
 
-### Change shift reconciliation logic
-
-Edit `computeShiftTotals()` in [`src/lib/shift.ts:18`](../src/lib/shift.ts#L18).
-The formula is: `expected = openingFloat + cashSales − cashExpenses`.
-
-### Run a DB migration after schema changes
+### Run a DB schema change
 
 ```bash
-# Development (applies + generates client)
-npx prisma migrate dev --name describe-your-change
+# Production (Docker)
+docker compose exec app npx prisma db push
+docker compose up -d --build
 
-# Production (Docker — runs automatically on container start)
-npx prisma migrate deploy
+# Development
+npx prisma db push   # or: npx prisma migrate dev --name describe-your-change
 ```
 
 ---
 
 ## Seeded demo logins
 
-Change all passwords after first deployment via Admin → Users.
+Change all passwords after first deployment via HR → Employees → Account tab.
 
 | Username | Password | Roles |
 |---|---|---|
