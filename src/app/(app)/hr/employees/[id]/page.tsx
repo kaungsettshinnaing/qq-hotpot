@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { toggleEmployeeActive } from "../actions";
+import { toggleEmployeeActive, resetEmployeePassword } from "../actions";
+import SubmitButton from "@/components/SubmitButton";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -94,6 +95,23 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           </ul>
         </div>
       )}
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">Account security</h2>
+        <form action={resetEmployeePassword} className="flex items-center gap-2">
+          <input type="hidden" name="userId" value={emp.userId} />
+          <input
+            name="password"
+            type="password"
+            placeholder="New password"
+            className="input flex-1"
+            required
+          />
+          <SubmitButton className="btn-outline disabled:opacity-60">
+            Reset password
+          </SubmitButton>
+        </form>
+      </div>
     </div>
   );
 }

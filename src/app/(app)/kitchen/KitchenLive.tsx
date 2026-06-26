@@ -76,13 +76,18 @@ export default function KitchenLive({ pendingCount }: { pendingCount: number }) 
         {pendingCount} pending
       </span>
       {soundOn ? (
-        <span className="text-sm text-emerald-700">🔔 Sound on</span>
+        <button
+          onClick={() => setSoundOn(false)}
+          className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
+        >
+          🔔 Sound on — tap to mute
+        </button>
       ) : (
         <button
           onClick={enableSound}
           className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
         >
-          🔔 Enable sound
+          🔕 Enable sound
         </button>
       )}
     </div>

@@ -4,23 +4,35 @@ import { createFlavour, toggleFlavour, moveFlavour } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-const APPLIES_LABEL: Record<string, string> = {
-  HOTPOT: "Hotpot only",
-  BBQ: "BBQ only",
-  BOTH: "Hotpot & BBQ",
-};
-
 export default async function AdminFlavoursPage() {
   const flavours = await prisma.soupFlavour.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
+  const hotpot = flavours.filter((f) => f.appliesTo === "HOTPOT" || f.appliesTo === "BOTH");
+  const bbq = flavours.filter((f) => f.appliesTo === "BBQ" || f.appliesTo === "BOTH");
+
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-      <div className="lg:col-span-2">
+      <div className="space-y-4 lg:col-span-2">
+        {/* Two buckets */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FlavourBucket
+            title="🍲 Hotpot"
+            flavours={hotpot}
+            allCount={flavours.length}
+          />
+          <FlavourBucket
+            title="🔥 BBQ"
+            flavours={bbq}
+            allCount={flavours.length}
+          />
+        </div>
+
+        {/* Unified management list */}
         <section className="rounded-xl bg-white shadow-sm">
           <h3 className="border-b border-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
-            Soup flavours ({flavours.length})
+            All flavours — manage order &amp; visibility ({flavours.length})
           </h3>
           <ul className="divide-y divide-gray-100">
             {flavours.length === 0 && (
@@ -32,39 +44,27 @@ export default async function AdminFlavoursPage() {
                   <span className={f.isActive ? "font-medium" : "font-medium text-gray-400 line-through"}>
                     {f.name}
                   </span>
-                  <span className="ml-2 text-xs text-gray-400">{APPLIES_LABEL[f.appliesTo]}</span>
+                  <span className="ml-2 text-[10px] rounded-full px-1.5 py-0.5 bg-gray-100 text-gray-500">
+                    {f.appliesTo === "BOTH" ? "Hotpot & BBQ" : f.appliesTo === "HOTPOT" ? "Hotpot" : "BBQ"}
+                  </span>
                 </span>
-
                 <div className="flex items-center gap-1">
-                  {/* Move up */}
                   <form action={moveFlavour}>
                     <input type="hidden" name="id" value={f.id} />
                     <input type="hidden" name="direction" value="up" />
-                    <button
-                      type="submit"
-                      disabled={idx === 0}
-                      title="Move up"
-                      className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
+                    <button type="submit" disabled={idx === 0} title="Move up"
+                      className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30">
                       ▲
                     </button>
                   </form>
-
-                  {/* Move down */}
                   <form action={moveFlavour}>
                     <input type="hidden" name="id" value={f.id} />
                     <input type="hidden" name="direction" value="down" />
-                    <button
-                      type="submit"
-                      disabled={idx === flavours.length - 1}
-                      title="Move down"
-                      className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
+                    <button type="submit" disabled={idx === flavours.length - 1} title="Move down"
+                      className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30">
                       ▼
                     </button>
                   </form>
-
-                  {/* Hide / Show */}
                   <form action={toggleFlavour}>
                     <input type="hidden" name="id" value={f.id} />
                     <button className="ml-1 text-xs text-gray-500 hover:underline">
@@ -88,15 +88,56 @@ export default async function AdminFlavoursPage() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2"
           />
           <select name="appliesTo" className="w-full rounded-lg border border-gray-300 px-3 py-2">
-            <option value="BOTH">Hotpot &amp; BBQ</option>
             <option value="HOTPOT">Hotpot only</option>
             <option value="BBQ">BBQ only</option>
+            <option value="BOTH">Hotpot &amp; BBQ</option>
           </select>
           <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
             Add flavour
           </SubmitButton>
         </form>
       </section>
+    </div>
+  );
+}
+
+function FlavourBucket({
+  title,
+  flavours,
+  allCount,
+}: {
+  title: string;
+  flavours: { id: string; name: string; isActive: boolean; appliesTo: string }[];
+  allCount: number;
+}) {
+  return (
+    <div className="rounded-xl bg-white shadow-sm">
+      <h3 className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">
+        {title}
+        <span className="ml-1.5 text-xs font-normal text-gray-400">
+          ({flavours.filter((f) => f.isActive).length} active)
+        </span>
+      </h3>
+      <ul className="divide-y divide-gray-100">
+        {flavours.length === 0 && (
+          <li className="px-4 py-3 text-xs text-gray-400">No flavours assigned.</li>
+        )}
+        {flavours
+          .filter((f) => f.isActive)
+          .map((f) => (
+            <li key={f.id} className="flex items-center gap-2 px-4 py-2 text-sm">
+              <span className="flex-1 font-medium text-gray-800">{f.name}</span>
+              {f.appliesTo === "BOTH" && (
+                <span className="text-[10px] text-gray-400">Both</span>
+              )}
+            </li>
+          ))}
+        {flavours.filter((f) => !f.isActive).length > 0 && (
+          <li className="px-4 py-2 text-xs text-gray-400">
+            +{flavours.filter((f) => !f.isActive).length} hidden
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

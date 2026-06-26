@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireAnyRole, hashPassword, hashPin } from "@/lib/auth";
+import { requireAnyRole } from "@/lib/auth";
 import { setSetting } from "@/lib/settings";
 import { ALL_ROLES, type Role } from "@/lib/rbac";
 
@@ -97,10 +97,11 @@ export async function updateMenuItem(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
   const code = str(formData.get("code"), 50);
   const name = str(formData.get("name"), 100);
+  const category = str(formData.get("category"), 100);
   const price = clampInt(formData.get("price"), 0, 1_000_000_000);
   await prisma.menuItem.update({
     where: { code },
-    data: { price, ...(name ? { name } : {}) },
+    data: { price, category, ...(name ? { name } : {}) },
   });
   revalidatePath("/admin/menu");
 }
@@ -108,14 +109,15 @@ export async function updateMenuItem(formData: FormData): Promise<void> {
 export async function createMenuItem(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
   const name = str(formData.get("name"), 100);
+  const category = str(formData.get("category"), 100);
   const price = clampInt(formData.get("price"), 0, 1_000_000_000);
   const unit = str(formData.get("unit")) === "GRAM" ? ("GRAM" as const) : ("UNIT" as const);
   if (!name) redirect("/admin/menu?error=missing");
   const code = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 50);
   await prisma.menuItem.upsert({
     where: { code },
-    update: { name, price, unit, isActive: true },
-    create: { code, name, price, unit },
+    update: { name, category, price, unit, isActive: true },
+    create: { code, name, category, price, unit },
   });
   revalidatePath("/admin/menu");
   redirect("/admin/menu");
@@ -222,6 +224,10 @@ export async function toggleCategoryStock(formData: FormData): Promise<void> {
 
 // ---- Staff roles ----
 
+function rolesFromForm(formData: FormData): Role[] {
+  return ALL_ROLES.filter((r) => formData.get(`role_${r}`) === "on");
+}
+
 export async function createStaffRole(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
   const name = str(formData.get("name"), 100);
@@ -254,54 +260,3 @@ export async function toggleStaffRole(formData: FormData): Promise<void> {
   revalidatePath("/admin/roles");
 }
 
-// ---- Users (system accounts) ----
-
-function rolesFromForm(formData: FormData): Role[] {
-  return ALL_ROLES.filter((r) => formData.get(`role_${r}`) === "on");
-}
-
-export async function createUser(formData: FormData): Promise<void> {
-  await requireAnyRole(ADMIN);
-  const name = str(formData.get("name"), 100);
-  const username = str(formData.get("username"), 50).toLowerCase();
-  const password = str(formData.get("password"), 100);
-  const pin = str(formData.get("pin"), 20);
-  const roles = rolesFromForm(formData);
-  if (!name || !username || !password) redirect("/admin/users?error=missing");
-  const existing = await prisma.user.findUnique({ where: { username } });
-  if (existing) redirect("/admin/users?error=exists");
-  await prisma.user.create({
-    data: {
-      name,
-      username,
-      passwordHash: hashPassword(password),
-      roles,
-      pinHash: pin ? hashPin(pin) : null,
-    },
-  });
-  revalidatePath("/admin/users");
-  redirect("/admin/users");
-}
-
-export async function updateUserRoles(formData: FormData): Promise<void> {
-  await requireAnyRole(ADMIN);
-  const id = str(formData.get("id"));
-  await prisma.user.update({ where: { id }, data: { roles: rolesFromForm(formData) } });
-  revalidatePath("/admin/users");
-}
-
-export async function setUserActive(formData: FormData): Promise<void> {
-  await requireAnyRole(ADMIN);
-  const id = str(formData.get("id"));
-  const u = await prisma.user.findUnique({ where: { id } });
-  if (u) await prisma.user.update({ where: { id }, data: { isActive: !u.isActive } });
-  revalidatePath("/admin/users");
-}
-
-export async function resetUserPassword(formData: FormData): Promise<void> {
-  await requireAnyRole(ADMIN);
-  const id = str(formData.get("id"));
-  const password = str(formData.get("password"), 100);
-  if (password) await prisma.user.update({ where: { id }, data: { passwordHash: hashPassword(password) } });
-  revalidatePath("/admin/users");
-}

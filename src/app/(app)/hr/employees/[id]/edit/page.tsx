@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { updateEmployee } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -35,14 +36,14 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
             <input name="employeeNo" className="input" defaultValue={emp.employeeNo ?? ""} />
           </div>
           <div>
-            <label className="label">Start Date *</label>
-            <input name="startDate" type="date" required className="input"
-              defaultValue={emp.startDate.toISOString().slice(0, 10)} />
+            <label className="label">Start Date * (DD-MMM-YYYY)</label>
+            <input name="startDate" required className="input"
+              defaultValue={formatDate(emp.startDate)} />
           </div>
           <div>
-            <label className="label">Date of Birth</label>
-            <input name="dateOfBirth" type="date" className="input"
-              defaultValue={emp.dateOfBirth?.toISOString().slice(0, 10) ?? ""} />
+            <label className="label">Date of Birth (DD-MMM-YYYY)</label>
+            <input name="dateOfBirth" className="input"
+              defaultValue={emp.dateOfBirth ? formatDate(emp.dateOfBirth) : ""} />
           </div>
           <div>
             <label className="label">Phone</label>

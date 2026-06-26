@@ -49,6 +49,7 @@ export default async function WaiterPage() {
         <div className="flex gap-3 text-xs">
           <Legend className="bg-emerald-300" label="Available" />
           <Legend className="bg-red-300" label="Occupied" />
+          <Legend className="bg-orange-400" label="Overdue (105+min)" />
           <Legend className="bg-amber-300" label="Reserved" />
           <Legend className="bg-violet-300" label="Merged" />
         </div>
@@ -67,7 +68,8 @@ export default async function WaiterPage() {
               let resAt: Date | null = null;
 
               if (sess) {
-                status = "OCCUPIED";
+                const minsOpen = (now.getTime() - new Date(sess.openedAt).getTime()) / 60000;
+                status = minsOpen >= 105 ? "OVERDUE" : "OCCUPIED";
               } else if (mergedSessId) {
                 status = "MERGED";
               } else {

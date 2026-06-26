@@ -84,16 +84,6 @@ export default function AdminHome() {
         ))}
       </div>
 
-      <div className="mt-6 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
-        <span className="font-medium text-gray-600">User accounts</span> are created in{" "}
-        <Link href="/hr/employees/new" className="text-brand hover:underline font-medium">
-          HR → New Employee
-        </Link>
-        {" "}and can be managed at{" "}
-        <Link href="/admin/users" className="text-brand hover:underline font-medium">
-          Admin → Users
-        </Link>.
-      </div>
     </div>
   );
 }

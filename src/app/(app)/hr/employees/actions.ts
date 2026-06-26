@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAnyRole, hashPassword } from "@/lib/auth";
+import { parseInputDate } from "@/lib/format";
 import type { Role } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { writeFile, mkdir } from "fs/promises";
@@ -36,8 +37,8 @@ export async function createEmployee(fd: FormData) {
 
   const staffRoleId = (fd.get("staffRoleId") as string | null)?.trim() || null;
   const employeeNo = (fd.get("employeeNo") as string).trim() || undefined;
-  const startDate = new Date(fd.get("startDate") as string);
-  const dateOfBirth = fd.get("dateOfBirth") ? new Date(fd.get("dateOfBirth") as string) : undefined;
+  const startDate = parseInputDate(fd.get("startDate") as string) ?? new Date();
+  const dateOfBirth = parseInputDate(fd.get("dateOfBirth") as string) ?? undefined;
   const basicSalary = parseInt(fd.get("basicSalary") as string) || 0;
   const attendanceBonus = parseInt(fd.get("attendanceBonus") as string) || 0;
   const restDaysRaw = fd.getAll("restDays").map((v) => parseInt(v as string));
@@ -69,8 +70,8 @@ export async function createEmployee(fd: FormData) {
 export async function updateEmployee(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN"]);
   const userId = fd.get("userId") as string;
-  const startDate = new Date(fd.get("startDate") as string);
-  const dateOfBirth = fd.get("dateOfBirth") ? new Date(fd.get("dateOfBirth") as string) : null;
+  const startDate = parseInputDate(fd.get("startDate") as string) ?? new Date();
+  const dateOfBirth = parseInputDate(fd.get("dateOfBirth") as string);
   const basicSalary = parseInt(fd.get("basicSalary") as string) || 0;
   const attendanceBonus = parseInt(fd.get("attendanceBonus") as string) || 0;
   const restDaysRaw = fd.getAll("restDays").map((v) => parseInt(v as string));
@@ -113,6 +114,15 @@ export async function toggleEmployeeActive(fd: FormData) {
   if (!emp) return;
   await prisma.employee.update({ where: { userId }, data: { isActive: !emp.isActive } });
   revalidatePath(`/hr/employees/${userId}`);
+}
+
+export async function resetEmployeePassword(fd: FormData) {
+  await requireAnyRole(["HR", "ADMIN"]);
+  const userId = fd.get("userId") as string;
+  const password = ((fd.get("password") as string) ?? "").trim();
+  if (!password) return;
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: hashPassword(password) } });
+  redirect(`/hr/employees/${userId}`);
 }
 
 export async function uploadDocument(fd: FormData) {

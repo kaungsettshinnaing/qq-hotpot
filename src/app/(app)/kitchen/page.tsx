@@ -39,7 +39,7 @@ export default async function KitchenPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Kitchen — Pot Orders</h1>
+        <h1 className="text-xl font-bold">Kitchen — Orders</h1>
         <KitchenLive pendingCount={pending.length} />
       </div>
 

@@ -1,62 +1,55 @@
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import SubmitButton from "@/components/SubmitButton";
-import { updateMenuItem, createMenuItem, toggleMenuItem, updateSettings } from "../actions";
+import MenuItemRow from "./MenuItemRow";
+import { createMenuItem, updateSettings } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMenuPage() {
   const [items, settings] = await Promise.all([
-    prisma.menuItem.findMany({ orderBy: { name: "asc" } }),
+    prisma.menuItem.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
     getSettings(),
   ]);
 
+  // Group items by category
+  const groups = new Map<string, typeof items>();
+  for (const item of items) {
+    const cat = item.category.trim() || "Other";
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat)!.push(item);
+  }
+  const sortedGroups = [...groups.entries()].sort(([a], [b]) =>
+    a === "Other" ? 1 : b === "Other" ? -1 : a.localeCompare(b),
+  );
+
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-      {/* Menu prices + add item */}
+      {/* Menu prices */}
       <div className="space-y-4 lg:col-span-2">
         <section className="rounded-xl bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-gray-700">
             Menu prices ({settings.currency})
           </h3>
-          <div className="space-y-2">
-            {items.map((it) => (
-              <div key={it.code} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2">
-                <form action={updateMenuItem} className="flex flex-1 items-center gap-2">
-                  <input type="hidden" name="code" value={it.code} />
-                  <input
-                    name="name"
-                    defaultValue={it.name}
-                    className={
-                      "flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm " +
-                      (!it.isActive ? "text-gray-400 line-through" : "")
-                    }
-                  />
-                  <input
-                    name="price"
-                    type="number"
-                    min={0}
-                    defaultValue={it.price}
-                    className="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                  />
-                  <span className="w-14 text-xs text-gray-400">
-                    /{it.unit === "GRAM" ? "gram" : "unit"}
+          {items.length === 0 && (
+            <p className="text-sm text-gray-400">No menu items yet. Add one below.</p>
+          )}
+          <div className="space-y-4">
+            {sortedGroups.map(([cat, catItems]) => (
+              <div key={cat}>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    {cat}
                   </span>
-                  <SubmitButton className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-900 disabled:opacity-60">
-                    Save
-                  </SubmitButton>
-                </form>
-                <form action={toggleMenuItem}>
-                  <input type="hidden" name="code" value={it.code} />
-                  <button className="text-xs text-gray-500 hover:underline">
-                    {it.isActive ? "Hide" : "Show"}
-                  </button>
-                </form>
+                  <div className="flex-1 border-t border-gray-100" />
+                </div>
+                <div className="space-y-1.5">
+                  {catItems.map((it) => (
+                    <MenuItemRow key={it.code} item={it} currency={settings.currency} />
+                  ))}
+                </div>
               </div>
             ))}
-            {items.length === 0 && (
-              <p className="text-sm text-gray-400">No menu items yet. Add one below.</p>
-            )}
           </div>
         </section>
 
@@ -73,7 +66,15 @@ export default async function AdminMenuPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2"
               />
             </label>
-            <label className="block w-32">
+            <label className="block w-36">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Category</span>
+              <input
+                name="category"
+                placeholder="e.g. Drinks"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2"
+              />
+            </label>
+            <label className="block w-28">
               <span className="mb-1 block text-xs font-medium text-gray-500">Price ({settings.currency})</span>
               <input
                 name="price"

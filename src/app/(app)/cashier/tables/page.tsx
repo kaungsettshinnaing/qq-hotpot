@@ -38,7 +38,7 @@ export default async function CashierTablesPage() {
       include: { tables: { where: { isActive: true }, orderBy: { number: "asc" } } },
       orderBy: { sortOrder: "asc" },
     }),
-    prisma.tableSession.findMany({ where: { status: "OPEN" }, select: { id: true, tableId: true } }),
+    prisma.tableSession.findMany({ where: { status: "OPEN" }, select: { id: true, tableId: true, openedAt: true } }),
     prisma.reservation.findMany({
       where: { status: "BOOKED" },
       include: { table: true },
@@ -72,8 +72,10 @@ export default async function CashierTablesPage() {
                 {area.tables.map((t) => {
                   const sess = openByTable.get(t.id);
                   let status: TableStatus = "AVAILABLE";
-                  if (sess) status = "OCCUPIED";
-                  else if (
+                  if (sess) {
+                    const minsOpen = (now.getTime() - new Date(sess.openedAt).getTime()) / 60000;
+                    status = minsOpen >= 105 ? "OVERDUE" : "OCCUPIED";
+                  } else if (
                     reservations.some(
                       (r) =>
                         r.tableId === t.id &&

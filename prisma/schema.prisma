@@ -106,8 +106,9 @@ model MenuItem {
   id       String   @id @default(cuid())
   code     String   @unique
   name     String
+  category String   @default("")
   unit     MenuUnit     @default(UNIT)
-  price    Int          @default(0) // MMK per unit (or per gram for WASTAGE)
+  price    Int          @default(0)
   isActive Boolean      @default(true)
 }
 

@@ -33,3 +33,18 @@ export function formatTime(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
   return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
+
+const MONTH_MAP: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+};
+
+export function parseInputDate(s: string | null | undefined): Date | null {
+  if (!s || !s.trim()) return null;
+  const parts = s.trim().split("-");
+  if (parts.length !== 3) return null;
+  const [day, mon, year] = parts;
+  const m = MONTH_MAP[mon];
+  if (m === undefined || !day || !year) return null;
+  return new Date(parseInt(year), m, parseInt(day));
+}
