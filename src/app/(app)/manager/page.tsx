@@ -119,7 +119,7 @@ export default async function ManagerDashboard() {
                 <input name="deductYear" type="number" className="input" defaultValue={now.getFullYear()} />
               </div>
             </div>
-            <SubmitButton className="w-full rounded-lg bg-brand py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
+            <SubmitButton className="w-full rounded-lg bg-brand py-3 text-sm font-semibold text-white hover:bg-brand-dark active:scale-95 transition disabled:opacity-60">
               Add Fine
             </SubmitButton>
           </form>
@@ -130,7 +130,32 @@ export default async function ManagerDashboard() {
           <div className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">
             Recent fines
           </div>
-          <table className="w-full text-sm">
+
+          {recentFines.length === 0 && (
+            <p className="px-4 py-6 text-center text-sm text-gray-400">No fines recorded.</p>
+          )}
+
+          {/* Mobile cards */}
+          <div className="divide-y sm:hidden">
+            {recentFines.map((f) => (
+              <div key={f.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-gray-800">{f.employee.user.name}</div>
+                    <div className="text-sm font-medium text-red-600">{f.amount.toLocaleString()} MMK</div>
+                    <div className="mt-0.5 text-xs text-gray-500">{f.reason}</div>
+                    <div className="text-xs text-gray-400">{MONTHS[f.deductMonth - 1]} {f.deductYear}</div>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${f.deducted ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {f.deducted ? "Deducted" : "Pending"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <table className="hidden sm:table w-full text-sm">
             <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-2 text-left">Employee</th>
@@ -154,11 +179,6 @@ export default async function ManagerDashboard() {
                   </td>
                 </tr>
               ))}
-              {recentFines.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-gray-400">No fines recorded.</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

@@ -2,7 +2,7 @@
 
 import { useRoomRefresh } from "@/lib/socket-client";
 
-type LiveStatus = "not_started" | "working" | "on_break" | "clocked_out" | "on_leave";
+type LiveStatus = "not_started" | "working" | "on_break" | "clocked_out" | "on_leave" | "rest";
 
 type StatusEntry = {
   employeeId: string;
@@ -13,6 +13,7 @@ type StatusEntry = {
   breakCount: number;
   totalBreakMins: number;
   currentBreakStartAt: string | null;
+  isRestDay: boolean;
 };
 
 const STATUS_LABEL: Record<LiveStatus, string> = {
@@ -21,22 +22,25 @@ const STATUS_LABEL: Record<LiveStatus, string> = {
   on_break: "On break",
   clocked_out: "Clocked out",
   on_leave: "On leave",
+  rest: "Rest day",
 };
 
 const STATUS_COLOR: Record<LiveStatus, string> = {
   not_started: "bg-gray-100 text-gray-500",
   working: "bg-green-100 text-green-700",
   on_break: "bg-yellow-100 text-yellow-700",
-  clocked_out: "bg-gray-200 text-gray-500",
+  clocked_out: "bg-gray-200 text-gray-600",
   on_leave: "bg-blue-100 text-blue-700",
+  rest: "bg-violet-100 text-violet-600",
 };
 
 const STATUS_ORDER: Record<LiveStatus, number> = {
   working: 0,
   on_break: 1,
   on_leave: 2,
-  not_started: 3,
-  clocked_out: 4,
+  rest: 3,
+  not_started: 4,
+  clocked_out: 5,
 };
 
 function fmtTime(s: string | null) {
@@ -57,9 +61,48 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
     (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
   );
 
+  if (sorted.length === 0) {
+    return <p className="py-6 text-center text-sm text-gray-400">No active employees</p>;
+  }
+
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border bg-white shadow-sm overflow-x-auto">
+      {/* ── Mobile cards (< sm) ── */}
+      <div className="grid grid-cols-1 gap-2 sm:hidden">
+        {sorted.map((e) => (
+          <div
+            key={e.employeeId}
+            className={
+              "rounded-xl border bg-white p-3 shadow-sm " +
+              (e.status === "on_leave" ? "border-blue-200" : e.status === "rest" ? "border-violet-200" : "border-gray-100")
+            }
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-gray-800">{e.name}</span>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_COLOR[e.status]}`}>
+                {STATUS_LABEL[e.status]}
+              </span>
+            </div>
+            {e.status !== "rest" && e.status !== "on_leave" && (
+              <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-500">
+                <span>In: <span className="font-medium text-gray-700">{fmtTime(e.clockInAt)}</span></span>
+                <span>Out: <span className="font-medium text-gray-700">{fmtTime(e.clockOutAt)}</span></span>
+                {e.currentBreakStartAt ? (
+                  <span className="text-yellow-700 font-medium">
+                    Break since {fmtTime(e.currentBreakStartAt)}
+                    {fmtMins(e.totalBreakMins) && ` (${fmtMins(e.totalBreakMins)} total)`}
+                  </span>
+                ) : fmtMins(e.totalBreakMins) ? (
+                  <span className="text-gray-500">Break: {fmtMins(e.totalBreakMins)}</span>
+                ) : null}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Desktop table (sm+) ── */}
+      <div className="hidden sm:block rounded-xl border bg-white shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
@@ -72,15 +115,21 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
           </thead>
           <tbody className="divide-y">
             {sorted.map((e) => (
-              <tr key={e.employeeId} className={e.status === "on_leave" ? "bg-blue-50/40" : ""}>
-                <td className="px-4 py-2 font-medium">{e.name}</td>
-                <td className="px-4 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[e.status]}`}>
+              <tr
+                key={e.employeeId}
+                className={
+                  e.status === "on_leave" ? "bg-blue-50/40" :
+                  e.status === "rest" ? "bg-violet-50/30" : ""
+                }
+              >
+                <td className="px-4 py-2.5 font-medium text-gray-800">{e.name}</td>
+                <td className="px-4 py-2.5">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_COLOR[e.status]}`}>
                     {STATUS_LABEL[e.status]}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-gray-600">{fmtTime(e.clockInAt)}</td>
-                <td className="px-4 py-2 text-xs">
+                <td className="px-4 py-2.5 text-gray-600">{fmtTime(e.clockInAt)}</td>
+                <td className="px-4 py-2.5 text-xs">
                   {e.currentBreakStartAt ? (
                     <span className="font-medium text-yellow-700">
                       Since {fmtTime(e.currentBreakStartAt)}
@@ -94,27 +143,22 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
                     <span className="text-gray-400">—</span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-gray-600">{fmtTime(e.clockOutAt)}</td>
+                <td className="px-4 py-2.5 text-gray-600">{fmtTime(e.clockOutAt)}</td>
               </tr>
             ))}
-            {sorted.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No active employees</td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
 
-      {/* Status legend */}
-      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600 space-y-1">
-        <div className="font-semibold text-gray-700 mb-1">End-of-day review statuses (set by manager):</div>
+      {/* Legend */}
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+        <div className="mb-1.5 font-semibold text-gray-700">End-of-day review statuses:</div>
         <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
-          <div><span className="font-semibold text-green-700">PRESENT</span> — worked a normal shift, counted toward monthly working days</div>
-          <div><span className="font-semibold text-purple-700">OT</span> — worked an extra day beyond required working days for the month — earns OT premium</div>
-          <div><span className="font-semibold text-red-700">ABSENT</span> — did not come in, no leave — daily rate deducted from salary</div>
-          <div><span className="font-semibold text-blue-700">LEAVE</span> — did not come in, on leave — daily rate deducted from salary (same as absent)</div>
-          <div><span className="font-semibold text-gray-500">REST DAY</span> — scheduled day off, excluded from working-day count</div>
+          <div><span className="font-semibold text-green-700">PRESENT</span> — worked a normal shift, counts toward monthly working days</div>
+          <div><span className="font-semibold text-purple-700">OT</span> — worked an extra day beyond required days — earns OT premium</div>
+          <div><span className="font-semibold text-red-700">ABSENT</span> — did not come in — daily rate deducted</div>
+          <div><span className="font-semibold text-blue-700">LEAVE</span> — on approved leave — daily rate deducted (same as absent)</div>
+          <div><span className="font-semibold text-gray-500">REST DAY</span> — scheduled off, excluded from working-day count</div>
         </div>
       </div>
     </div>

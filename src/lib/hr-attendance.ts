@@ -58,6 +58,7 @@ export async function getLiveAttendanceStatus() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const now = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sun … 6=Sat
 
   const employees = await prisma.employee.findMany({
     where: { isActive: true, isSystem: false },
@@ -80,14 +81,19 @@ export async function getLiveAttendanceStatus() {
   return employees.map((emp) => {
     const att = emp.attendances[0] ?? null;
     const openBreak = att?.breaks.find((b) => !b.endAt) ?? null;
-    let status: "not_started" | "working" | "on_break" | "clocked_out" | "on_leave" = "not_started";
+    const isRestDay = emp.restDays.includes(dayOfWeek);
+
+    let status: "not_started" | "working" | "on_break" | "clocked_out" | "on_leave" | "rest" = "not_started";
     if (att) {
       if (att.clockOutAt) status = "clocked_out";
       else if (openBreak) status = "on_break";
       else if (att.clockInAt) status = "working";
     } else if (emp.leaveRequests.length > 0) {
       status = "on_leave";
+    } else if (isRestDay) {
+      status = "rest";
     }
+
     const totalBreakMins = Math.floor(
       (att?.breaks ?? []).reduce((sum, b) => {
         return sum + ((b.endAt ?? now).getTime() - b.startAt.getTime()) / 60000;
@@ -98,6 +104,7 @@ export async function getLiveAttendanceStatus() {
       name: emp.user.name,
       attendance: att,
       status,
+      isRestDay,
       openBreak,
       breakCount: att?.breaks.length ?? 0,
       totalBreakMins,

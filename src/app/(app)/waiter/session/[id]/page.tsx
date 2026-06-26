@@ -76,21 +76,23 @@ export default async function SessionPage({
       <LiveRefresh room="floor" events={["table:update"]} seconds={12} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
+        <div>
           <Link href="/waiter" className="text-sm text-brand hover:underline">
             ← Tables
           </Link>
-          <h1 className="text-xl font-bold">
-            Table {[session.table.label, ...mergedLabels].join(" + ")}
-            <span className="ml-2 text-sm font-normal text-gray-400">
-              {detail.diners} pax · opened {formatTime(session.openedAt)}
+          <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
+            <h1 className="text-xl font-bold">
+              Table {[session.table.label, ...mergedLabels].join(" + ")}
+            </h1>
+            <span className="text-sm text-gray-400">
+              {detail.diners} pax · {formatTime(session.openedAt)}
             </span>
-          </h1>
+          </div>
         </div>
         {canCancel && (
           <form action={cancelSession}>
             <input type="hidden" name="sessionId" value={session.id} />
-            <button className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50">
+            <button className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 active:bg-red-100">
               Cancel table
             </button>
           </form>

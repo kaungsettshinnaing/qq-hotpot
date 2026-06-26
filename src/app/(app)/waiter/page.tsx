@@ -46,10 +46,10 @@ export default async function WaiterPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">Tables</h1>
-        <div className="flex gap-3 text-xs">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
           <Legend className="bg-emerald-300" label="Available" />
           <Legend className="bg-red-300" label="Occupied" />
-          <Legend className="bg-orange-400" label="Overdue (105+min)" />
+          <Legend className="bg-orange-400" label="Overdue" />
           <Legend className="bg-amber-300" label="Reserved" />
           <Legend className="bg-violet-300" label="Merged" />
         </div>
@@ -60,7 +60,7 @@ export default async function WaiterPage() {
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Area {area.name}
           </h2>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {area.tables.map((t) => {
               const sess = openByTable.get(t.id);
               const mergedSessId = mergedToSession.get(t.id);
@@ -95,15 +95,15 @@ export default async function WaiterPage() {
                   key={t.id}
                   href={href}
                   className={
-                    "flex aspect-square flex-col items-center justify-center rounded-xl border-2 p-2 text-center transition " +
+                    "flex min-h-[80px] flex-col items-center justify-center rounded-xl border-2 p-2 text-center transition active:scale-95 " +
                     STATUS_STYLES[status]
                   }
                 >
-                  <div className="text-lg font-extrabold">{t.label}</div>
-                  <div className="text-[11px] font-medium">{STATUS_LABEL[status]}</div>
+                  <div className="text-xl font-extrabold leading-tight">{t.label}</div>
+                  <div className="text-[11px] font-semibold">{STATUS_LABEL[status]}</div>
                   {sess && (
                     <div className="text-[10px] opacity-80">
-                      {sess.adults + sess.children} pax · {formatTime(sess.openedAt)}
+                      {sess.adults + sess.children}p · {formatTime(sess.openedAt)}
                     </div>
                   )}
                   {status === "BLOCKED" && resAt && (

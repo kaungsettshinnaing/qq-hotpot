@@ -109,7 +109,7 @@ export default function SessionControls(props: {
           <button
             onClick={() => run(updateHeadcount(props.sessionId, adults, children))}
             disabled={pending}
-            className="rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-60"
+            className="rounded-lg bg-gray-800 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-900 active:scale-95 disabled:opacity-60"
           >
             Save diners
           </button>
@@ -140,7 +140,7 @@ export default function SessionControls(props: {
                 setF2("");
               }}
               className={
-                "flex-1 rounded-lg border px-3 py-2 text-sm font-semibold " +
+                "flex-1 rounded-lg border py-3 text-sm font-semibold active:scale-95 transition " +
                 (kind === k ? "border-brand bg-brand-light text-brand" : "border-gray-300 text-gray-600")
               }
             >
@@ -164,7 +164,7 @@ export default function SessionControls(props: {
         <button
           onClick={addPotNow}
           disabled={pending}
-          className="mt-3 w-full rounded-lg bg-brand py-2.5 font-semibold text-white hover:bg-brand-dark disabled:opacity-60"
+          className="mt-3 w-full rounded-lg bg-brand py-4 text-base font-bold text-white hover:bg-brand-dark active:scale-95 transition disabled:opacity-60"
         >
           Send pot to kitchen
         </button>
@@ -173,20 +173,20 @@ export default function SessionControls(props: {
       {/* Beer + wastage */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Beer 🍺</h3>
-          <div className="flex items-center gap-3">
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">Beer 🍺</h3>
+          <div className="flex items-center gap-4">
             <button
               onClick={() => changeBeer(beer - 1)}
               disabled={pending || beer <= 0}
-              className="h-10 w-10 rounded-lg bg-gray-200 text-xl font-bold disabled:opacity-50"
+              className="h-12 w-12 rounded-xl bg-gray-200 text-2xl font-bold active:scale-95 transition disabled:opacity-50"
             >
               −
             </button>
-            <span className="w-10 text-center text-2xl font-bold tabular-nums">{beer}</span>
+            <span className="w-10 text-center text-3xl font-bold tabular-nums">{beer}</span>
             <button
               onClick={() => changeBeer(beer + 1)}
               disabled={pending}
-              className="h-10 w-10 rounded-lg bg-gray-200 text-xl font-bold disabled:opacity-50"
+              className="h-12 w-12 rounded-xl bg-gray-200 text-2xl font-bold active:scale-95 transition disabled:opacity-50"
             >
               +
             </button>
@@ -194,19 +194,19 @@ export default function SessionControls(props: {
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Wastage (grams)</h3>
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">Wastage (grams)</h3>
           <div className="flex items-center gap-2">
             <input
               type="number"
               min={0}
               value={wastage}
               onChange={(e) => setWastageVal(parseInt(e.target.value || "0", 10))}
-              className="w-28 rounded-lg border border-gray-300 px-3 py-2"
+              className="w-28 rounded-lg border border-gray-300 px-3 py-3 text-lg"
             />
             <button
               onClick={() => run(setWastage(props.sessionId, wastage))}
               disabled={pending}
-              className="rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-60"
+              className="rounded-lg bg-gray-800 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-900 active:scale-95 transition disabled:opacity-60"
             >
               Save
             </button>
@@ -233,15 +233,15 @@ export default function SessionControls(props: {
                     <button
                       onClick={() => changeItem(item.code, qty - 1)}
                       disabled={pending || qty <= 0}
-                      className="h-7 w-7 rounded-md bg-gray-200 text-base font-bold disabled:opacity-40"
+                      className="h-10 w-10 rounded-lg bg-gray-200 text-lg font-bold active:scale-95 transition disabled:opacity-40"
                     >
                       −
                     </button>
-                    <span className="w-6 text-center text-sm font-bold tabular-nums">{qty}</span>
+                    <span className="w-7 text-center text-base font-bold tabular-nums">{qty}</span>
                     <button
                       onClick={() => changeItem(item.code, qty + 1)}
                       disabled={pending}
-                      className="h-7 w-7 rounded-md bg-gray-200 text-base font-bold disabled:opacity-40"
+                      className="h-10 w-10 rounded-lg bg-gray-200 text-lg font-bold active:scale-95 transition disabled:opacity-40"
                     >
                       +
                     </button>
@@ -271,7 +271,7 @@ function Stepper({
       <div className="flex items-center gap-2">
         <button
           onClick={() => onChange(Math.max(0, value - 1))}
-          className="h-9 w-9 rounded-lg bg-gray-200 text-lg font-bold"
+          className="h-12 w-12 rounded-xl bg-gray-200 text-2xl font-bold active:scale-95 transition"
         >
           −
         </button>
@@ -280,11 +280,11 @@ function Stepper({
           min={0}
           value={value}
           onChange={(e) => onChange(Math.max(0, parseInt(e.target.value || "0", 10)))}
-          className="w-14 rounded-lg border border-gray-300 px-2 py-1.5 text-center"
+          className="w-16 rounded-lg border border-gray-300 px-2 py-2.5 text-center text-lg font-bold"
         />
         <button
           onClick={() => onChange(value + 1)}
-          className="h-9 w-9 rounded-lg bg-gray-200 text-lg font-bold"
+          className="h-12 w-12 rounded-xl bg-gray-200 text-2xl font-bold active:scale-95 transition"
         >
           +
         </button>
