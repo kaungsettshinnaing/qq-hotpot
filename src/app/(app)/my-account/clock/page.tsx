@@ -2,6 +2,8 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { clockIn, clockOut, breakOut, breakIn } from "./actions";
+import LiveClock from "./LiveClock";
+import LiveDuration from "./LiveDuration";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -43,12 +45,7 @@ export default async function ClockPage() {
     <div className="flex flex-col items-center gap-6 py-8">
       {/* Clock display */}
       <div className="text-center">
-        <div className="text-4xl font-bold text-brand">
-          {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </div>
-        <div className="text-gray-500">
-          {formatDate(new Date())}
-        </div>
+        <LiveClock dateStr={formatDate(new Date())} />
       </div>
 
       {/* ── Section 1: Shift ── */}
@@ -107,22 +104,21 @@ export default async function ClockPage() {
           {/* Break history */}
           {(att?.breaks.length ?? 0) > 0 && (
             <div className="rounded-xl border bg-white p-4 shadow-sm space-y-1 text-sm">
-              {att!.breaks.map((b, i) => {
-                const mins = durationMins(b.startAt, b.endAt);
-                return (
-                  <div key={b.id} className="flex items-center justify-between">
-                    <span className="text-gray-500">
-                      Break {i + 1} &nbsp;
-                      <span className="font-medium text-gray-700">{fmt(b.startAt)}</span>
-                      {" → "}
-                      <span className="font-medium text-gray-700">{b.endAt ? fmt(b.endAt) : "ongoing"}</span>
-                    </span>
-                    <span className={`text-xs font-semibold ${b.endAt ? "text-gray-400" : "text-yellow-600"}`}>
-                      {mins} min
-                    </span>
-                  </div>
-                );
-              })}
+              {att!.breaks.map((b, i) => (
+                <div key={b.id} className="flex items-center justify-between">
+                  <span className="text-gray-500">
+                    Break {i + 1} &nbsp;
+                    <span className="font-medium text-gray-700">{fmt(b.startAt)}</span>
+                    {" → "}
+                    <span className="font-medium text-gray-700">{b.endAt ? fmt(b.endAt) : "ongoing"}</span>
+                  </span>
+                  <span className={`text-xs font-semibold ${b.endAt ? "text-gray-400" : "text-yellow-600"}`}>
+                    {b.endAt
+                      ? `${durationMins(b.startAt, b.endAt)} min`
+                      : <LiveDuration startAt={b.startAt.toISOString()} />}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
 
