@@ -110,10 +110,11 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600 space-y-1">
         <div className="font-semibold text-gray-700 mb-1">End-of-day review statuses (set by manager):</div>
         <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
-          <div><span className="font-semibold text-green-700">PRESENT / OT</span> — clocked in, worked a normal or overtime shift</div>
-          <div><span className="font-semibold text-blue-700">LEAVE</span> — on an approved leave request (annual, sick, etc.) — typically paid</div>
-          <div><span className="font-semibold text-red-700">ABSENT</span> — did not come in with no approved leave — salary may be deducted</div>
-          <div><span className="font-semibold text-gray-500">REST DAY</span> — scheduled day off, excluded from attendance counts</div>
+          <div><span className="font-semibold text-green-700">PRESENT</span> — worked a normal shift, counted toward monthly working days</div>
+          <div><span className="font-semibold text-purple-700">OT</span> — worked an extra day beyond required working days for the month — earns OT premium</div>
+          <div><span className="font-semibold text-red-700">ABSENT</span> — did not come in, no leave — daily rate deducted from salary</div>
+          <div><span className="font-semibold text-blue-700">LEAVE</span> — did not come in, on leave — daily rate deducted from salary (same as absent)</div>
+          <div><span className="font-semibold text-gray-500">REST DAY</span> — scheduled day off, excluded from working-day count</div>
         </div>
       </div>
     </div>
