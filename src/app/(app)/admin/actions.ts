@@ -29,15 +29,31 @@ function clampNum(v: unknown, min: number, max: number): number {
 export async function createArea(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
   const name = str(formData.get("name"), 50);
-  const sortOrder = clampInt(formData.get("sortOrder"), 0, 9999);
   if (!name) redirect("/admin/tables?error=missing");
+  const count = await prisma.area.count();
   await prisma.area.upsert({
     where: { name },
-    update: { sortOrder, isActive: true },
-    create: { name, sortOrder },
+    update: { isActive: true },
+    create: { name, sortOrder: count },
   });
   revalidatePath("/admin/tables");
   redirect("/admin/tables");
+}
+
+export async function moveArea(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  const direction = str(formData.get("direction")) as "up" | "down";
+  const all = await prisma.area.findMany({ orderBy: { sortOrder: "asc" } });
+  const idx = all.findIndex((a) => a.id === id);
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapIdx < 0 || swapIdx >= all.length) return;
+  await prisma.$transaction([
+    prisma.area.update({ where: { id: all[idx].id },     data: { sortOrder: all[swapIdx].sortOrder } }),
+    prisma.area.update({ where: { id: all[swapIdx].id }, data: { sortOrder: all[idx].sortOrder } }),
+  ]);
+  revalidatePath("/admin/tables");
+  revalidatePath("/waiter");
 }
 
 export async function toggleArea(formData: FormData): Promise<void> {

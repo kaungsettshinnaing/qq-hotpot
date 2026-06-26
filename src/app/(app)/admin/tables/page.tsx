@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import SubmitButton from "@/components/SubmitButton";
-import { createArea, createTable, toggleArea, toggleTable } from "../actions";
+import { createArea, createTable, toggleArea, toggleTable, moveArea } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export default async function AdminTablesPage() {
         {areas.length === 0 && (
           <p className="text-sm text-gray-500">No areas yet. Add one on the right.</p>
         )}
-        {areas.map((area) => (
+        {areas.map((area, idx) => (
           <section key={area.id} className="rounded-xl bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="font-semibold">
@@ -27,13 +27,47 @@ export default async function AdminTablesPage() {
                   </span>
                 )}
               </h3>
-              <form action={toggleArea}>
-                <input type="hidden" name="id" value={area.id} />
-                <button className="text-xs text-gray-500 hover:underline">
-                  {area.isActive ? "Hide" : "Show"}
-                </button>
-              </form>
+
+              {/* Controls: ▲ ▼ + Hide/Show */}
+              <div className="flex items-center gap-1">
+                {/* Move up */}
+                <form action={moveArea}>
+                  <input type="hidden" name="id" value={area.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button
+                    type="submit"
+                    disabled={idx === 0}
+                    title="Move up"
+                    className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    ▲
+                  </button>
+                </form>
+
+                {/* Move down */}
+                <form action={moveArea}>
+                  <input type="hidden" name="id" value={area.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button
+                    type="submit"
+                    disabled={idx === areas.length - 1}
+                    title="Move down"
+                    className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    ▼
+                  </button>
+                </form>
+
+                {/* Hide / Show */}
+                <form action={toggleArea}>
+                  <input type="hidden" name="id" value={area.id} />
+                  <button className="ml-1 text-xs text-gray-500 hover:underline">
+                    {area.isActive ? "Hide" : "Show"}
+                  </button>
+                </form>
+              </div>
             </div>
+
             <div className="flex flex-wrap gap-2">
               {area.tables.map((t) => (
                 <form key={t.id} action={toggleTable}>
@@ -67,13 +101,6 @@ export default async function AdminTablesPage() {
               name="name"
               required
               placeholder="Area name (e.g. A)"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2"
-            />
-            <input
-              name="sortOrder"
-              type="number"
-              defaultValue={areas.length + 1}
-              placeholder="Sort order"
               className="w-full rounded-lg border border-gray-300 px-3 py-2"
             />
             <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
