@@ -1,10 +1,19 @@
-import { modulesFor } from "@/lib/rbac";
+import { modulesFor, hasAnyRole } from "@/lib/rbac";
 import type { SessionUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/session-actions";
 import { prisma } from "@/lib/db";
-import { hasAnyRole } from "@/lib/rbac";
 import NavBar from "./NavBar";
 import NotifBell from "./NotifBell";
+
+const ROLE_PRIORITY = ["ADMIN", "MANAGER", "HR", "CASHIER", "KITCHEN", "WAITER", "MARKETING"] as const;
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "Admin", MANAGER: "Manager", HR: "HR",
+  CASHIER: "Cashier", KITCHEN: "Kitchen", WAITER: "Waiter", MARKETING: "Marketing",
+};
+function primaryRole(roles: string[]): string {
+  for (const r of ROLE_PRIORITY) if (roles.includes(r)) return ROLE_LABEL[r] ?? r;
+  return roles[0] ?? "Staff";
+}
 
 async function markReadAction(id: string): Promise<void> {
   "use server";
@@ -66,7 +75,7 @@ export default async function AppShell({
             )}
             <div className="text-right leading-tight">
               <div className="text-sm font-semibold text-white">{user.name}</div>
-              <div className="text-[10px] text-white/60">{user.roles.join(" · ")}</div>
+              <div className="text-[10px] text-white/60">{primaryRole(user.roles)}</div>
             </div>
             <form action={logoutAction}>
               <button
