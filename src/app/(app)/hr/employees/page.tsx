@@ -7,20 +7,11 @@ export default async function EmployeesPage() {
     orderBy: { user: { name: "asc" } },
   });
 
-  // Users without an Employee profile (candidates for onboarding)
-  const linkedIds = new Set(employees.map((e) => e.userId));
-  const unlinked = await prisma.user.findMany({
-    where: { isActive: true, id: { notIn: [...linkedIds] } },
-    select: { id: true, name: true, username: true },
-  });
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Employees</h1>
-        {unlinked.length > 0 && (
-          <Link href="/hr/employees/new" className="btn-brand">+ Onboard Employee</Link>
-        )}
+        <Link href="/hr/employees/new" className="btn-brand">+ Onboard Employee</Link>
       </div>
 
       <div className="rounded-xl border bg-white shadow-sm">
@@ -59,7 +50,11 @@ export default async function EmployeesPage() {
               </tr>
             ))}
             {employees.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No employees yet. Onboard one above.</td></tr>
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  No employees yet. Click &quot;+ Onboard Employee&quot; to add the first one.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

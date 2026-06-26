@@ -25,12 +25,16 @@ export default async function AdminUsersPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Manage roles for each user. To create a new staff account, go to{" "}
-          <Link href="/hr/employees/new" className="text-brand hover:underline font-medium">
-            HR → New Employee
-          </Link>.
-        </p>
+        <div>
+          <h1 className="text-xl font-bold">User Accounts</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            Reset passwords, activate/deactivate, or override individual permissions.
+            New accounts are created via{" "}
+            <Link href="/hr/employees/new" className="text-brand hover:underline font-medium">
+              HR → New Employee
+            </Link>.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
