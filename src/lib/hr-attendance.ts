@@ -57,6 +57,7 @@ export async function getTodayAttendance(employeeId: string) {
 export async function getLiveAttendanceStatus() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const now = new Date();
 
   const employees = await prisma.employee.findMany({
     where: { isActive: true },
@@ -67,6 +68,11 @@ export async function getLiveAttendanceStatus() {
         take: 1,
         include: { breaks: { orderBy: { startAt: "asc" } } },
       },
+      leaveRequests: {
+        where: { status: "APPROVED", startDate: { lte: today }, endDate: { gte: today } },
+        take: 1,
+        select: { id: true },
+      },
     },
     orderBy: { user: { name: "asc" } },
   });
@@ -74,12 +80,19 @@ export async function getLiveAttendanceStatus() {
   return employees.map((emp) => {
     const att = emp.attendances[0] ?? null;
     const openBreak = att?.breaks.find((b) => !b.endAt) ?? null;
-    let status: "not_started" | "working" | "on_break" | "clocked_out" = "not_started";
+    let status: "not_started" | "working" | "on_break" | "clocked_out" | "on_leave" = "not_started";
     if (att) {
       if (att.clockOutAt) status = "clocked_out";
       else if (openBreak) status = "on_break";
       else if (att.clockInAt) status = "working";
+    } else if (emp.leaveRequests.length > 0) {
+      status = "on_leave";
     }
+    const totalBreakMins = Math.floor(
+      (att?.breaks ?? []).reduce((sum, b) => {
+        return sum + ((b.endAt ?? now).getTime() - b.startAt.getTime()) / 60000;
+      }, 0),
+    );
     return {
       employeeId: emp.userId,
       name: emp.user.name,
@@ -87,6 +100,7 @@ export async function getLiveAttendanceStatus() {
       status,
       openBreak,
       breakCount: att?.breaks.length ?? 0,
+      totalBreakMins,
     };
   });
 }

@@ -64,6 +64,7 @@ export default async function AttendancePage() {
     clockInAt: e.attendance?.clockInAt?.toISOString() ?? null,
     clockOutAt: e.attendance?.clockOutAt?.toISOString() ?? null,
     breakCount: e.breakCount,
+    totalBreakMins: e.totalBreakMins,
     currentBreakStartAt: e.openBreak?.startAt.toISOString() ?? null,
   }));
 
