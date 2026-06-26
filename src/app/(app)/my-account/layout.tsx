@@ -4,9 +4,10 @@ import TabNav from "@/components/TabNav";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { href: "/my-account",       label: "Payslips" },
-  { href: "/my-account/leave", label: "My Leave" },
-  { href: "/my-account/clock", label: "Clock In/Out" },
+  { href: "/my-account",          label: "Payslips" },
+  { href: "/my-account/leave",    label: "My Leave" },
+  { href: "/my-account/clock",    label: "Clock In/Out" },
+  { href: "/my-account/account",  label: "Account" },
 ];
 
 export default async function MyAccountLayout({ children }: { children: React.ReactNode }) {

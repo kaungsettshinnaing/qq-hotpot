@@ -95,11 +95,17 @@ export default async function HRAttendancePage({
                   {Array.from({ length: daysInMonth }, (_, i) => {
                     const day = i + 1;
                     const a = attMap.get(day);
+                    const dow = new Date(year, month - 1, day).getDay();
+                    const isRestDay = !a && emp.restDays.includes(dow);
                     return (
                       <td key={day} className="px-0.5 py-1 text-center">
                         {a ? (
                           <span className={`inline-block rounded px-1 py-0.5 text-[10px] font-medium ${STATUS_COLOR[a.status]}`}>
                             {a.status.slice(0, 2)}
+                          </span>
+                        ) : isRestDay ? (
+                          <span className={`inline-block rounded px-1 py-0.5 text-[10px] font-medium ${STATUS_COLOR["REST_DAY"]}`}>
+                            RE
                           </span>
                         ) : (
                           <span className="text-gray-200">·</span>
