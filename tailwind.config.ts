@@ -6,9 +6,14 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#b91c1c", // red-700 — hotpot red
-          dark: "#7f1d1d",
-          light: "#fee2e2",
+          DEFAULT: "#C41E3A", // QQ logo red
+          dark:    "#9B1530",
+          light:   "#FFF0F2",
+        },
+        gold: {
+          DEFAULT: "#E8A800", // QQ logo gold
+          dark:    "#C48E00",
+          light:   "#FDF8E1",
         },
       },
     },

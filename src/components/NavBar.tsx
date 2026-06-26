@@ -7,7 +7,7 @@ import type { ModuleDef } from "@/lib/rbac";
 export default function NavBar({ modules }: { modules: ModuleDef[] }) {
   const path = usePathname();
   return (
-    <nav className="flex flex-wrap gap-1">
+    <nav className="flex flex-wrap gap-1.5">
       {modules.map((m) => {
         const active = path === m.href || path.startsWith(m.href + "/");
         return (
@@ -15,13 +15,13 @@ export default function NavBar({ modules }: { modules: ModuleDef[] }) {
             key={m.key}
             href={m.href}
             className={
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition " +
+              "rounded-full px-3 py-1 text-sm font-medium transition-all " +
               (active
-                ? "bg-white text-brand"
-                : "text-white/90 hover:bg-white/15")
+                ? "bg-gold text-brand-dark shadow-sm"
+                : "text-white/80 hover:bg-white/15 hover:text-white")
             }
           >
-            <span className="mr-1">{m.icon}</span>
+            <span className="mr-1 text-xs">{m.icon}</span>
             {m.label}
           </Link>
         );

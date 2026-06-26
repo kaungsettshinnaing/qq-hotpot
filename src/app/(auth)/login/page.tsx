@@ -9,51 +9,60 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
-    <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow-xl">
-      <div className="mb-6 text-center">
-        <div className="text-3xl">🍲</div>
-        <h1 className="mt-1 text-xl font-bold text-gray-900">QQ Hotpot BBQ</h1>
-        <p className="text-sm text-gray-500">Restaurant Management — Sign in</p>
+    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl">
+      {/* Logo */}
+      <div className="mb-7 flex flex-col items-center gap-3">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-gold bg-brand shadow-lg">
+          <span className="text-2xl font-extrabold tracking-tighter text-gold">QQ</span>
+        </div>
+        <div className="text-center">
+          <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">QQ Hotpot BBQ</h1>
+          <p className="text-xs text-gray-400 mt-0.5 uppercase tracking-widest">Restaurant Management</p>
+        </div>
       </div>
 
       <form action={formAction} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Username</label>
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">Username</label>
           <input
             name="username"
             autoComplete="username"
             autoFocus
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-            placeholder="e.g. cashier"
+            className="input"
+            placeholder="Enter your username"
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Password</label>
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">Password</label>
           <input
             name="password"
             type="password"
             autoComplete="current-password"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            className="input"
             placeholder="••••••••"
           />
         </div>
 
         {state.error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+          <p className="rounded-xl bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
+            {state.error}
+          </p>
         )}
 
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-brand py-2.5 font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
+          className="btn-brand w-full py-3 text-base"
         >
-          {pending ? "Signing in…" : "Sign in"}
+          {pending ? "Signing in…" : "Sign In"}
         </button>
       </form>
 
-      <details className="mt-5 text-xs text-gray-500">
-        <summary className="cursor-pointer select-none">Demo accounts</summary>
-        <ul className="mt-2 space-y-0.5">
+      <details className="mt-5 text-xs text-gray-400">
+        <summary className="cursor-pointer select-none hover:text-gray-600 transition-colors">
+          Demo accounts
+        </summary>
+        <ul className="mt-2 space-y-1 rounded-xl bg-gray-50 p-3">
           <li>admin / admin123 — Admin + Manager</li>
           <li>owner / owner123 — all operational roles</li>
           <li>waiter / waiter123 — Waiter</li>

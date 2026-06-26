@@ -15,30 +15,68 @@ body {
   @apply bg-gray-50 text-gray-900 antialiased;
 }
 
-/* Thermal receipt printing (58mm / 80mm). Hidden on screen, only block printed. */
+/* ── Design system utilities ── */
+@layer components {
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100;
+  }
+
+  /* Buttons */
+  .btn-brand {
+    @apply bg-brand text-white font-semibold rounded-xl px-4 py-2
+           hover:bg-brand-dark active:scale-[0.98] transition-all
+           disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-gold {
+    @apply bg-gold text-white font-semibold rounded-xl px-4 py-2
+           hover:bg-gold-dark active:scale-[0.98] transition-all
+           disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-outline {
+    @apply border border-gray-300 text-gray-700 font-medium rounded-xl px-4 py-2
+           hover:bg-gray-50 hover:border-gray-400 active:scale-[0.98] transition-all
+           disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  /* Form inputs */
+  .input {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900
+           placeholder:text-gray-400
+           focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand
+           disabled:bg-gray-50 disabled:text-gray-500 transition-colors;
+  }
+
+  /* Section heading */
+  .section-title {
+    @apply text-base font-bold text-gray-800;
+  }
+
+  /* Status badges */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+}
+
+/* ── Thermal receipt printing ── */
 .receipt {
   display: none;
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .receipt,
-  .receipt * {
-    visibility: visible;
-  }
+  body * { visibility: hidden; }
+  .receipt, .receipt * { visibility: visible; }
   .receipt {
     display: block;
     position: absolute;
-    left: 0;
-    top: 0;
+    left: 0; top: 0;
     width: 80mm;
     padding: 4mm;
     font-size: 12px;
     color: #000;
   }
-  .no-print {
-    display: none !important;
-  }
+  .no-print { display: none !important; }
 }
