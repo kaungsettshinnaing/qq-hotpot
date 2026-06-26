@@ -207,7 +207,10 @@ export async function updateFlavour(formData: FormData): Promise<void> {
 export async function deleteFlavour(formData: FormData): Promise<void> {
   await requireAnyRole(ADMIN);
   const id = str(formData.get("id"));
-  await prisma.soupFlavour.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.potOrderFlavour.deleteMany({ where: { flavourId: id } }),
+    prisma.soupFlavour.delete({ where: { id } }),
+  ]);
   revalidatePath("/admin/flavours");
   revalidatePath("/waiter");
 }
