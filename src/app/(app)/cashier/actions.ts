@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { getSessionDetail } from "@/lib/orders";
-import { getOpenShift, computeShiftTotals } from "@/lib/shift";
+import { getOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
 import { emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
@@ -120,15 +120,15 @@ export async function settleSession(formData: FormData): Promise<void> {
 // Cashier shift / reconciliation
 // --------------------------------------------------------------------------
 
-export async function openShift(formData: FormData): Promise<void> {
+export async function openShift(): Promise<void> {
   const user = await requireAnyRole(CASHIER_ROLES);
-  const openingFloat = clampInt(formData.get("openingFloat"), 0, 1_000_000_000);
   const existing = await getOpenShift(user.id);
-  if (existing) redirect("/cashier/shift");
+  if (existing) redirect("/cashier");
+  const openingFloat = await getCashStanding();
   await prisma.cashierShift.create({ data: { cashierId: user.id, openingFloat } });
-  revalidatePath("/cashier/shift");
   revalidatePath("/cashier");
-  redirect("/cashier/shift");
+  revalidatePath("/cashier/shift");
+  redirect("/cashier");
 }
 
 export async function closeShift(formData: FormData): Promise<void> {
