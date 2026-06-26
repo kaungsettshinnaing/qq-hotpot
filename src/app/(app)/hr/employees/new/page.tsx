@@ -124,6 +124,16 @@ export default async function NewEmployeePage({
             ))}
           </div>
         </div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="isSystem" value="1" className="rounded" />
+            <span className="text-sm font-medium text-gray-700">System account (login only)</span>
+          </label>
+          <p className="mt-1 text-xs text-gray-400 ml-6">
+            System accounts are excluded from attendance tracking and payroll.
+            Use this for view-only logins (e.g. managers who do not clock in).
+          </p>
+        </div>
         <div className="flex gap-2 pt-2">
           <button type="submit" className="btn-brand">Create Employee</button>
           <a href="/hr/employees" className="btn-outline">Cancel</a>

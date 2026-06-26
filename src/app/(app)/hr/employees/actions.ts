@@ -46,6 +46,7 @@ export async function createEmployee(fd: FormData) {
   const address = (fd.get("address") as string).trim() || undefined;
   const emergencyContact = (fd.get("emergencyContact") as string).trim() || undefined;
   const bankAccount = (fd.get("bankAccount") as string).trim() || undefined;
+  const isSystem = fd.get("isSystem") === "1";
 
   await prisma.employee.create({
     data: {
@@ -61,6 +62,7 @@ export async function createEmployee(fd: FormData) {
       address,
       emergencyContact,
       bankAccount,
+      isSystem,
     },
   });
 
@@ -123,6 +125,36 @@ export async function resetEmployeePassword(fd: FormData) {
   if (!password) return;
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: hashPassword(password) } });
   redirect(`/hr/employees/${userId}`);
+}
+
+export async function toggleEmployeeSystem(fd: FormData) {
+  await requireAnyRole(["HR", "ADMIN"]);
+  const userId = fd.get("userId") as string;
+  const emp = await prisma.employee.findUnique({ where: { userId } });
+  if (!emp) return;
+  await prisma.employee.update({ where: { userId }, data: { isSystem: !emp.isSystem } });
+  revalidatePath(`/hr/employees/${userId}`);
+  revalidatePath("/hr/employees");
+}
+
+export async function deleteEmployee(fd: FormData) {
+  await requireAnyRole(["HR", "ADMIN"]);
+  const userId = fd.get("userId") as string;
+
+  await prisma.$transaction([
+    prisma.employeeFieldValue.deleteMany({ where: { employeeId: userId } }),
+    prisma.employeeDocument.deleteMany({ where: { employeeId: userId } }),
+    prisma.leaveRequest.deleteMany({ where: { employeeId: userId } }),
+    prisma.employeeFine.deleteMany({ where: { employeeId: userId } }),
+    prisma.adHocBonus.deleteMany({ where: { employeeId: userId } }),
+    prisma.payrollItem.deleteMany({ where: { employeeId: userId } }),
+    prisma.salaryAdvance.deleteMany({ where: { employeeId: userId } }), // cascades instalments
+    prisma.attendance.deleteMany({ where: { employeeId: userId } }),    // cascades breaks
+    prisma.employee.delete({ where: { userId } }),
+    prisma.user.update({ where: { id: userId }, data: { isActive: false } }),
+  ]);
+
+  redirect("/hr/employees");
 }
 
 export async function uploadDocument(fd: FormData) {

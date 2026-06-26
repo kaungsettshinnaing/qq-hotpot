@@ -394,6 +394,7 @@ model Employee {
   attendanceBonus  Int        @default(0)
   restDays         Int[]      // weekday numbers 0=Sun … 6=Sat
   isActive         Boolean    @default(true)
+  isSystem         Boolean    @default(false) // login-only; excluded from attendance & payroll
 
   customValues  EmployeeFieldValue[]
   documents     EmployeeDocument[]

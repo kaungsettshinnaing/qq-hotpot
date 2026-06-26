@@ -26,7 +26,7 @@ export default async function HRAttendancePage({
   const daysInMonth = new Date(year, month, 0).getDate();
 
   const employees = await prisma.employee.findMany({
-    where: { isActive: true },
+    where: { isActive: true, isSystem: false },
     include: {
       user: { select: { name: true } },
       attendances: { where: { date: { gte: start, lt: end } } },

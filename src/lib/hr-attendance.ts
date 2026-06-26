@@ -60,7 +60,7 @@ export async function getLiveAttendanceStatus() {
   const now = new Date();
 
   const employees = await prisma.employee.findMany({
-    where: { isActive: true },
+    where: { isActive: true, isSystem: false },
     include: {
       user: { select: { id: true, name: true } },
       attendances: {

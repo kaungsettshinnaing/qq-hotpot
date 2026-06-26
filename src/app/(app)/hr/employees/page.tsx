@@ -100,7 +100,12 @@ export default async function EmployeesPage({
               {employees.map((e) => (
                 <tr key={e.userId} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-gray-400">{e.employeeNo ?? "—"}</td>
-                  <td className="px-4 py-2 font-medium">{e.user.name}</td>
+                  <td className="px-4 py-2 font-medium">
+                    <span>{e.user.name}</span>
+                    {e.isSystem && (
+                      <span className="ml-2 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">System</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-gray-500">{e.user.roles.join(", ")}</td>
                   <td className="px-4 py-2">{e.basicSalary.toLocaleString()} MMK</td>
                   <td className="px-4 py-2 text-gray-500">

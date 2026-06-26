@@ -20,7 +20,7 @@ export default async function ManagerDashboard() {
     prisma.leaveRequest.count({ where: { status: "PENDING" } }),
     prisma.attendance.count({ where: { isApproved: false, status: { not: "REST_DAY" } } }),
     prisma.employee.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isSystem: false },
       include: { user: { select: { name: true } } },
       orderBy: { user: { name: "asc" } },
     }),

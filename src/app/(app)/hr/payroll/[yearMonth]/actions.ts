@@ -29,7 +29,7 @@ export async function generatePayroll(fd: FormData) {
   }
 
   const employees = await prisma.employee.findMany({
-    where: { isActive: true },
+    where: { isActive: true, isSystem: false },
   });
 
   for (const emp of employees) {

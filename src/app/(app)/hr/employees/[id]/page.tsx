@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { toggleEmployeeActive, resetEmployeePassword } from "../actions";
+import { toggleEmployeeActive, resetEmployeePassword, toggleEmployeeSystem, deleteEmployee } from "../actions";
+import DeleteEmployeeButton from "./DeleteEmployeeButton";
 import SubmitButton from "@/components/SubmitButton";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -30,16 +31,28 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   return (
     <div className="max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{emp.user.name}</h1>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold">{emp.user.name}</h1>
+          {emp.isSystem && (
+            <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700">System</span>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
           <Link href={`/hr/employees/${emp.userId}/edit`} className="btn-outline">Edit</Link>
           <Link href={`/hr/employees/${emp.userId}/documents`} className="btn-outline">Documents</Link>
+          <form action={toggleEmployeeSystem}>
+            <input type="hidden" name="userId" value={emp.userId} />
+            <button type="submit" className="btn-outline text-purple-600">
+              {emp.isSystem ? "Unmark System" : "Mark as System"}
+            </button>
+          </form>
           <form action={toggleEmployeeActive}>
             <input type="hidden" name="userId" value={emp.userId} />
             <button type="submit" className={emp.isActive ? "btn-outline text-red-600" : "btn-outline text-green-600"}>
               {emp.isActive ? "Deactivate" : "Activate"}
             </button>
           </form>
+          <DeleteEmployeeButton userId={emp.userId} name={emp.user.name} />
         </div>
       </div>
 
