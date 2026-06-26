@@ -30,9 +30,10 @@ model User {
   username     String   @unique
   passwordHash String
   pinHash      String? // manager approval PIN (e.g. void after send)
-  roles        Role[]
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  roles            Role[]
+  isActive         Boolean  @default(true)
+  isSystemAccount  Boolean  @default(false)
+  createdAt        DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   openedSessions TableSession[] @relation("openedBy")

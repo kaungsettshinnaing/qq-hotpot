@@ -152,3 +152,39 @@ export async function deleteDocument(fd: FormData) {
   await prisma.employeeDocument.delete({ where: { id } });
   revalidatePath("/hr/employees");
 }
+
+// ---- System accounts ----
+
+export async function createSystemAccount(fd: FormData) {
+  await requireAnyRole(["HR", "ADMIN"]);
+  const name = (fd.get("name") as string ?? "").trim();
+  const username = (fd.get("username") as string ?? "").trim().toLowerCase();
+  const password = (fd.get("password") as string ?? "").trim();
+  const roles = (fd.getAll("roles") as string[]) as Role[];
+  if (!name || !username || !password) redirect("/hr/employees?tab=system&error=missing");
+  const existing = await prisma.user.findUnique({ where: { username } });
+  if (existing) redirect("/hr/employees?tab=system&error=exists");
+  await prisma.user.create({
+    data: { name, username, passwordHash: hashPassword(password), roles, isSystemAccount: true },
+  });
+  revalidatePath("/hr/employees");
+  redirect("/hr/employees?tab=system");
+}
+
+export async function toggleSystemAccountActive(fd: FormData) {
+  await requireAnyRole(["HR", "ADMIN"]);
+  const id = fd.get("id") as string;
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user || !user.isSystemAccount) return;
+  await prisma.user.update({ where: { id }, data: { isActive: !user.isActive } });
+  revalidatePath("/hr/employees");
+}
+
+export async function resetSystemAccountPassword(fd: FormData) {
+  await requireAnyRole(["HR", "ADMIN"]);
+  const id = fd.get("id") as string;
+  const password = (fd.get("password") as string ?? "").trim();
+  if (!password) return;
+  await prisma.user.update({ where: { id }, data: { passwordHash: hashPassword(password) } });
+  revalidatePath("/hr/employees");
+}
