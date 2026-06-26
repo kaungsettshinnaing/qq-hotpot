@@ -25,16 +25,31 @@ export async function getSessionDetail(sessionId: string) {
   });
   if (!session) return null;
 
-  const [prices, settings] = await Promise.all([getMenuPrices(), getSettings()]);
+  const [prices, settings, allMenuItems] = await Promise.all([
+    getMenuPrices(),
+    getSettings(),
+    prisma.menuItem.findMany({ select: { code: true, name: true } }),
+  ]);
+  const itemNameMap = new Map(allMenuItems.map((m) => [m.code, m.name]));
 
   const diners = session.adults + session.children;
   const totalPots = session.potOrders.length;
   const allowance = freePotsAllowed(diners, settings.freePotRatio, settings.freePotRounding);
   const freePots = Math.min(totalPots, allowance);
   const paidPots = Math.max(0, totalPots - allowance);
+
+  const SYSTEM_CODES = new Set(["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"]);
   const beerQty = session.orderItems
     .filter((o) => o.itemCode === "BEER")
     .reduce((s, o) => s + o.qty, 0);
+  const extraItems = session.orderItems
+    .filter((o) => !SYSTEM_CODES.has(o.itemCode) && o.qty > 0)
+    .map((o) => ({
+      code: o.itemCode,
+      label: itemNameMap.get(o.itemCode) ?? o.itemCode,
+      qty: o.qty,
+      unitPrice: o.unitPrice,
+    }));
 
   const bill = computeBill({
     adults: session.adults,
@@ -42,6 +57,7 @@ export async function getSessionDetail(sessionId: string) {
     wastageGrams: session.wastageGrams,
     beerQty,
     paidPots,
+    extraItems,
     discountType: (session.discountType as DiscountType | null) ?? null,
     discountValue: session.discountValue,
     prices,

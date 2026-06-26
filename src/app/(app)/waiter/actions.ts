@@ -146,6 +146,40 @@ export async function setBeerQty(sessionId: string, qty: number): Promise<Action
   return { ok: true };
 }
 
+export async function setItemQty(
+  sessionId: string,
+  itemCode: string,
+  qty: number,
+): Promise<ActionResult> {
+  const user = await requireAnyRole(WAITER_ROLES);
+  const q = Math.max(0, Math.min(999, Math.floor(qty || 0)));
+  const session = await prisma.tableSession.findUnique({
+    where: { id: sessionId },
+    include: { orderItems: { where: { itemCode, voidedAt: null } } },
+  });
+  if (!session || session.status !== "OPEN") return { ok: false, error: "Session is not open." };
+  const unitPrice = (await prisma.menuItem.findUnique({ where: { code: itemCode } }))?.price ?? 0;
+  const [first, ...rest] = session.orderItems;
+  if (rest.length) {
+    await prisma.orderItem.updateMany({
+      where: { id: { in: rest.map((r) => r.id) } },
+      data: { voidedAt: new Date() },
+    });
+  }
+  if (q === 0) {
+    if (first) await prisma.orderItem.update({ where: { id: first.id }, data: { voidedAt: new Date() } });
+  } else if (first) {
+    await prisma.orderItem.update({ where: { id: first.id }, data: { qty: q, unitPrice } });
+  } else {
+    await prisma.orderItem.create({
+      data: { sessionId, itemCode, qty: q, unitPrice, createdById: user.id },
+    });
+  }
+  emitFloor("table:update", { tableId: session.tableId });
+  revalidatePath(`/waiter/session/${sessionId}`);
+  return { ok: true };
+}
+
 export async function setWastage(sessionId: string, grams: number): Promise<ActionResult> {
   await requireAnyRole(WAITER_ROLES);
   const g = Math.max(0, Math.min(1_000_000, Math.floor(grams || 0)));

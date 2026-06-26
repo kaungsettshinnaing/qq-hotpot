@@ -2,13 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateHeadcount, addPot, setBeerQty, setWastage } from "../../actions";
+import { updateHeadcount, addPot, setBeerQty, setWastage, setItemQty } from "../../actions";
 import type { ActionResult } from "@/lib/action-result";
 
 interface Flavour {
   id: string;
   name: string;
   appliesTo: "HOTPOT" | "BBQ" | "BOTH";
+}
+
+interface OrderableItem {
+  code: string;
+  name: string;
+  price: number;
+  category: string;
 }
 
 export default function SessionControls(props: {
@@ -20,6 +27,8 @@ export default function SessionControls(props: {
   allowance: number;
   totalPots: number;
   flavours: Flavour[];
+  orderableItems: OrderableItem[];
+  itemQtys: Record<string, number>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -34,6 +43,7 @@ export default function SessionControls(props: {
 
   const [beer, setBeer] = useState(props.beerQty);
   const [wastage, setWastageVal] = useState(props.wastageGrams);
+  const [itemQtys, setItemQtys] = useState<Record<string, number>>(props.itemQtys);
 
   function run(promise: Promise<ActionResult>, onOk?: () => void) {
     setMsg(null);
@@ -69,6 +79,12 @@ export default function SessionControls(props: {
     const q = Math.max(0, next);
     setBeer(q);
     run(setBeerQty(props.sessionId, q));
+  }
+
+  function changeItem(code: string, next: number) {
+    const q = Math.max(0, next);
+    setItemQtys((prev) => ({ ...prev, [code]: q }));
+    run(setItemQty(props.sessionId, code, q));
   }
 
   return (
@@ -197,6 +213,45 @@ export default function SessionControls(props: {
           </div>
         </div>
       </section>
+
+      {/* Extra menu items */}
+      {props.orderableItems.length > 0 && (
+        <section className="rounded-xl bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">Menu items</h3>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {props.orderableItems.map((item) => {
+              const qty = itemQtys[item.code] ?? 0;
+              return (
+                <div key={item.code} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-gray-800">{item.name}</div>
+                    {item.category && (
+                      <div className="text-[10px] text-gray-400">{item.category}</div>
+                    )}
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => changeItem(item.code, qty - 1)}
+                      disabled={pending || qty <= 0}
+                      className="h-7 w-7 rounded-md bg-gray-200 text-base font-bold disabled:opacity-40"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-sm font-bold tabular-nums">{qty}</span>
+                    <button
+                      onClick={() => changeItem(item.code, qty + 1)}
+                      disabled={pending}
+                      className="h-7 w-7 rounded-md bg-gray-200 text-base font-bold disabled:opacity-40"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

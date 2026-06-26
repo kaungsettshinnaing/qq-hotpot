@@ -22,7 +22,8 @@ export default async function SessionPage({
   const detail = await getSessionDetail(id);
   if (!detail || detail.session.status !== "OPEN") redirect("/waiter");
 
-  const [flavours, merges, allMergedIds, allOpenTableIds] = await Promise.all([
+  const SYSTEM_CODES = ["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"];
+  const [flavours, merges, allMergedIds, allOpenTableIds, orderableItems] = await Promise.all([
     prisma.soupFlavour.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
@@ -34,7 +35,20 @@ export default async function SessionPage({
     }),
     prisma.tableMerge.findMany({ select: { tableId: true } }),
     prisma.tableSession.findMany({ where: { status: "OPEN" }, select: { tableId: true } }),
+    prisma.menuItem.findMany({
+      where: { isActive: true, code: { notIn: SYSTEM_CODES } },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: { code: true, name: true, price: true, category: true },
+    }),
   ]);
+
+  // Current qty per non-system item from the session
+  const itemQtys: Record<string, number> = {};
+  for (const oi of detail.session.orderItems) {
+    if (!SYSTEM_CODES.includes(oi.itemCode)) {
+      itemQtys[oi.itemCode] = (itemQtys[oi.itemCode] ?? 0) + oi.qty;
+    }
+  }
 
   const { session } = detail;
   const canCancel =
@@ -133,6 +147,8 @@ export default async function SessionPage({
           allowance={detail.allowance}
           totalPots={detail.totalPots}
           flavours={flavours}
+          orderableItems={orderableItems}
+          itemQtys={itemQtys}
         />
 
         <div className="space-y-4">

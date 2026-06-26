@@ -190,6 +190,28 @@ export async function moveFlavour(formData: FormData): Promise<void> {
   revalidatePath("/waiter");
 }
 
+export async function updateFlavour(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  const name = str(formData.get("name"), 100);
+  const appliesToRaw = str(formData.get("appliesTo"));
+  const appliesTo =
+    appliesToRaw === "HOTPOT" || appliesToRaw === "BBQ" ? appliesToRaw : "BOTH";
+  if (!name || !id) redirect("/admin/flavours?error=missing");
+  await prisma.soupFlavour.update({ where: { id }, data: { name, appliesTo } });
+  revalidatePath("/admin/flavours");
+  revalidatePath("/waiter");
+  redirect("/admin/flavours");
+}
+
+export async function deleteFlavour(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  await prisma.soupFlavour.delete({ where: { id } });
+  revalidatePath("/admin/flavours");
+  revalidatePath("/waiter");
+}
+
 // ---- Expense categories ----
 
 export async function createCategory(formData: FormData): Promise<void> {

@@ -11,12 +11,20 @@ export interface MenuPrices {
 
 export type DiscountType = "PERCENT" | "FIXED";
 
+export interface ExtraItem {
+  code: string;
+  label: string;
+  qty: number;
+  unitPrice: number;
+}
+
 export interface BillInput {
   adults: number;
   children: number;
   wastageGrams: number;
   beerQty: number;
   paidPots: number;
+  extraItems?: ExtraItem[];
   discountType: DiscountType | null;
   discountValue: number | null;
   prices: MenuPrices;
@@ -85,6 +93,9 @@ export function computeBill(i: BillInput): Bill {
   add("POT_ADDON", "Extra Pot", i.paidPots, "pot", i.prices.POT_ADDON);
   add("BEER", "Beer", i.beerQty, "btl", i.prices.BEER);
   add("WASTAGE", "Wastage", i.wastageGrams, "g", i.prices.WASTAGE);
+  for (const it of (i.extraItems ?? [])) {
+    add(it.code, it.label, it.qty, "unit", it.unitPrice);
+  }
 
   const subtotal = lines.reduce((s, l) => s + l.amount, 0);
 
