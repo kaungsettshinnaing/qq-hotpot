@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import SubmitButton from "@/components/SubmitButton";
-import { createFlavour, updateFlavour, deleteFlavour, toggleFlavour, moveFlavour } from "../actions";
+import { createFlavour, updateFlavour, toggleFlavour, moveFlavour } from "../actions";
+import DeleteFlavourButton from "./DeleteFlavourButton";
 
 export const dynamic = "force-dynamic";
 
@@ -103,11 +104,7 @@ export default async function AdminFlavoursPage({
                           {f.isActive ? "Hide" : "Show"}
                         </button>
                       </form>
-                      <form action={deleteFlavour}
-                        onSubmit={(e) => { if (!confirm(`Delete "${f.name}"?`)) e.preventDefault(); }}>
-                        <input type="hidden" name="id" value={f.id} />
-                        <button className="ml-1 text-xs text-red-500 hover:underline">Delete</button>
-                      </form>
+                      <DeleteFlavourButton id={f.id} name={f.name} />
                     </div>
                   </div>
                 )}
