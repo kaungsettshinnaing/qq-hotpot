@@ -7,11 +7,17 @@ import { prisma } from "@/lib/db";
 export async function createAdvance(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN"]);
   const employeeId = fd.get("employeeId") as string;
-  const totalAmount = parseInt(fd.get("totalAmount") as string);
-  const note = (fd.get("note") as string | null) ?? "";
+  const amount = parseInt(fd.get("amount") as string);
+  const note = ((fd.get("note") as string) ?? "").trim();
+  const month = parseInt(fd.get("month") as string);
+  const year = parseInt(fd.get("year") as string);
+  if (!employeeId || !amount || !month || !year) return;
 
-  await prisma.salaryAdvance.create({
-    data: { employeeId, totalAmount, note: note || null, createdById: session.id },
+  const advance = await prisma.salaryAdvance.create({
+    data: { employeeId, totalAmount: amount, note: note || null, createdById: session.id },
+  });
+  await prisma.advanceInstalment.create({
+    data: { advanceId: advance.id, month, year, amount },
   });
   revalidatePath("/hr/advances");
 }
@@ -31,7 +37,10 @@ export async function deleteInstalment(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN"]);
   const id = fd.get("id") as string;
   const inst = await prisma.advanceInstalment.findUnique({ where: { id } });
-  if (inst?.deducted) return; // cannot remove already-deducted
+  if (!inst || inst.deducted) return;
   await prisma.advanceInstalment.delete({ where: { id } });
+  // Clean up parent advance if it has no more instalments
+  const remaining = await prisma.advanceInstalment.count({ where: { advanceId: inst.advanceId } });
+  if (remaining === 0) await prisma.salaryAdvance.delete({ where: { id: inst.advanceId } });
   revalidatePath("/hr/advances");
 }
