@@ -10,7 +10,7 @@ const TABS = [
   { href: "/admin/categories",  label: "Expense Categories" },
   { href: "/admin/stock-items", label: "Stock Items" },
   { href: "/admin/suppliers",   label: "Suppliers" },
-  { href: "/admin/users",       label: "Users & Roles" },
+  { href: "/admin/roles",       label: "Roles" },
   { href: "/admin/hr-fields",   label: "Employee Fields" },
 ];
 

@@ -356,10 +356,21 @@ model CashierShift {
 // HR & Payroll
 // ---------------------------------------------------------------------------
 
+// Custom job roles defined by admin (e.g. "Head Waiter", "Kitchen Lead")
+model StaffRole {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  permissions Role[]    // system permissions this role grants
+  isActive    Boolean   @default(true)
+  employees   Employee[]
+}
+
 model Employee {
-  userId           String    @id
-  user             User      @relation(fields: [userId], references: [id])
-  employeeNo       String?   @unique
+  userId           String     @id
+  user             User       @relation(fields: [userId], references: [id])
+  staffRole        StaffRole? @relation(fields: [staffRoleId], references: [id])
+  staffRoleId      String?
+  employeeNo       String?    @unique
   dateOfBirth      DateTime?
   phone            String?
   address          String?
@@ -367,10 +378,10 @@ model Employee {
   bankAccount      String?
   startDate        DateTime
   endDate          DateTime?
-  basicSalary      Int       @default(0)
-  attendanceBonus  Int       @default(0)
-  restDays         Int[]     // weekday numbers 0=Sun … 6=Sat
-  isActive         Boolean   @default(true)
+  basicSalary      Int        @default(0)
+  attendanceBonus  Int        @default(0)
+  restDays         Int[]      // weekday numbers 0=Sun … 6=Sat
+  isActive         Boolean    @default(true)
 
   customValues  EmployeeFieldValue[]
   documents     EmployeeDocument[]

@@ -12,6 +12,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       where: { userId: id },
       include: {
         user: true,
+        staffRole: { select: { name: true } },
         customValues: { include: { fieldDef: true } },
         documents: true,
       },
@@ -45,7 +46,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           {[
             ["Employee No.", emp.employeeNo ?? "—"],
             ["Username", emp.user.username],
-            ["Roles", emp.user.roles.join(", ")],
+            ["Role", emp.staffRole?.name ?? "—"],
+            ["Permissions", emp.user.roles.join(", ")],
             ["Status", emp.isActive ? "Active" : "Inactive"],
             ["Start Date", emp.startDate.toLocaleDateString()],
             ["Date of Birth", emp.dateOfBirth?.toLocaleDateString() ?? "—"],

@@ -2,8 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAnyRole, hashPassword, hashPin } from "@/lib/auth";
-import { ALL_ROLES, type Role } from "@/lib/rbac";
+import { requireAnyRole, hashPassword } from "@/lib/auth";
+import type { Role } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
@@ -18,25 +18,23 @@ export async function createEmployee(fd: FormData) {
     const name = (fd.get("name") as string).trim();
     const username = (fd.get("username") as string).trim().toLowerCase();
     const password = fd.get("password") as string;
-    const pin = (fd.get("pin") as string | null)?.trim() ?? "";
-    const roles = ALL_ROLES.filter((r) => fd.get(`role_${r}`) === "on") as Role[];
+    const staffRoleId = (fd.get("staffRoleId") as string | null)?.trim() ?? "";
     if (!name || !username || !password) redirect("/hr/employees/new?error=missing");
+    if (!staffRoleId) redirect("/hr/employees/new?error=no-role");
     const existing = await prisma.user.findUnique({ where: { username } });
     if (existing) redirect("/hr/employees/new?error=exists");
+    const staffRole = await prisma.staffRole.findUnique({ where: { id: staffRoleId } });
+    const roles = (staffRole?.permissions ?? []) as Role[];
     const user = await prisma.user.create({
-      data: {
-        name,
-        username,
-        passwordHash: hashPassword(password),
-        pinHash: pin ? hashPin(pin) : null,
-        roles,
-      },
+      data: { name, username, passwordHash: hashPassword(password), roles },
     });
     userId = user.id;
+    // staffRoleId stored on employee below
   } else {
     userId = fd.get("userId") as string;
   }
 
+  const staffRoleId = (fd.get("staffRoleId") as string | null)?.trim() || null;
   const employeeNo = (fd.get("employeeNo") as string).trim() || undefined;
   const startDate = new Date(fd.get("startDate") as string);
   const dateOfBirth = fd.get("dateOfBirth") ? new Date(fd.get("dateOfBirth") as string) : undefined;
@@ -51,6 +49,7 @@ export async function createEmployee(fd: FormData) {
   await prisma.employee.create({
     data: {
       userId,
+      staffRoleId: staffRoleId || null,
       employeeNo,
       startDate,
       dateOfBirth,

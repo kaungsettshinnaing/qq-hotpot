@@ -220,7 +220,41 @@ export async function toggleCategoryStock(formData: FormData): Promise<void> {
   revalidatePath("/admin/categories");
 }
 
-// ---- Users & roles ----
+// ---- Staff roles ----
+
+export async function createStaffRole(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const name = str(formData.get("name"), 100);
+  if (!name) redirect("/admin/roles?error=missing");
+  const permissions = rolesFromForm(formData);
+  await prisma.staffRole.upsert({
+    where: { name },
+    update: { permissions, isActive: true },
+    create: { name, permissions },
+  });
+  revalidatePath("/admin/roles");
+  redirect("/admin/roles");
+}
+
+export async function updateStaffRole(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  const name = str(formData.get("name"), 100);
+  const permissions = rolesFromForm(formData);
+  if (!name || !id) return;
+  await prisma.staffRole.update({ where: { id }, data: { name, permissions } });
+  revalidatePath("/admin/roles");
+}
+
+export async function toggleStaffRole(formData: FormData): Promise<void> {
+  await requireAnyRole(ADMIN);
+  const id = str(formData.get("id"));
+  const r = await prisma.staffRole.findUnique({ where: { id } });
+  if (r) await prisma.staffRole.update({ where: { id }, data: { isActive: !r.isActive } });
+  revalidatePath("/admin/roles");
+}
+
+// ---- Users (system accounts) ----
 
 function rolesFromForm(formData: FormData): Role[] {
   return ALL_ROLES.filter((r) => formData.get(`role_${r}`) === "on");
