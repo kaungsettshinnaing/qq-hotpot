@@ -13,6 +13,7 @@ if [ $PUSH_EXIT -ne 0 ]; then
 ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "confirmedAt" TIMESTAMP(3);
 ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "confirmedById" TEXT;
 CREATE INDEX IF NOT EXISTS "Expense_confirmedAt_idx" ON "Expense"("confirmedAt");
+ALTER TABLE "TableSession" ADD COLUMN IF NOT EXISTS "billTotal" INTEGER;
 SQL
     echo "→ Retrying prisma db push…"
     npx prisma db push --accept-data-loss

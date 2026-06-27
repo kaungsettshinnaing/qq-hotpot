@@ -15,7 +15,7 @@ export interface CheckoutLabels {
   sectionPayment: string; warningOpenShift: string;
   labelMethod: string; methodCash: string; methodKBZ: string; methodOther: string;
   labelAmount: string; labelReference: string; placeholderReference: string;
-  btnAddPayment: string;
+  btnAddPayment: string; labelChangeDue: string;
 }
 
 export default function CheckoutClient(props: {
@@ -132,6 +132,14 @@ export default function CheckoutClient(props: {
             {labels.btnAddPayment}
           </button>
         </div>
+        {method === "CASH" && amount > props.balance && props.balance > 0 && (
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm">
+            <span className="text-amber-700">{labels.labelChangeDue}</span>
+            <span className="font-bold tabular-nums text-amber-800">
+              {(amount - props.balance).toLocaleString()} {props.currency}
+            </span>
+          </div>
+        )}
       </section>
     </div>
   );

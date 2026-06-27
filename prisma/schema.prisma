@@ -167,6 +167,7 @@ model TableSession {
   closedBy       User?         @relation("closedBy", fields: [closedById], references: [id])
   closedById     String?
   closedAt       DateTime?
+  billTotal      Int?          // stored at settlement; used to compute change given
   discountType   DiscountType?
   discountValue  Int?
   discountReason String?

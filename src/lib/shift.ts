@@ -24,10 +24,12 @@ export interface ShiftTotals {
   expected: number;
 }
 
-/** Full breakdown of payments and expected cash for a shift. */
+/** Full breakdown of payments and expected cash for a shift.
+ *  Pass shiftWindow to enable accurate change deduction from cashSales. */
 export async function computeShiftTotals(
   shiftId: string,
   openingFloat: number,
+  shiftWindow?: { openedAt: Date; closedAt: Date | null },
 ): Promise<ShiftTotals> {
   const [cashAgg, kbzAgg, otherAgg, expAgg] = await Promise.all([
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "CASH" } }),
@@ -35,10 +37,29 @@ export async function computeShiftTotals(
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "OTHER" } }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { shiftId, paymentSource: "CASH_DRAWER" } }),
   ]);
-  const cashSales = cashAgg._sum.amount ?? 0;
   const kbzSales = kbzAgg._sum.amount ?? 0;
   const otherSales = otherAgg._sum.amount ?? 0;
   const cashExpenses = expAgg._sum.amount ?? 0;
+
+  // Gross CASH collected; reduced by change returned when customers overpay.
+  // We attribute change to the shift that settled the session (closedAt in window).
+  let cashSales = cashAgg._sum.amount ?? 0;
+  if (shiftWindow) {
+    const settled = await prisma.tableSession.findMany({
+      where: {
+        status: "CLOSED",
+        billTotal: { not: null },
+        closedAt: { gte: shiftWindow.openedAt, lt: shiftWindow.closedAt ?? new Date() },
+        payments: { some: { shiftId, method: "CASH" } },
+      },
+      select: { billTotal: true, payments: { select: { amount: true } } },
+    });
+    for (const s of settled) {
+      const totalPaid = s.payments.reduce((sum, p) => sum + p.amount, 0);
+      cashSales -= Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+    }
+  }
+
   return { cashSales, kbzSales, otherSales, cashExpenses, expected: openingFloat + cashSales - cashExpenses };
 }
 

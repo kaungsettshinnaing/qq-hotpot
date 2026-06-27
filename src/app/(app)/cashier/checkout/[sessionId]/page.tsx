@@ -162,6 +162,7 @@ export default async function CheckoutPage({
                 labelReference:        t("label_reference"),
                 placeholderReference:  t("placeholder_reference"),
                 btnAddPayment:         t("btn_add_payment"),
+                labelChangeDue:        t("label_change_due"),
               }}
             />
           ) : (

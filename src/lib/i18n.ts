@@ -920,6 +920,18 @@ const dict: Record<string, { en: string; my: string }> = {
   label_unpaid_leave:          { en: "Unpaid leave",                      my: "ပေးငွေမပါသောခွင့်" },
   hint_leave_unpaid_detail:    { en: "Leave requests are unpaid and require manager approval. Rest days don't need a request.", my: "ခွင့်တောင်းချက်များသည် ပေးငွေမပါ၊ မန်နေဂျာ အတည်ပြုချက် လိုအပ်သည်" },
   placeholder_date_ddmmm:      { en: "DD-MMM-YYYY  e.g. 02-Jul-2026",   my: "DD-MMM-YYYY  ဉပမာ: 02-Jul-2026" },
+
+  // ── Cashier history page ──────────────────────────────────────────────────
+  nav_history:                 { en: "History",                           my: "မှတ်တမ်း" },
+  heading_history:             { en: "Transaction History",               my: "ငွေပေးငွေယူ မှတ်တမ်း" },
+  empty_no_history:            { en: "No closed tables on this date.",    my: "ဤရက်တွင် ပိတ်ထားသောစားပွဲ မရှိပါ" },
+  btn_receipt:                 { en: "Receipt",                           my: "ဘောင်ချာ" },
+  stat_sessions:               { en: "sessions",                          my: "ကြိမ်" },
+  stat_total_pax:              { en: "Total Pax",                         my: "ဧည့်သည်စုစုပေါင်း" },
+  label_daily_total:           { en: "Daily Total",                       my: "နေ့စဉ်စုစုပေါင်း" },
+  col_table:                   { en: "Table",                             my: "စားပွဲ" },
+  col_total:                   { en: "Total",                             my: "စုစုပေါင်း" },
+  label_change_due:            { en: "Change Due",                        my: "အမ်းငွေ" },
 };
 
 export function tKey(key: string, lang: Lang, vars?: Record<string, string>): string {

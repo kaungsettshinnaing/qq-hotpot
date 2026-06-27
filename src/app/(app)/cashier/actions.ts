@@ -113,7 +113,7 @@ export async function settleSession(formData: FormData): Promise<void> {
     prisma.tableMerge.deleteMany({ where: { sessionId } }),
     prisma.tableSession.update({
       where: { id: sessionId },
-      data: { status: "CLOSED", closedById: user.id, closedAt: new Date() },
+      data: { status: "CLOSED", closedById: user.id, closedAt: new Date(), billTotal: detail.bill.total },
     }),
   ]);
   emitFloor("table:update", { tableId: detail.session.tableId });
@@ -146,12 +146,13 @@ export async function closeShift(formData: FormData): Promise<void> {
   const countedCash = clampInt(formData.get("countedCash"), 0, 1_000_000_000);
   const shift = await getOpenShift(user.id);
   if (!shift) redirect("/cashier/shift");
-  const { expected } = await computeShiftTotals(shift.id, shift.openingFloat);
+  const closedAt = new Date();
+  const { expected } = await computeShiftTotals(shift.id, shift.openingFloat, { openedAt: shift.openedAt, closedAt });
   await prisma.cashierShift.update({
     where: { id: shift.id },
     data: {
       status: "CLOSED",
-      closedAt: new Date(),
+      closedAt,
       countedCash,
       expectedCash: expected,
       variance: countedCash - expected,

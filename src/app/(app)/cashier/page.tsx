@@ -24,7 +24,9 @@ export default async function CashierHome({
   const t = await getT();
 
   const shift = await getOpenShift(user.id);
-  const totals = shift ? await computeShiftTotals(shift.id, shift.openingFloat) : null;
+  const totals = shift
+    ? await computeShiftTotals(shift.id, shift.openingFloat, { openedAt: shift.openedAt, closedAt: null })
+    : null;
   const anyOpen = shift ? null : await getAnyOpenShift();
   const otherShift = anyOpen?.cashierId !== user.id ? anyOpen : null;
   const standingFloat = (!shift && !otherShift) ? await getCashStanding() : null;
@@ -133,9 +135,10 @@ export default async function CashierHome({
         </>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <NavCard href="/cashier/tables" icon="🪑" label={t("nav_tables_reservations")} />
         <NavCard href="/cashier/expenses" icon="🧾" label={t("nav_expenses")} />
+        <NavCard href="/cashier/history" icon="📋" label={t("nav_history")} />
         {shift ? (
           <Link href="/cashier/shift" className="rounded-xl border-2 border-brand bg-white p-4 shadow-sm transition hover:shadow">
             <div className="text-2xl">💰</div>

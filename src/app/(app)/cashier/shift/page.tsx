@@ -17,7 +17,9 @@ export default async function ShiftPage() {
   const t = await getT();
 
   const shift = await getOpenShift(user.id);
-  const totals = shift ? await computeShiftTotals(shift.id, shift.openingFloat) : null;
+  const totals = shift
+    ? await computeShiftTotals(shift.id, shift.openingFloat, { openedAt: shift.openedAt, closedAt: null })
+    : null;
   const anyOpen = shift ? null : await getAnyOpenShift();
   const otherShift = anyOpen?.cashierId !== user.id ? anyOpen : null;
 
