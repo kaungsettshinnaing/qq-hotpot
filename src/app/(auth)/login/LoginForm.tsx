@@ -4,7 +4,6 @@ import { useActionState } from "react";
 import { loginAction } from "./actions";
 
 export interface LoginLabels {
-  subtitle: string;
   username: string;
   usernamePlaceholder: string;
   password: string;
