@@ -60,7 +60,7 @@ export default async function MyLeavePage() {
         <div className="mb-3 flex items-center gap-2">
           <h2 className="text-base font-bold text-gray-800">{t("section_rest_days")}</h2>
           <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-            {t("label_paid")}
+            {t("label_paid_badge")}
           </span>
         </div>
 
