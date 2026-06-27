@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { requireSession, hashPassword, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import SubmitButton from "@/components/SubmitButton";
-import { getT } from "@/lib/lang";
+import LangToggle from "@/components/LangToggle";
+import { getT, getLang } from "@/lib/lang";
 
 async function changePassword(fd: FormData) {
   "use server";
@@ -31,6 +32,7 @@ export default async function AccountPage({
   const { error, success } = await searchParams;
   const session = await requireSession();
   const t = await getT();
+  const lang = await getLang();
 
   const ERROR_LABEL: Record<string, string> = {
     missing: t("error_all_fields_required"),
@@ -42,6 +44,17 @@ export default async function AccountPage({
   return (
     <div className="mx-auto max-w-md space-y-6">
       <h1 className="text-xl font-bold">{t("heading_my_account")}</h1>
+
+      {/* Language */}
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">{t("heading_language")}</h2>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">
+            {lang === "en" ? "English" : "မြန်မာ"}
+          </span>
+          <LangToggle lang={lang} />
+        </div>
+      </div>
 
       <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
         <div>
