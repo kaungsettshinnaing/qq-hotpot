@@ -96,18 +96,27 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
 ### 3.3 Cashier (PC)
 
 **Checkout flow:**
-1. `/cashier` — sees open sessions list (table label, diners, time open).
+1. `/cashier` — sees open sessions list (table label, diners, time open). Nav
+   cards: Tables, Expenses, History, Shift / Close Shift, To Collect.
 2. Click a session → `/cashier/checkout/[sessionId]`:
    - View full bill breakdown (headcount, beer, paid pots, wastage, extra menu
      items, discount, service, tax, total already paid, balance due).
    - **Set Discount** — % or fixed, with a mandatory reason. No approval needed.
    - **Edit Wastage** — cashier can also enter/correct wastage grams.
    - **Add Payment** — Cash, KBZPay, or Other; partial amounts allowed (split
-     payments). Only CASH payments link to the open shift.
+     payments). Only CASH payments link to the open shift. When CASH amount
+     entered exceeds the remaining balance a **Change Due** banner appears live.
    - **Settle** — button enabled only when `balance ≤ 0`. Closes the session
-     (CLOSED), frees the table, redirects to settled view for receipt print.
+     (CLOSED), stores `billTotal = bill.total` on the session, frees the table,
+     redirects to settled view for receipt print.
    - **Print Receipt** — calls `window.print()`, CSS `@media print` shows only
      `.receipt` block (thermal-friendly).
+
+**History:**
+- `/cashier/history` — date picker (defaults to today). Shows all CLOSED
+  sessions for the selected date with per-session breakdown: table, open/close
+  time, pax, cash / KBZPay / other amounts, total. Daily totals footer row.
+  Mobile card layout + desktop table layout. Each row links to the receipt view.
 
 **Tables / Reservations:**
 - `/cashier/tables` — live floor map + reservation list. Tables occupied
@@ -124,9 +133,13 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
 
 **Shift:**
 - `/cashier/shift` — one cashier can have one OPEN shift at a time.
-- **Open Shift**: enter opening float (starting cash in drawer).
+- If another cashier's shift is OPEN, both `/cashier` and `/cashier/shift` show
+  a **handover banner** (who has the shift, since when, instructions to close it).
+  A new shift cannot be opened until the prior one is closed.
+- **Open Shift**: opening float is auto-computed from `getCashStanding()` (last
+  shift's counted cash + injections − collections since then).
 - **Close Shift**: counts actual cash in drawer → system computes
-  `expected = float + cash_sales − cash_drawer_expenses` → shows `variance`.
+  `expected = openingFloat + cashSales_net − cash_drawer_expenses` → shows `variance`.
 
 ### 3.4 Manager
 
@@ -164,7 +177,7 @@ User account management is done via **HR → Employees**, not Admin.
 | [`realtime.ts`](../src/lib/realtime.ts) | `emitKitchen()`, `emitFloor()`, `emitHR()`, `setIO()` — Socket.IO bridge |
 | [`pricing.ts`](../src/lib/pricing.ts) | `freePotsAllowed()`, `paidPotCount()`, `computeBill(input)` — pure, no DB. `BillInput` now accepts `extraItems?: ExtraItem[]` for non-system orderable items |
 | [`orders.ts`](../src/lib/orders.ts) | `getSessionDetail()` — loads session + all menu items, extracts non-system `OrderItem` rows as `extraItems`, computes full bill |
-| [`shift.ts`](../src/lib/shift.ts) | `getOpenShift()`, `computeShiftTotals()` |
+| [`shift.ts`](../src/lib/shift.ts) | `getOpenShift()`, `getAnyOpenShift()` (any cashier's open shift, used for handover), `computeShiftTotals(shiftId, openingFloat, shiftWindow?)` — pass `shiftWindow` to enable change deduction, `getCashStanding()` |
 | [`settings.ts`](../src/lib/settings.ts) | `getSettings()` — reads `Setting` rows from DB |
 | [`menu.ts`](../src/lib/menu.ts) | `getMenuPrices()` — reads `MenuItem` prices from DB |
 | [`floor.ts`](../src/lib/floor.ts) | Floor / table availability helpers |
@@ -178,7 +191,7 @@ User account management is done via **HR → Employees**, not Admin.
 |---|---|
 | [`(app)/waiter/actions.ts`](../src/app/(app)/waiter/actions.ts) | `openTable`, `addPot`, `setBeerQty`, `setItemQty`, `setWastage`, `updateHeadcount`, `voidPot`, `cancelSession` |
 | [`(app)/kitchen/actions.ts`](../src/app/(app)/kitchen/actions.ts) | `deliverPot` |
-| [`(app)/cashier/actions.ts`](../src/app/(app)/cashier/actions.ts) | `addPayment`, `setDiscount`, `setWastage`, `settleSession`, `openShift`, `closeShift`, `addExpense`, `createReservation`, `seatReservation`, `cancelReservation`, `noShowReservation` |
+| [`(app)/cashier/actions.ts`](../src/app/(app)/cashier/actions.ts) | `addPayment`, `applyDiscount`, `removeDiscount`, `voidPayment`, `settleSession` (stores `billTotal` at close), `openShift`, `closeShift`, `addExpense`, `createReservation`, `seatReservation`, `cancelReservation`, `noShowReservation` |
 | [`(app)/admin/actions.ts`](../src/app/(app)/admin/actions.ts) | `createArea`, `moveArea`, `toggleArea`, `createTable`, `toggleTable`, `updateMenuItem`, `updateSettings`, `createFlavour`, `updateFlavour`, `deleteFlavour`, `toggleFlavour`, `createCategory`, `toggleCategory`, `toggleCategoryStock` |
 | [`(auth)/login/actions.ts`](../src/app/(auth)/login/actions.ts) | `loginAction` |
 
@@ -190,11 +203,12 @@ User account management is done via **HR → Employees**, not Admin.
 | `/waiter/open/[tableId]` | Headcount form to open a session |
 | `/waiter/session/[id]` | Active session: pots, beer, wastage, menu item qty controls |
 | `/kitchen` | Pending pot tickets + mute/unmute toggle; `KitchenLive.tsx` is the client component |
-| `/cashier` | Open sessions list |
-| `/cashier/checkout/[sessionId]` | Full bill (inc. extra menu items), discount, payment, settle, print |
+| `/cashier` | Open sessions list + nav cards (Tables, Expenses, History, Shift, To Collect) |
+| `/cashier/checkout/[sessionId]` | Full bill (inc. extra menu items), discount, payment (live Change Due for CASH), settle, print |
 | `/cashier/tables` | Floor map + reservations (OVERDUE badge) |
 | `/cashier/expenses` | Expense form + today's list |
-| `/cashier/shift` | Open/close shift, totals |
+| `/cashier/shift` | Open/close shift, totals, handover banner |
+| `/cashier/history` | Date-filtered closed session history with payment breakdown |
 | `/reports` | Daily sales summary |
 | `/admin` | Admin sub-nav |
 | `/admin/tables` | Area + table CRUD with ▲/▼ reordering |
@@ -248,6 +262,8 @@ Area
     └── Reservation
 
 TableSession
+├── billTotal Int?  — computed bill.total stored at settlement; used to deduct
+│                     change given from cashSales in shift reconciliation
 ├── PotOrder
 │   └── PotOrderFlavour → SoupFlavour
 ├── OrderItem  (itemCode, qty, unitPrice — includes BEER and any extra menu items)
@@ -342,18 +358,36 @@ All amounts are **whole MMK** (Math.round applied to percent calculations).
 - **Settle** is only enabled when `balance ≤ 0`.
 - Only `CASH` payments are linked to `CashierShift` and affect cash
   reconciliation. `KBZPAY` and `OTHER` are recorded but excluded from the drawer.
+- When a CASH payment amount exceeds the remaining balance (customer overpays),
+  a **Change Due** banner is shown live in the checkout UI. The change amount is
+  deducted from `cashSales_net` in shift reconciliation via the `billTotal` field.
 
 ### 6.5 Shift reconciliation
 
 ```
-expected = openingFloat + Σ(CASH payments in shift) − Σ(CASH_DRAWER expenses in shift)
-variance = countedCash − expected
+openingFloat  = lastShift.countedCash + injections − collections  (getCashStanding())
+
+changeGiven   = Σ max(0, totalPaid − billTotal)
+                  for sessions settled during this shift that had CASH payments
+                  (deducts cash returned to customers who overpaid)
+
+cashSales_net = Σ(CASH payments in shift) − changeGiven
+
+expected      = openingFloat + cashSales_net − Σ(CASH_DRAWER expenses in shift)
+variance      = countedCash − expected
 ```
 
-Source: [`src/lib/shift.ts`](../src/lib/shift.ts) — `computeShiftTotals()`.
+Source: [`src/lib/shift.ts`](../src/lib/shift.ts) — `computeShiftTotals(shiftId, openingFloat, shiftWindow?)`.
 
-One cashier → one OPEN shift at a time. Multiple shifts per day are allowed.
-BANK_TRANSFER expenses are **excluded** from reconciliation.
+- Pass `shiftWindow: { openedAt, closedAt }` to enable change deduction (all
+  current callers do so). Without it, falls back to gross CASH sum (old behaviour).
+- `billTotal` is stored on `TableSession` at `settleSession` time; sessions
+  settled before this field was added have `billTotal = null` and are excluded
+  from change deduction (no double-count risk).
+- One cashier → one OPEN shift at a time. Multiple shifts per day are allowed.
+- BANK_TRANSFER expenses are **excluded** from reconciliation.
+- Handover enforced: `openShift` redirects to error if any other cashier's shift
+  is still open (`getAnyOpenShift()` check).
 
 ### 6.6 Table reservation blocking
 
