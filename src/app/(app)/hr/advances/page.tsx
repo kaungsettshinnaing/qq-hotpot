@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/db";
 import { createAdvance, deleteInstalment } from "./actions";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default async function AdvancesPage() {
+  const t = await getT();
   const now = new Date();
 
   const [employees, instalments] = await Promise.all([
@@ -26,31 +28,30 @@ export default async function AdvancesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Salary Advances</h1>
+      <h1 className="text-xl font-bold">{t("heading_salary_advances")}</h1>
 
-      {/* Add advance form — same layout as fines */}
       <form action={createAdvance} className="rounded-xl border bg-white p-4 shadow-sm">
-        <h2 className="mb-3 font-semibold text-sm">Add Advance</h2>
+        <h2 className="mb-3 font-semibold text-sm">{t("subheading_add_advance")}</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div>
-            <label className="label">Employee</label>
+            <label className="label">{t("label_employee")}</label>
             <select name="employeeId" required className="input">
-              <option value="">Select…</option>
+              <option value="">{t("label_select_placeholder")}…</option>
               {employees.map((e) => (
                 <option key={e.userId} value={e.userId}>{e.user.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="label">Amount (MMK)</label>
+            <label className="label">{t("label_amount_mmk")}</label>
             <input name="amount" type="number" min="1" required className="input" />
           </div>
           <div>
-            <label className="label">Note</label>
+            <label className="label">{t("label_note")}</label>
             <input name="note" className="input" />
           </div>
           <div>
-            <label className="label">Deduct Month</label>
+            <label className="label">{t("label_deduct_month")}</label>
             <select name="month" className="input">
               {MONTHS.map((m, i) => (
                 <option key={i} value={i + 1} selected={i === now.getMonth()}>{m}</option>
@@ -58,23 +59,22 @@ export default async function AdvancesPage() {
             </select>
           </div>
           <div>
-            <label className="label">Year</label>
+            <label className="label">{t("label_year")}</label>
             <input name="year" type="number" className="input" defaultValue={now.getFullYear()} />
           </div>
         </div>
-        <button type="submit" className="btn-brand mt-3">Add Advance</button>
+        <button type="submit" className="btn-brand mt-3">{t("btn_add_advance")}</button>
       </form>
 
-      {/* Flat list — same layout as fines */}
       <div className="rounded-xl border bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 text-left">Employee</th>
-              <th className="px-4 py-2 text-left">Amount</th>
-              <th className="px-4 py-2 text-left">Note</th>
-              <th className="px-4 py-2 text-left">Deduct</th>
-              <th className="px-4 py-2 text-left">Status</th>
+              <th className="px-4 py-2 text-left">{t("col_employee")}</th>
+              <th className="px-4 py-2 text-left">{t("col_amount")}</th>
+              <th className="px-4 py-2 text-left">{t("col_note")}</th>
+              <th className="px-4 py-2 text-left">{t("col_deduct")}</th>
+              <th className="px-4 py-2 text-left">{t("col_status")}</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -89,7 +89,7 @@ export default async function AdvancesPage() {
                 </td>
                 <td className="px-4 py-2">
                   <span className={`badge ${inst.deducted ? "badge-green" : "badge-gray"}`}>
-                    {inst.deducted ? "Deducted" : "Pending"}
+                    {inst.deducted ? t("badge_deducted") : t("badge_pending")}
                   </span>
                 </td>
                 <td className="px-4 py-2">
@@ -97,7 +97,7 @@ export default async function AdvancesPage() {
                     <form action={deleteInstalment}>
                       <input type="hidden" name="id" value={inst.id} />
                       <button type="submit" className="text-xs text-red-500 hover:underline">
-                        Delete
+                        {t("btn_delete")}
                       </button>
                     </form>
                   )}
@@ -106,7 +106,7 @@ export default async function AdvancesPage() {
             ))}
             {instalments.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">No salary advances</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">{t("empty_no_advances")}</td>
               </tr>
             )}
           </tbody>

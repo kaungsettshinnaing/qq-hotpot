@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { computeAllStockLevels } from "@/lib/inventory";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,8 @@ export default async function InventoryReportsPage({
   searchParams: Promise<{ months?: string }>;
 }) {
   const { months } = await searchParams;
+  const t = await getT();
+
   const lookbackMonths = Math.min(Math.max(parseInt(months ?? "3", 10), 1), 12);
   const since = new Date();
   since.setMonth(since.getMonth() - lookbackMonths);
@@ -47,11 +50,13 @@ export default async function InventoryReportsPage({
     UNIT: "unit", GRAM: "g", KG: "kg", LITRE: "L", BOX: "box", BOTTLE: "btl", PACK: "pack",
   };
 
+  const periodLabel = t("label_last_months", { n: String(lookbackMonths) });
+
   return (
     <div className="space-y-6">
       {/* Period selector */}
       <div className="flex items-center gap-3">
-        <h2 className="text-base font-semibold text-gray-800">Inventory Reports</h2>
+        <h2 className="text-base font-semibold text-gray-800">{t("heading_inventory_reports")}</h2>
         <div className="flex gap-1">
           {[1, 3, 6, 12].map((m) => (
             <a key={m} href={`/inventory/reports?months=${m}`}
@@ -67,14 +72,14 @@ export default async function InventoryReportsPage({
       {/* Supplier spend */}
       <section className="rounded-xl bg-white shadow-sm">
         <h3 className="border-b border-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
-          Supplier Spend — last {lookbackMonths} month{lookbackMonths > 1 ? "s" : ""}
+          {t("section_supplier_spend")} — {periodLabel}
         </h3>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-xs text-gray-500">
-              <th className="px-4 py-2 text-left font-medium">Supplier</th>
-              <th className="px-4 py-2 text-center font-medium">Deliveries</th>
-              <th className="px-4 py-2 text-right font-medium">Total Spent (MMK)</th>
+              <th className="px-4 py-2 text-left font-medium">{t("col_supplier")}</th>
+              <th className="px-4 py-2 text-center font-medium">{t("col_deliveries")}</th>
+              <th className="px-4 py-2 text-right font-medium">{t("col_total_spent")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -100,7 +105,7 @@ export default async function InventoryReportsPage({
             {suppliers.every((s) => s.deliveries.length === 0) && (
               <tr>
                 <td colSpan={3} className="px-4 py-4 text-center text-gray-400">
-                  No completed deliveries in this period.
+                  {t("empty_no_completed_deliveries")}
                 </td>
               </tr>
             )}
@@ -111,16 +116,16 @@ export default async function InventoryReportsPage({
       {/* Stock consumption by item */}
       <section className="rounded-xl bg-white shadow-sm">
         <h3 className="border-b border-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
-          Stock Consumption — last {lookbackMonths} month{lookbackMonths > 1 ? "s" : ""}
+          {t("section_stock_consumption")} — {periodLabel}
         </h3>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-xs text-gray-500">
-              <th className="px-4 py-2 text-left font-medium">Item</th>
-              <th className="px-4 py-2 text-center font-medium">Received</th>
-              <th className="px-4 py-2 text-center font-medium">Used</th>
-              <th className="px-4 py-2 text-center font-medium">Adjusted</th>
-              <th className="px-4 py-2 text-center font-medium">Current Stock</th>
+              <th className="px-4 py-2 text-left font-medium">{t("col_item")}</th>
+              <th className="px-4 py-2 text-center font-medium">{t("col_received")}</th>
+              <th className="px-4 py-2 text-center font-medium">{t("col_used")}</th>
+              <th className="px-4 py-2 text-center font-medium">{t("col_adjusted")}</th>
+              <th className="px-4 py-2 text-center font-medium">{t("col_current_stock")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -152,7 +157,7 @@ export default async function InventoryReportsPage({
                   </td>
                   <td className={`px-4 py-2 text-center font-bold ${isLow ? "text-red-600" : "text-gray-700"}`}>
                     {current}
-                    {isLow && <span className="ml-1 text-xs text-red-500">(Low)</span>}
+                    {isLow && <span className="ml-1 text-xs text-red-500">({t("badge_low")})</span>}
                   </td>
                 </tr>
               );

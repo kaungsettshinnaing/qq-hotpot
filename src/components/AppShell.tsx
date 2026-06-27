@@ -4,6 +4,8 @@ import { logoutAction } from "@/lib/session-actions";
 import { prisma } from "@/lib/db";
 import NavBar from "./NavBar";
 import NotifBell from "./NotifBell";
+import LangToggle from "./LangToggle";
+import { getLang } from "@/lib/lang";
 
 const ROLE_PRIORITY = ["ADMIN", "MANAGER", "HR", "CASHIER", "KITCHEN", "WAITER", "MARKETING"] as const;
 const ROLE_LABEL: Record<string, string> = {
@@ -30,6 +32,7 @@ export default async function AppShell({
   children: React.ReactNode;
 }) {
   const mods = modulesFor(user.roles);
+  const lang = await getLang();
 
   const showBell = hasAnyRole(user.roles, ["MANAGER", "ADMIN", "HR"]);
   const notifs = showBell
@@ -68,8 +71,9 @@ export default async function AppShell({
             <NavBar modules={mods} />
           </div>
 
-          {/* Right: bell + user + logout */}
+          {/* Right: lang toggle + bell + user + logout */}
           <div className="order-2 ml-auto flex items-center gap-3 sm:order-3">
+            <LangToggle lang={lang} />
             {showBell && (
               <NotifBell initialNotifs={serialised} markReadAction={markReadAction} />
             )}

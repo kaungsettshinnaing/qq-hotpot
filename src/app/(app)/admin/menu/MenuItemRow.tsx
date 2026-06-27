@@ -13,7 +13,17 @@ type Item = {
   isActive: boolean;
 };
 
-export default function MenuItemRow({ item, currency }: { item: Item; currency: string }) {
+type Labels = { save: string; hide: string; show: string; perGram: string; perUnit: string };
+
+export default function MenuItemRow({
+  item,
+  currency,
+  labels,
+}: {
+  item: Item;
+  currency: string;
+  labels: Labels;
+}) {
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category);
   const [price, setPrice] = useState(item.price);
@@ -36,7 +46,6 @@ export default function MenuItemRow({ item, currency }: { item: Item; currency: 
           name="category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          placeholder="Category"
           className="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-500"
         />
         <input
@@ -48,18 +57,18 @@ export default function MenuItemRow({ item, currency }: { item: Item; currency: 
           className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
         />
         <span className="w-14 text-xs text-gray-400">
-          {currency}/{item.unit === "GRAM" ? "gram" : "unit"}
+          {currency}/{item.unit === "GRAM" ? labels.perGram : labels.perUnit}
         </span>
         {isDirty && (
           <SubmitButton className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-900 disabled:opacity-60">
-            Save
+            {labels.save}
           </SubmitButton>
         )}
       </form>
       <form action={toggleMenuItem}>
         <input type="hidden" name="code" value={item.code} />
         <button className="text-xs text-gray-500 hover:underline">
-          {item.isActive ? "Hide" : "Show"}
+          {item.isActive ? labels.hide : labels.show}
         </button>
       </form>
     </div>

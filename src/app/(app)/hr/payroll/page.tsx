@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { getT } from "@/lib/lang";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default async function PayrollListPage() {
+  const t = await getT();
   const now = new Date();
 
   const payrolls = await prisma.payroll.findMany({
@@ -15,7 +17,6 @@ export default async function PayrollListPage() {
     take: 24,
   });
 
-  // Build last 6 months as quick links (including current)
   const recentMonths = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     return { month: d.getMonth() + 1, year: d.getFullYear() };
@@ -23,11 +24,8 @@ export default async function PayrollListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Payroll</h1>
-      </div>
+      <h1 className="text-xl font-bold">{t("heading_payroll")}</h1>
 
-      {/* Quick access — recent months */}
       <div className="flex flex-wrap gap-2">
         {recentMonths.map(({ month, year }) => {
           const slug = `${year}-${String(month).padStart(2, "0")}`;
@@ -42,22 +40,21 @@ export default async function PayrollListPage() {
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>
               {MONTHS[month - 1]} {year}
               {existing?.status === "LOCKED" && " ✓"}
-              {existing?.status === "DRAFT" && " (draft)"}
+              {existing?.status === "DRAFT" && ` (${t("status_draft").toLowerCase()})`}
             </Link>
           );
         })}
       </div>
 
-      {/* Full list */}
       {payrolls.length > 0 && (
         <div className="rounded-xl border bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-2 text-left">Period</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Employees</th>
-                <th className="px-4 py-2 text-left">Locked By</th>
+                <th className="px-4 py-2 text-left">{t("col_period")}</th>
+                <th className="px-4 py-2 text-left">{t("col_status")}</th>
+                <th className="px-4 py-2 text-left">{t("col_employees")}</th>
+                <th className="px-4 py-2 text-left">{t("col_locked_by")}</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
@@ -68,12 +65,16 @@ export default async function PayrollListPage() {
                   <tr key={p.id}>
                     <td className="px-4 py-2 font-medium">{MONTHS[p.month - 1]} {p.year}</td>
                     <td className="px-4 py-2">
-                      <span className={`badge ${p.status === "LOCKED" ? "badge-green" : "badge-gray"}`}>{p.status}</span>
+                      <span className={`badge ${p.status === "LOCKED" ? "badge-green" : "badge-gray"}`}>
+                        {p.status === "LOCKED" ? t("payroll_locked") : t("status_draft")}
+                      </span>
                     </td>
                     <td className="px-4 py-2">{p._count.items}</td>
                     <td className="px-4 py-2 text-gray-500">{p.lockedBy?.name ?? "—"}</td>
                     <td className="px-4 py-2 text-right">
-                      <Link href={`/hr/payroll/${slug}`} className="text-sm text-brand hover:underline">Open →</Link>
+                      <Link href={`/hr/payroll/${slug}`} className="text-sm text-brand hover:underline">
+                        {t("btn_view_report")} →
+                      </Link>
                     </td>
                   </tr>
                 );
@@ -85,7 +86,7 @@ export default async function PayrollListPage() {
 
       {payrolls.length === 0 && (
         <div className="rounded-xl border bg-white p-10 text-center text-gray-400">
-          No payrolls yet. Click a month above to generate the first one.
+          {t("no_payrolls_first_hint")}
         </div>
       )}
     </div>

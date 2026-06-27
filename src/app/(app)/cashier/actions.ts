@@ -5,10 +5,16 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { getSessionDetail } from "@/lib/orders";
-import { getOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
+import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
 import { emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
+import { mkdirSync, writeFileSync } from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
+
+const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+const ALLOWED_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic", "pdf"]);
 
 const CASHIER_ROLES: Role[] = ["CASHIER", "MANAGER", "ADMIN"];
 
@@ -122,8 +128,12 @@ export async function settleSession(formData: FormData): Promise<void> {
 
 export async function openShift(): Promise<void> {
   const user = await requireAnyRole(CASHIER_ROLES);
+  // Redirect if this user already has a shift open
   const existing = await getOpenShift(user.id);
   if (existing) redirect("/cashier");
+  // Block if ANY other cashier's shift is still open — cash must be handed over first
+  const otherOpen = await getAnyOpenShift();
+  if (otherOpen) redirect("/cashier?error=shift-blocked");
   const openingFloat = await getCashStanding();
   await prisma.cashierShift.create({ data: { cashierId: user.id, openingFloat } });
   revalidatePath("/cashier");
@@ -172,7 +182,7 @@ export async function addExpense(formData: FormData): Promise<void> {
   }
   // Cash-drawer expenses attach to the open shift so they hit reconciliation.
   const shift = paymentSource === "CASH_DRAWER" ? await getOpenShift(user.id) : null;
-  await prisma.expense.create({
+  const expense = await prisma.expense.create({
     data: {
       categoryId,
       amount,
@@ -184,6 +194,25 @@ export async function addExpense(formData: FormData): Promise<void> {
       shiftId: shift?.id ?? null,
     },
   });
+
+  // Save attached receipt images
+  const files = formData.getAll("receipts") as File[];
+  if (files.length > 0) {
+    const receiptsDir = path.join(UPLOAD_DIR, "receipts");
+    mkdirSync(receiptsDir, { recursive: true });
+    for (const file of files) {
+      if (!(file instanceof File) || file.size === 0) continue;
+      const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const ext = ALLOWED_EXTS.has(rawExt) ? rawExt : "jpg";
+      const filename = `${randomUUID()}.${ext}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      writeFileSync(path.join(receiptsDir, filename), buffer);
+      await prisma.expenseAttachment.create({
+        data: { expenseId: expense.id, filePath: `receipts/${filename}` },
+      });
+    }
+  }
+
   revalidatePath("/cashier/expenses");
   revalidatePath("/cashier/shift");
   redirect("/cashier/expenses");

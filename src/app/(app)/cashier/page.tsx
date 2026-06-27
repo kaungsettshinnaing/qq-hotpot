@@ -1,23 +1,33 @@
 import Link from "next/link";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getOpenShift, computeShiftTotals } from "@/lib/shift";
+import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
 import { getSessionDetail, type SessionDetail } from "@/lib/orders";
 import { getSettings } from "@/lib/settings";
 import { formatMoney, formatTime } from "@/lib/format";
 import LiveRefresh from "@/components/LiveRefresh";
 import SubmitButton from "@/components/SubmitButton";
 import { openShift } from "./actions";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
-export default async function CashierHome() {
+export default async function CashierHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const user = await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
+  const { error } = await searchParams;
   const settings = await getSettings();
   const c = settings.currency;
+  const t = await getT();
 
   const shift = await getOpenShift(user.id);
   const totals = shift ? await computeShiftTotals(shift.id, shift.openingFloat) : null;
+  const anyOpen = shift ? null : await getAnyOpenShift();
+  const otherShift = anyOpen?.cashierId !== user.id ? anyOpen : null;
+  const standingFloat = (!shift && !otherShift) ? await getCashStanding() : null;
 
   const openSessions = await prisma.tableSession.findMany({
     where: { status: "OPEN" },
@@ -34,19 +44,45 @@ export default async function CashierHome() {
     <div className="space-y-5">
       <LiveRefresh room="floor" events={["table:update"]} seconds={10} />
 
-      {/* ── No shift — start one ── */}
-      {!shift && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-          <p className="text-sm font-semibold text-amber-800">No active shift</p>
-          <p className="mt-0.5 text-xs text-amber-700">
-            Start a shift to enable cash tracking. The opening balance is auto-set from the current cash standing.
+      {!shift && otherShift && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 space-y-1">
+          <p className="text-sm font-bold text-red-800">{t("shift_handover_title")}</p>
+          <p className="text-sm text-red-700">
+            {t("shift_handover_body", {
+              name: otherShift.cashier.name,
+              time: otherShift.openedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            })}
           </p>
-          <form action={openShift} className="mt-3">
+          <p className="text-xs text-red-500">{t("shift_handover_instructions")}</p>
+          {error === "shift-blocked" && (
+            <p className="mt-1 text-xs font-semibold text-red-700">{t("shift_blocked_error")}</p>
+          )}
+        </div>
+      )}
+
+      {!shift && !otherShift && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-amber-800">{t("shift_ready_title")}</p>
+            <p className="mt-0.5 text-xs text-amber-700">{t("shift_ready_body")}</p>
+          </div>
+          {standingFloat !== null && (
+            <div className="rounded-lg bg-white border border-amber-200 px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500">{t("shift_cash_receiving")}</p>
+                <p className="text-2xl font-extrabold text-gray-900 tabular-nums">
+                  {formatMoney(standingFloat, c)}
+                </p>
+              </div>
+              <span className="text-xs text-amber-600 font-medium">{t("shift_count_verify")}</span>
+            </div>
+          )}
+          <form action={openShift}>
             <SubmitButton
               className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
-              pendingText="Starting…"
+              pendingText={t("pending_starting")}
             >
-              Start shift
+              {t("btn_start_shift")}
             </SubmitButton>
           </form>
         </div>
@@ -54,24 +90,21 @@ export default async function CashierHome() {
 
       {shift && (
         <>
-          {/* ── Today's Sales ── */}
           <section className="rounded-xl bg-brand p-5 text-white shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs uppercase tracking-wide opacity-70">Today&apos;s sales</div>
+                <div className="text-xs uppercase tracking-wide opacity-70">{t("stat_today_sales")}</div>
                 <div className="mt-0.5 text-3xl font-extrabold tabular-nums">
                   {formatMoney((totals?.cashSales ?? 0) + (totals?.kbzSales ?? 0) + (totals?.otherSales ?? 0), c)}
                 </div>
               </div>
               <div className="text-xs opacity-60 text-right">
-                shift since {formatTime(shift.openedAt)}
+                {t("label_shift_since")} {formatTime(shift.openedAt)}
               </div>
             </div>
-
-            {/* Payment method breakdown */}
             <div className="mt-4 grid grid-cols-3 gap-2">
               <div className="rounded-lg bg-white/10 px-3 py-2">
-                <div className="text-[10px] uppercase opacity-70">Cash</div>
+                <div className="text-[10px] uppercase opacity-70">{t("payment_method_cash")}</div>
                 <div className="text-base font-bold tabular-nums">{formatMoney(totals?.cashSales ?? 0, c)}</div>
               </div>
               <div className="rounded-lg bg-white/10 px-3 py-2">
@@ -79,21 +112,20 @@ export default async function CashierHome() {
                 <div className="text-base font-bold tabular-nums">{formatMoney(totals?.kbzSales ?? 0, c)}</div>
               </div>
               <div className="rounded-lg bg-white/10 px-3 py-2">
-                <div className="text-[10px] uppercase opacity-70">Other</div>
+                <div className="text-[10px] uppercase opacity-70">{t("payment_method_other")}</div>
                 <div className="text-base font-bold tabular-nums">{formatMoney(totals?.otherSales ?? 0, c)}</div>
               </div>
             </div>
           </section>
 
-          {/* ── Cash in Drawer ── */}
           <section className="rounded-xl bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">Cash in drawer</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_cash_in_drawer")}</h3>
             <div className="space-y-1.5 text-sm">
-              <CashRow label="Start balance" value={formatMoney(shift.openingFloat, c)} />
-              <CashRow label="+ Cash sales" value={formatMoney(totals?.cashSales ?? 0, c)} positive />
-              <CashRow label="− Supplier payments (cash)" value={formatMoney(totals?.cashExpenses ?? 0, c)} negative />
+              <CashRow label={t("row_start_balance")} value={formatMoney(shift.openingFloat, c)} />
+              <CashRow label={t("row_cash_sales")} value={formatMoney(totals?.cashSales ?? 0, c)} positive />
+              <CashRow label={t("row_cash_expenses")} value={formatMoney(totals?.cashExpenses ?? 0, c)} negative />
               <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-bold">
-                <span>= Expected in drawer</span>
+                <span>{t("row_expected_in_drawer")}</span>
                 <span className="tabular-nums text-brand">{formatMoney(totals?.expected ?? 0, c)}</span>
               </div>
             </div>
@@ -101,34 +133,29 @@ export default async function CashierHome() {
         </>
       )}
 
-      {/* ── Quick nav ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <NavCard href="/cashier/tables" icon="🪑" label="Tables" />
-        <NavCard href="/cashier/expenses" icon="🧾" label="Expenses" />
+        <NavCard href="/cashier/tables" icon="🪑" label={t("nav_tables_reservations")} />
+        <NavCard href="/cashier/expenses" icon="🧾" label={t("nav_expenses")} />
         {shift ? (
-          <Link
-            href="/cashier/shift"
-            className="rounded-xl border-2 border-brand bg-white p-4 shadow-sm transition hover:shadow"
-          >
+          <Link href="/cashier/shift" className="rounded-xl border-2 border-brand bg-white p-4 shadow-sm transition hover:shadow">
             <div className="text-2xl">💰</div>
-            <div className="mt-1 text-sm font-semibold text-brand">Close Shift</div>
+            <div className="mt-1 text-sm font-semibold text-brand">{t("btn_close_shift")}</div>
           </Link>
         ) : (
-          <NavCard href="/cashier/shift" icon="💰" label="Shift History" />
+          <NavCard href="/cashier/shift" icon="💰" label={t("section_recent_closed_shifts")} />
         )}
         <div className="rounded-xl bg-brand p-4 text-white">
-          <div className="text-xs uppercase opacity-80">To collect</div>
+          <div className="text-xs uppercase opacity-80">{t("label_to_collect")}</div>
           <div className="text-xl font-bold tabular-nums">{formatMoney(toCollect, c)}</div>
         </div>
       </div>
 
-      {/* ── Open tables ── */}
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Open tables ({details.length})
+          {t("section_open_tables")} ({details.length})
         </h2>
         {details.length === 0 ? (
-          <p className="text-sm text-gray-400">No open tables right now.</p>
+          <p className="text-sm text-gray-400">{t("empty_no_open_tables")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {details.map((d) => (
@@ -148,10 +175,10 @@ export default async function CashierHome() {
                 </div>
                 {d.paid > 0 && (
                   <div className="text-xs text-gray-500">
-                    paid {formatMoney(d.paid, c)} · balance {formatMoney(d.balance, c)}
+                    {t("label_paid")} {formatMoney(d.paid, c)} · {t("label_balance")} {formatMoney(d.balance, c)}
                   </div>
                 )}
-                <div className="mt-1 text-xs text-gray-400">opened {formatTime(d.session.openedAt)}</div>
+                <div className="mt-1 text-xs text-gray-400">{t("label_opened")} {formatTime(d.session.openedAt)}</div>
               </Link>
             ))}
           </div>
@@ -162,20 +189,12 @@ export default async function CashierHome() {
 }
 
 function CashRow({ label, value, positive, negative }: {
-  label: string;
-  value: string;
-  positive?: boolean;
-  negative?: boolean;
+  label: string; value: string; positive?: boolean; negative?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between">
-      <span className={negative ? "text-gray-500" : positive ? "text-gray-700" : "text-gray-600"}>
-        {label}
-      </span>
-      <span className={
-        "tabular-nums font-medium " +
-        (positive ? "text-emerald-600" : negative ? "text-red-500" : "text-gray-700")
-      }>
+      <span className={negative ? "text-gray-500" : positive ? "text-gray-700" : "text-gray-600"}>{label}</span>
+      <span className={"tabular-nums font-medium " + (positive ? "text-emerald-600" : negative ? "text-red-500" : "text-gray-700")}>
         {value}
       </span>
     </div>
@@ -184,10 +203,7 @@ function CashRow({ label, value, positive, negative }: {
 
 function NavCard({ href, icon, label }: { href: string; icon: string; label: string }) {
   return (
-    <Link
-      href={href}
-      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-brand hover:shadow active:scale-[0.98]"
-    >
+    <Link href={href} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-brand hover:shadow active:scale-[0.98]">
       <div className="text-2xl">{icon}</div>
       <div className="mt-1 text-sm font-semibold text-gray-700">{label}</div>
     </Link>

@@ -5,11 +5,10 @@ import { getSettings } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
 import { freePotsAllowed } from "@/lib/pricing";
 import { formatMoney, formatDateTime } from "@/lib/format";
+import { getT } from "@/lib/lang";
 import type { AttendanceStatus, DayType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
-
-// ── Server actions for Attendance tab ────────────────────────────────────────
 
 async function approveAttendance(fd: FormData) {
   "use server";
@@ -28,10 +27,7 @@ async function rejectAttendance(fd: FormData) {
   "use server";
   const session = await requireAnyRole(["MANAGER", "ADMIN"]);
   const id = fd.get("id") as string;
-  await prisma.attendance.update({
-    where: { id },
-    data: { status: "ABSENT", isApproved: true, approvedById: session.id },
-  });
+  await prisma.attendance.update({ where: { id }, data: { status: "ABSENT", isApproved: true, approvedById: session.id } });
   revalidatePath("/reports");
 }
 
@@ -53,19 +49,12 @@ async function deleteClockOut(fd: FormData) {
   "use server";
   await requireAnyRole(["MANAGER", "ADMIN"]);
   const id = fd.get("id") as string;
-  await prisma.attendance.update({
-    where: { id },
-    data: { clockOutAt: null },
-  });
+  await prisma.attendance.update({ where: { id }, data: { clockOutAt: null } });
   revalidatePath("/reports");
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function pad(n: number) { return String(n).padStart(2, "0"); }
-function dayString(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+function dayString(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function fmt(d: Date | null) {
   if (!d) return "—";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -84,8 +73,6 @@ const UNIT_LABEL: Record<string, string> = {
   UNIT: "Unit", GRAM: "g", KG: "kg", LITRE: "L", BOX: "Box", BOTTLE: "Btl", PACK: "Pack",
 };
 
-// ── Page ─────────────────────────────────────────────────────────────────────
-
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -94,6 +81,7 @@ export default async function ReportsPage({
   await requireAnyRole(["MANAGER", "ADMIN"]);
   const settings = await getSettings();
   const c = settings.currency;
+  const t = await getT();
 
   const { tab = "cash", date } = await searchParams;
   const today = dayString(new Date());
@@ -101,55 +89,37 @@ export default async function ReportsPage({
   const start = new Date(`${dayStr}T00:00:00`);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
-  // ── Tab navigation ────────────────────────────────────────────────────────
-
   const tabs = [
-    { key: "cash",       label: "Cash Review" },
-    { key: "attendance", label: "Attendance" },
-    { key: "inventory",  label: "Inventory Review" },
+    { key: "cash",       label: t("tab_cash_review") },
+    { key: "attendance", label: t("tab_attendance") },
+    { key: "inventory",  label: t("tab_inventory_review") },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Header + date picker */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">Reports</h1>
+        <h1 className="text-xl font-bold">{t("heading_reports")}</h1>
         <form method="get" className="flex items-center gap-2 text-sm">
           <input type="hidden" name="tab" value={tab} />
-          <input
-            type="date"
-            name="date"
-            defaultValue={dayStr}
-            className="rounded-lg border border-gray-300 px-3 py-1.5"
-          />
+          <input type="date" name="date" defaultValue={dayStr}
+            className="rounded-lg border border-gray-300 px-3 py-1.5" />
           <button className="rounded-lg bg-gray-800 px-3 py-1.5 font-medium text-white hover:bg-gray-900">
-            View
+            {t("btn_view_report")}
           </button>
         </form>
       </div>
 
-      {/* Tab bar */}
       <div className="flex overflow-x-auto border-b border-gray-200">
-        {tabs.map((t) => (
-          <Link
-            key={t.key}
-            href={`/reports?tab=${t.key}&date=${dayStr}`}
-            className={
-              "whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition -mb-px " +
-              (tab === t.key
-                ? "border-brand text-brand"
-                : "border-transparent text-gray-500 hover:text-gray-700")
-            }
-          >
-            {t.label}
+        {tabs.map((tab_) => (
+          <Link key={tab_.key} href={`/reports?tab=${tab_.key}&date=${dayStr}`}
+            className={"whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition -mb-px " +
+              (tab === tab_.key ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-700")}>
+            {tab_.label}
           </Link>
         ))}
       </div>
 
-      {/* ── Cash Review ──────────────────────────────────────────────────── */}
       {tab === "cash" && <CashTab dayStr={dayStr} start={start} end={end} c={c} settings={settings} />}
-
-      {/* ── Attendance ───────────────────────────────────────────────────── */}
       {tab === "attendance" && (
         <AttendanceTab
           deleteClockOut={deleteClockOut}
@@ -161,36 +131,23 @@ export default async function ReportsPage({
           markAbsent={markAbsent}
         />
       )}
-
-      {/* ── Inventory Review ─────────────────────────────────────────────── */}
       {tab === "inventory" && <InventoryTab start={start} end={end} />}
     </div>
   );
 }
 
-// ── Cash Review tab ───────────────────────────────────────────────────────────
-
 async function CashTab({ dayStr, start, end, c, settings }: {
-  dayStr: string;
-  start: Date;
-  end: Date;
-  c: string;
+  dayStr: string; start: Date; end: Date; c: string;
   settings: Awaited<ReturnType<typeof getSettings>>;
 }) {
+  const t = await getT();
   const [payments, closedSessions, expenses, shifts] = await Promise.all([
     prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
-      select: {
-        adults: true,
-        children: true,
-        potOrders: { where: { voidedAt: null }, select: { id: true } },
-      },
+      select: { adults: true, children: true, potOrders: { where: { voidedAt: null }, select: { id: true } } },
     }),
-    prisma.expense.findMany({
-      where: { businessDate: { gte: start, lt: end } },
-      include: { category: true },
-    }),
+    prisma.expense.findMany({ where: { businessDate: { gte: start, lt: end } }, include: { category: true } }),
     prisma.cashierShift.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
       include: { cashier: { select: { name: true } } },
@@ -200,7 +157,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
   const cash = sum(payments.filter((p) => p.method === "CASH"));
-  const kbz = sum(payments.filter((p) => p.method === "KBZPAY"));
+  const kbz  = sum(payments.filter((p) => p.method === "KBZPAY"));
   const other = sum(payments.filter((p) => p.method === "OTHER"));
   const totalSales = cash + kbz + other;
 
@@ -208,9 +165,9 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   const children = closedSessions.reduce((s, x) => s + x.children, 0);
   let totalPots = 0, paidPots = 0;
   for (const s of closedSessions) {
-    const t = s.potOrders.length;
-    totalPots += t;
-    paidPots += Math.max(0, t - freePotsAllowed(s.adults + s.children, settings.freePotRatio, settings.freePotRounding));
+    const total = s.potOrders.length;
+    totalPots += total;
+    paidPots += Math.max(0, total - freePotsAllowed(s.adults + s.children, settings.freePotRatio, settings.freePotRounding));
   }
 
   const cashExpenses = sum(expenses.filter((e) => e.paymentSource === "CASH_DRAWER"));
@@ -220,44 +177,44 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Total sales" value={formatMoney(totalSales, c)} accent />
-        <Stat label="Bills settled" value={String(closedSessions.length)} />
-        <Stat label="Covers (A/C)" value={`${adults} / ${children}`} />
-        <Stat label="Pots (paid/total)" value={`${paidPots} / ${totalPots}`} />
+        <Stat label={t("stat_total_sales")} value={formatMoney(totalSales, c)} accent />
+        <Stat label={t("stat_bills_settled")} value={String(closedSessions.length)} />
+        <Stat label={t("stat_covers")} value={`${adults} / ${children}`} />
+        <Stat label={t("stat_pots")} value={`${paidPots} / ${totalPots}`} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Sales by method</h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_sales_by_method")}</h3>
           <dl className="space-y-1 text-sm">
-            <Row label="Cash" value={formatMoney(cash, c)} />
-            <Row label="KBZPay" value={formatMoney(kbz, c)} />
-            <Row label="Other" value={formatMoney(other, c)} />
+            <Row label={t("row_cash")} value={formatMoney(cash, c)} />
+            <Row label={t("row_kbzpay")} value={formatMoney(kbz, c)} />
+            <Row label={t("row_other")} value={formatMoney(other, c)} />
             <div className="flex justify-between border-t border-gray-200 pt-1 font-bold">
-              <span>Total</span>
+              <span>{t("row_total")}</span>
               <span className="tabular-nums">{formatMoney(totalSales, c)}</span>
             </div>
           </dl>
         </section>
 
         <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Cash position</h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_cash_position")}</h3>
           <dl className="space-y-1 text-sm">
-            <Row label="Cash sales" value={formatMoney(cash, c)} />
-            <Row label="− Cash-drawer expenses" value={formatMoney(cashExpenses, c)} />
+            <Row label={t("row_cash_sales_pos")} value={formatMoney(cash, c)} />
+            <Row label={t("row_minus_cash_expenses")} value={formatMoney(cashExpenses, c)} />
             <div className="flex justify-between border-t border-gray-200 pt-1 font-bold">
-              <span>Net cash movement</span>
+              <span>{t("row_net_cash_movement")}</span>
               <span className="tabular-nums">{formatMoney(netCash, c)}</span>
             </div>
-            <Row label="Bank-transfer expenses" value={formatMoney(bankExpenses, c)} muted />
+            <Row label={t("row_bank_expenses")} value={formatMoney(bankExpenses, c)} muted />
           </dl>
         </section>
       </div>
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-sm font-semibold text-gray-700">Expenses ({expenses.length})</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_expenses")} ({expenses.length})</h3>
         {expenses.length === 0 ? (
-          <p className="text-sm text-gray-400">No expenses.</p>
+          <p className="text-sm text-gray-400">{t("empty_no_expenses")}</p>
         ) : (
           <ul className="divide-y divide-gray-100 text-sm">
             {expenses.map((e) => (
@@ -265,7 +222,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
                 <span>
                   {e.description}
                   <span className="ml-2 text-xs text-gray-400">
-                    {e.category.name} · {e.paymentSource === "CASH_DRAWER" ? "Cash" : "Bank"}
+                    {e.category.name} · {e.paymentSource === "CASH_DRAWER" ? t("source_cash_drawer") : t("source_bank_transfer")}
                   </span>
                 </span>
                 <span className="tabular-nums">{formatMoney(e.amount, c)}</span>
@@ -276,9 +233,9 @@ async function CashTab({ dayStr, start, end, c, settings }: {
       </section>
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-sm font-semibold text-gray-700">Shifts closed ({shifts.length})</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_shifts_closed")} ({shifts.length})</h3>
         {shifts.length === 0 ? (
-          <p className="text-sm text-gray-400">No shifts closed on this day.</p>
+          <p className="text-sm text-gray-400">{t("empty_no_shifts_today")}</p>
         ) : (
           <ul className="divide-y divide-gray-100 text-sm">
             {shifts.map((s) => (
@@ -289,10 +246,8 @@ async function CashTab({ dayStr, start, end, c, settings }: {
                     {formatDateTime(s.openedAt)} → {s.closedAt ? formatDateTime(s.closedAt) : "—"}
                   </span>
                 </span>
-                <span className={
-                  "font-semibold tabular-nums " +
-                  ((s.variance ?? 0) < 0 ? "text-red-600" : (s.variance ?? 0) > 0 ? "text-amber-600" : "text-emerald-600")
-                }>
+                <span className={"font-semibold tabular-nums " +
+                  ((s.variance ?? 0) < 0 ? "text-red-600" : (s.variance ?? 0) > 0 ? "text-amber-600" : "text-emerald-600")}>
                   {formatMoney(s.variance ?? 0, c)}
                 </span>
               </li>
@@ -304,19 +259,15 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   );
 }
 
-// ── Attendance tab ────────────────────────────────────────────────────────────
-
 async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAttendance, markAbsent, deleteClockOut }: {
-  dayStr: string;
-  start: Date;
-  end: Date;
+  dayStr: string; start: Date; end: Date;
   approveAttendance: (fd: FormData) => Promise<void>;
   rejectAttendance: (fd: FormData) => Promise<void>;
   markAbsent: (fd: FormData) => Promise<void>;
   deleteClockOut: (fd: FormData) => Promise<void>;
 }) {
+  const t = await getT();
   const [allUnapproved, todayAttendances, allEmployees] = await Promise.all([
-    // All pending across ALL dates — matches the dashboard count
     prisma.attendance.findMany({
       where: { isApproved: false, status: { not: "REST_DAY" } },
       include: { employee: { include: { user: { select: { name: true } } } } },
@@ -336,27 +287,18 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
 
   const dayOfWeek = start.getDay();
   const attendedIds = new Set(todayAttendances.map((a) => a.employeeId));
-  const unapproved = allUnapproved; // all dates, not just today
+  const unapproved = allUnapproved;
   const approved = todayAttendances.filter((a) => a.isApproved);
-
-  // Employees with no attendance record today (and not a rest day)
-  const unrecorded = allEmployees.filter(
-    (e) => !attendedIds.has(e.userId) && !e.restDays.includes(dayOfWeek),
-  );
-  const onRestToday = allEmployees.filter(
-    (e) => !attendedIds.has(e.userId) && e.restDays.includes(dayOfWeek),
-  );
-
+  const unrecorded = allEmployees.filter((e) => !attendedIds.has(e.userId) && !e.restDays.includes(dayOfWeek));
+  const onRestToday = allEmployees.filter((e) => !attendedIds.has(e.userId) && e.restDays.includes(dayOfWeek));
   const isToday = dayStr === (() => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; })();
 
   return (
     <div className="space-y-5">
-
-      {/* Pending review */}
       {unapproved.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-orange-600">
-            Pending review — all dates ({unapproved.length})
+            {t("attendance_pending_review")} — {unapproved.length}
           </h3>
           {unapproved.map((a) => (
             <div key={a.id} className="rounded-xl border border-orange-200 bg-white p-4 shadow-sm">
@@ -364,49 +306,46 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                 <div>
                   <div className="font-semibold text-gray-800">{a.employee.user.name}</div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    <span className="font-medium text-gray-700">{a.date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric", weekday: "short" })}</span>
-                    &nbsp;·&nbsp; In: {fmt(a.clockInAt)} &nbsp;·&nbsp; Out: {fmt(a.clockOutAt)}
+                    <span className="font-medium text-gray-700">
+                      {a.date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric", weekday: "short" })}
+                    </span>
+                    &nbsp;·&nbsp; {t("attendance_clock_in")} {fmt(a.clockInAt)} &nbsp;·&nbsp; {t("attendance_clock_out")} {fmt(a.clockOutAt)}
                   </div>
                 </div>
                 <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600">
-                  Pending
+                  {t("attendance_pending_review")}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {/* Approve form */}
                 <form action={approveAttendance} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="id" value={a.id} />
                   <select name="status" defaultValue={a.status}
                     className="rounded-lg border border-gray-300 px-2 py-2 text-sm flex-1 min-w-[110px]">
-                    {STATUS_OPTS.map((s) => (
-                      <option key={s} value={s}>{s.replace("_", " ")}</option>
-                    ))}
+                    {STATUS_OPTS.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                   </select>
                   <select name="dayType" defaultValue={a.dayType}
                     className="rounded-lg border border-gray-300 px-2 py-2 text-sm">
-                    <option value="FULL">Full day</option>
-                    <option value="HALF">Half day</option>
+                    <option value="FULL">{t("option_full_day")}</option>
+                    <option value="HALF">{t("option_half_day")}</option>
                   </select>
                   <button type="submit"
                     className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 active:scale-95 transition">
-                    Approve
+                    {t("btn_approve")}
                   </button>
                 </form>
-                {/* Reject button */}
                 <form action={rejectAttendance}>
                   <input type="hidden" name="id" value={a.id} />
                   <button type="submit"
                     className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 active:scale-95 transition">
-                    Reject
+                    {t("btn_reject")}
                   </button>
                 </form>
-                {/* Delete accidental clock-out */}
                 {a.clockOutAt && (
                   <form action={deleteClockOut}>
                     <input type="hidden" name="id" value={a.id} />
                     <button type="submit"
                       className="rounded-xl border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 active:scale-95 transition">
-                      Remove clock-out
+                      {t("btn_remove_clock_out")}
                     </button>
                   </form>
                 )}
@@ -416,10 +355,9 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
         </div>
       )}
 
-      {/* Approved */}
       {approved.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-green-700">Approved ({approved.length})</h3>
+          <h3 className="text-sm font-semibold text-green-700">{t("attendance_approved")} ({approved.length})</h3>
           {approved.map((a) => (
             <div key={a.id} className="rounded-xl border border-green-100 bg-green-50/30 p-3.5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -430,12 +368,12 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                       {a.status.replace("_", " ")}
                     </span>
                     <span className="text-[11px] text-gray-400">
-                      {a.dayType === "HALF" ? "½ day" : "Full"}
+                      {a.dayType === "HALF" ? t("option_half_day") : t("option_full_day")}
                     </span>
                   </div>
                   <div className="mt-0.5 text-xs text-gray-400">
                     {a.date.toLocaleDateString(undefined, { day: "2-digit", month: "short", weekday: "short" })}
-                    &nbsp;·&nbsp; In: {fmt(a.clockInAt)} &nbsp;·&nbsp; Out: {fmt(a.clockOutAt)}
+                    &nbsp;·&nbsp; {t("attendance_clock_in")} {fmt(a.clockInAt)} &nbsp;·&nbsp; {t("attendance_clock_out")} {fmt(a.clockOutAt)}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -443,25 +381,23 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                     <input type="hidden" name="id" value={a.id} />
                     <select name="status" defaultValue={a.status}
                       className="rounded-lg border border-gray-200 px-1.5 py-1.5 text-xs">
-                      {STATUS_OPTS.map((s) => (
-                        <option key={s} value={s}>{s.replace("_", " ")}</option>
-                      ))}
+                      {STATUS_OPTS.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                     </select>
                     <select name="dayType" defaultValue={a.dayType}
                       className="rounded-lg border border-gray-200 px-1.5 py-1.5 text-xs">
-                      <option value="FULL">Full</option>
-                      <option value="HALF">Half</option>
+                      <option value="FULL">{t("option_full_day")}</option>
+                      <option value="HALF">{t("option_half_day")}</option>
                     </select>
                     <button type="submit"
                       className="rounded-lg bg-gray-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-800 active:scale-95 transition">
-                      Update
+                      {t("btn_update")}
                     </button>
                   </form>
                   <form action={rejectAttendance}>
                     <input type="hidden" name="id" value={a.id} />
                     <button type="submit"
                       className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 active:scale-95 transition">
-                      Reject
+                      {t("btn_reject")}
                     </button>
                   </form>
                   {a.clockOutAt && (
@@ -469,7 +405,7 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                       <input type="hidden" name="id" value={a.id} />
                       <button type="submit"
                         className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 active:scale-95 transition">
-                        Remove clock-out
+                        {t("btn_remove_clock_out")}
                       </button>
                     </form>
                   )}
@@ -480,11 +416,10 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
         </div>
       )}
 
-      {/* Unrecorded (no clock-in, not a rest day) */}
       {unrecorded.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-red-600">
-            Not recorded — {isToday ? "possibly absent" : "absent"} ({unrecorded.length})
+            {isToday ? t("attendance_not_recorded") : t("attendance_absent")} ({unrecorded.length})
           </h3>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {unrecorded.map((e) => (
@@ -495,7 +430,7 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                   <input type="hidden" name="date" value={dayStr} />
                   <button type="submit"
                     className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 active:scale-95 transition">
-                    Mark ABSENT
+                    {t("btn_mark_absent")}
                   </button>
                 </form>
               </div>
@@ -504,14 +439,12 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
         </div>
       )}
 
-      {/* Rest day employees */}
       {onRestToday.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-violet-600">Rest day ({onRestToday.length})</h3>
+          <h3 className="text-sm font-semibold text-violet-600">{t("attendance_rest_day")} ({onRestToday.length})</h3>
           <div className="flex flex-wrap gap-2">
             {onRestToday.map((e) => (
-              <span key={e.userId}
-                className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-700">
+              <span key={e.userId} className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-700">
                 {e.user.name}
               </span>
             ))}
@@ -520,65 +453,53 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
       )}
 
       {todayAttendances.length === 0 && unrecorded.length === 0 && onRestToday.length === 0 && (
-        <p className="py-8 text-center text-sm text-gray-400">No employee data for this date.</p>
+        <p className="py-8 text-center text-sm text-gray-400">{t("empty_no_employee_data")}</p>
       )}
     </div>
   );
 }
 
-// ── Inventory Review tab ──────────────────────────────────────────────────────
-
 async function InventoryTab({ start, end }: { start: Date; end: Date }) {
+  const t = await getT();
   const movements = await prisma.stockMovement.findMany({
     where: { type: "USAGE_OUT", createdAt: { gte: start, lt: end } },
     include: { stockItem: { select: { name: true, unit: true } } },
     orderBy: { createdAt: "asc" },
   });
 
-  // Group by item
   const byItem = new Map<string, { name: string; unit: string; totalQty: number; count: number }>();
   for (const m of movements) {
     const key = m.stockItemId;
-    if (!byItem.has(key)) {
-      byItem.set(key, { name: m.stockItem.name, unit: m.stockItem.unit, totalQty: 0, count: 0 });
-    }
+    if (!byItem.has(key)) byItem.set(key, { name: m.stockItem.name, unit: m.stockItem.unit, totalQty: 0, count: 0 });
     const entry = byItem.get(key)!;
     entry.totalQty += m.qty;
     entry.count += 1;
   }
   const summary = [...byItem.values()].sort((a, b) => a.name.localeCompare(b.name));
 
-  if (summary.length === 0) {
-    return <p className="py-8 text-center text-sm text-gray-400">No usage recorded on this date.</p>;
-  }
+  if (summary.length === 0) return <p className="py-8 text-center text-sm text-gray-400">{t("empty_no_usage")}</p>;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
         {movements.length} usage record{movements.length !== 1 ? "s" : ""} across {summary.length} item{summary.length !== 1 ? "s" : ""}.
       </p>
-
-      {/* Mobile cards */}
       <div className="grid grid-cols-1 gap-2 sm:hidden">
         {summary.map((item) => (
           <div key={item.name} className="flex items-center justify-between rounded-xl border bg-white px-4 py-3 shadow-sm">
             <span className="font-medium text-gray-800">{item.name}</span>
-            <span className="font-bold text-red-600 tabular-nums">
-              {item.totalQty} {UNIT_LABEL[item.unit] ?? item.unit}
-            </span>
+            <span className="font-bold text-red-600 tabular-nums">{item.totalQty} {UNIT_LABEL[item.unit] ?? item.unit}</span>
           </div>
         ))}
       </div>
-
-      {/* Desktop table */}
       <div className="hidden sm:block rounded-xl border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 text-left">Item</th>
-              <th className="px-4 py-2 text-right">Total used</th>
-              <th className="px-4 py-2 text-right">Unit</th>
-              <th className="px-4 py-2 text-right">Records</th>
+              <th className="px-4 py-2 text-left">{t("col_item")}</th>
+              <th className="px-4 py-2 text-right">{t("col_total_used")}</th>
+              <th className="px-4 py-2 text-right">{t("col_unit")}</th>
+              <th className="px-4 py-2 text-right">{t("col_records")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -596,8 +517,6 @@ async function InventoryTab({ start, end }: { start: Date; end: Date }) {
     </div>
   );
 }
-
-// ── Shared UI components ──────────────────────────────────────────────────────
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (

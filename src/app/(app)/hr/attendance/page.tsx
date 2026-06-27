@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { markAttendance, approveAttendance } from "./actions";
+import { getT } from "@/lib/lang";
 
 const STATUSES = ["PRESENT", "ABSENT", "LEAVE", "REST_DAY", "OT"] as const;
 const STATUS_COLOR: Record<string, string> = {
@@ -16,6 +17,7 @@ export default async function HRAttendancePage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  const t = await getT();
   const now = new Date();
   const sp = await searchParams;
   const month = parseInt(sp.month ?? String(now.getMonth() + 1));
@@ -25,21 +27,22 @@ export default async function HRAttendancePage({
   const end = new Date(year, month, 1);
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  const employees = await prisma.employee.findMany({
-    where: { isActive: true, isSystem: false },
-    include: {
-      user: { select: { name: true } },
-      attendances: { where: { date: { gte: start, lt: end } } },
-    },
-    orderBy: { user: { name: "asc" } },
-  });
-
-  const pending = await prisma.attendance.findMany({
-    where: { isApproved: false, status: { not: "REST_DAY" } },
-    include: { employee: { include: { user: { select: { name: true } } } } },
-    orderBy: { date: "desc" },
-    take: 30,
-  });
+  const [employees, pending] = await Promise.all([
+    prisma.employee.findMany({
+      where: { isActive: true, isSystem: false },
+      include: {
+        user: { select: { name: true } },
+        attendances: { where: { date: { gte: start, lt: end } } },
+      },
+      orderBy: { user: { name: "asc" } },
+    }),
+    prisma.attendance.findMany({
+      where: { isApproved: false, status: { not: "REST_DAY" } },
+      include: { employee: { include: { user: { select: { name: true } } } } },
+      orderBy: { date: "desc" },
+      take: 30,
+    }),
+  ]);
 
   const prev = month === 1 ? { month: 12, year: year - 1 } : { month: month - 1, year };
   const next = month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year };
@@ -47,7 +50,7 @@ export default async function HRAttendancePage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-bold">Attendance</h1>
+        <h1 className="text-xl font-bold">{t("heading_attendance")}</h1>
         <div className="flex items-center gap-2 text-sm">
           <a href={`?month=${prev.month}&year=${prev.year}`} className="btn-outline px-2 py-1">‹</a>
           <span className="font-medium">
@@ -57,17 +60,16 @@ export default async function HRAttendancePage({
         </div>
       </div>
 
-      {/* Pending approvals */}
       {pending.length > 0 && (
         <div className="space-y-2">
-          <h2 className="font-semibold text-sm text-orange-600">⚠ Unapproved ({pending.length})</h2>
+          <h2 className="font-semibold text-sm text-orange-600">⚠ {t("section_unapproved")} ({pending.length})</h2>
           <div className="rounded-xl border bg-orange-50 p-3 space-y-1">
             {pending.map((a) => (
               <div key={a.id} className="flex items-center justify-between text-sm">
                 <span>{a.employee.user.name} — {formatDate(a.date)} ({a.status})</span>
                 <form action={approveAttendance}>
                   <input type="hidden" name="id" value={a.id} />
-                  <button type="submit" className="text-xs text-brand hover:underline">Approve</button>
+                  <button type="submit" className="text-xs text-brand hover:underline">{t("btn_approve_attendance")}</button>
                 </form>
               </div>
             ))}
@@ -75,12 +77,11 @@ export default async function HRAttendancePage({
         </div>
       )}
 
-      {/* Monthly grid */}
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
         <table className="min-w-full text-xs">
           <thead className="border-b bg-gray-50">
             <tr>
-              <th className="sticky left-0 bg-gray-50 px-3 py-2 text-left text-xs font-semibold">Employee</th>
+              <th className="sticky left-0 bg-gray-50 px-3 py-2 text-left text-xs font-semibold">{t("col_employee")}</th>
               {Array.from({ length: daysInMonth }, (_, i) => (
                 <th key={i} className="px-1 py-2 text-center font-medium text-gray-400">{i + 1}</th>
               ))}
@@ -120,12 +121,11 @@ export default async function HRAttendancePage({
         </table>
       </div>
 
-      {/* Manual mark */}
       <div className="rounded-xl border bg-white p-4 shadow-sm">
-        <h2 className="mb-3 font-semibold text-sm">Mark Attendance Manually</h2>
+        <h2 className="mb-3 font-semibold text-sm">{t("section_mark_attendance")}</h2>
         <form action={markAttendance} className="grid gap-3 sm:grid-cols-5">
           <select name="employeeId" required className="input">
-            <option value="">Employee…</option>
+            <option value="">{t("label_employee")}…</option>
             {employees.map((e) => <option key={e.userId} value={e.userId}>{e.user.name}</option>)}
           </select>
           <input name="date" type="date" required className="input"
@@ -133,12 +133,11 @@ export default async function HRAttendancePage({
           <select name="status" required className="input">
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <input name="note" className="input" placeholder="Note (optional)" />
-          <button type="submit" className="btn-brand">Mark</button>
+          <input name="note" className="input" placeholder={`${t("col_note")} (optional)`} />
+          <button type="submit" className="btn-brand">{t("btn_mark_attendance")}</button>
         </form>
       </div>
 
-      {/* Legend */}
       <div className="flex flex-wrap gap-2 text-xs">
         {Object.entries(STATUS_COLOR).map(([s, cls]) => (
           <span key={s} className={`rounded px-2 py-0.5 ${cls}`}>{s}</span>

@@ -58,6 +58,7 @@ model User {
   notifications     Notification[]
 
   cashCollections    CashCollection[]   @relation("CashCollectionRecorder")
+  confirmedExpenses  Expense[]          @relation("ExpenseConfirmer")
 
   // Inventory relations
   deliveriesCreated  StockDelivery[]    @relation("DeliveryCreator")
@@ -334,10 +335,25 @@ model Expense {
   enteredById   String
   receiptUrl    String?
   paidAt        DateTime?       // set by admin when BANK_TRANSFER expense is confirmed paid
+  confirmedAt   DateTime?       // set by manager when expense receipt is verified
+  confirmedById String?
+  confirmedBy   User?           @relation("ExpenseConfirmer", fields: [confirmedById], references: [id])
+  attachments   ExpenseAttachment[]
   createdAt     DateTime        @default(now())
 
   @@index([businessDate])
   @@index([shiftId])
+  @@index([confirmedAt])
+}
+
+model ExpenseAttachment {
+  id        String   @id @default(cuid())
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId String
+  filePath  String   // relative path under uploads dir, e.g. "receipts/abc.jpg"
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
 }
 
 // ---------------------------------------------------------------------------

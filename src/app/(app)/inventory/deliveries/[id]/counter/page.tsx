@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import SubmitButton from "@/components/SubmitButton";
 import { submitCounterSide } from "../actions";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function CounterEntryPage({
 }) {
   await requireAnyRole(["WAITER", "KITCHEN", "MANAGER", "ADMIN"]);
   const { id } = await params;
+  const t = await getT();
 
   const delivery = await prisma.stockDelivery.findUniqueOrThrow({
     where: { id },
@@ -26,7 +28,6 @@ export default async function CounterEntryPage({
     redirect(`/inventory/deliveries/${id}`);
   }
 
-  // If cashier already submitted, use their items. Otherwise show all active stock items.
   const showAllItems = delivery.items.length === 0 || !delivery.cashierSubmittedAt;
   const stockItems = showAllItems
     ? await prisma.stockItem.findMany({ where: { isActive: true }, orderBy: { name: "asc" } })
@@ -43,14 +44,13 @@ export default async function CounterEntryPage({
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Count Received Items</h2>
-        <a href={`/inventory/deliveries/${id}`} className="text-sm text-blue-600 hover:underline">Cancel</a>
+        <h2 className="text-base font-semibold text-gray-800">{t("heading_count_received")}</h2>
+        <a href={`/inventory/deliveries/${id}`} className="text-sm text-blue-600 hover:underline">{t("btn_cancel")}</a>
       </div>
 
       <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
-        <strong>Blind count:</strong> Count each item physically and enter the quantity.
-        Do NOT refer to the invoice — your count must be independent.
-        {delivery.supplier && <> Supplier: <strong>{delivery.supplier.name}</strong>.</>}
+        <strong>{t("blind_count_notice")}</strong>
+        {delivery.supplier && <> {t("col_supplier")}: <strong>{delivery.supplier.name}</strong>.</>}
       </div>
 
       <section className="rounded-xl bg-white p-5 shadow-sm">
@@ -79,17 +79,15 @@ export default async function CounterEntryPage({
 
           {items.length === 0 && (
             <p className="text-center text-gray-400 py-4">
-              No stock items to count. Ask admin to add stock items first.
+              {t("empty_no_stock_to_count")}
             </p>
           )}
 
-          <p className="text-xs text-gray-400">
-            Enter 0 for any item you did not receive. Only submit once — you cannot change your count after submission.
-          </p>
+          <p className="text-xs text-gray-400">{t("count_submit_note")}</p>
 
           {items.length > 0 && (
             <SubmitButton className="w-full rounded-lg bg-orange-500 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-60">
-              Submit count
+              {t("btn_submit_count")}
             </SubmitButton>
           )}
         </form>

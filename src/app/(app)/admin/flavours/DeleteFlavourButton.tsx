@@ -6,14 +6,16 @@ import { deleteFlavour } from "../actions";
 export default function DeleteFlavourButton({
   id,
   name,
+  labels,
 }: {
   id: string;
   name: string;
+  labels: { delete: string; confirm: string };
 }) {
   const [pending, start] = useTransition();
 
   function handleClick() {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!confirm(labels.confirm)) return;
     const fd = new FormData();
     fd.append("id", id);
     start(() => deleteFlavour(fd));
@@ -25,7 +27,7 @@ export default function DeleteFlavourButton({
       disabled={pending}
       className="ml-1 text-xs text-red-500 hover:underline disabled:opacity-50"
     >
-      {pending ? "…" : "Delete"}
+      {pending ? "…" : labels.delete}
     </button>
   );
 }

@@ -7,36 +7,35 @@ import { useRoomRefresh } from "@/lib/socket-client";
 function playBeep(ctx: AudioContext, offset = 0) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.type = "sine";
-  osc.frequency.value = 880;
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = "sine"; osc.frequency.value = 880;
   const t = ctx.currentTime + offset;
   gain.gain.setValueAtTime(0.0001, t);
   gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-  osc.start(t);
-  osc.stop(t + 0.37);
+  osc.start(t); osc.stop(t + 0.37);
 }
-
 function playThreeBeeps(ctx: AudioContext | null) {
   if (!ctx) return;
-  playBeep(ctx, 0);
-  playBeep(ctx, 0.18);
-  playBeep(ctx, 0.36);
+  playBeep(ctx, 0); playBeep(ctx, 0.18); playBeep(ctx, 0.36);
 }
 
-export default function KitchenLive({ pendingCount }: { pendingCount: number }) {
+export default function KitchenLive({
+  pendingCount,
+  labelSoundOn,
+  labelSoundOff,
+}: {
+  pendingCount: number;
+  labelSoundOn: string;
+  labelSoundOff: string;
+}) {
   const router = useRouter();
-
-  // Instant updates via socket, plus a 5s polling fallback.
   useRoomRefresh("kitchen", ["pot:new", "pot:void", "pot:delivered"]);
   useEffect(() => {
     const id = setInterval(() => router.refresh(), 5000);
     return () => clearInterval(id);
   }, [router]);
 
-  // 3 beeps every 10s while any order is pending (needs a user gesture to start audio).
   const [soundOn, setSoundOn] = useState(false);
   const ctxRef = useRef<AudioContext | null>(null);
   const countRef = useRef(pendingCount);
@@ -44,9 +43,7 @@ export default function KitchenLive({ pendingCount }: { pendingCount: number }) 
 
   useEffect(() => {
     if (!soundOn) return;
-    const beep = () => {
-      if (countRef.current > 0) playThreeBeeps(ctxRef.current);
-    };
+    const beep = () => { if (countRef.current > 0) playThreeBeeps(ctxRef.current); };
     beep();
     const id = setInterval(beep, 10000);
     return () => clearInterval(id);
@@ -54,10 +51,7 @@ export default function KitchenLive({ pendingCount }: { pendingCount: number }) 
 
   function enableSound() {
     if (!ctxRef.current) {
-      const w = window as unknown as {
-        AudioContext: typeof AudioContext;
-        webkitAudioContext?: typeof AudioContext;
-      };
+      const w = window as unknown as { AudioContext: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
       const AC = w.AudioContext || w.webkitAudioContext;
       if (AC) ctxRef.current = new AC();
     }
@@ -67,27 +61,18 @@ export default function KitchenLive({ pendingCount }: { pendingCount: number }) 
 
   return (
     <div className="flex items-center gap-3">
-      <span
-        className={
-          "rounded-full px-3 py-1 text-sm font-semibold " +
-          (pendingCount > 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")
-        }
-      >
+      <span className={"rounded-full px-3 py-1 text-sm font-semibold " + (pendingCount > 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")}>
         {pendingCount} pending
       </span>
       {soundOn ? (
-        <button
-          onClick={() => setSoundOn(false)}
-          className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
-        >
-          🔔 Sound on — tap to mute
+        <button onClick={() => setSoundOn(false)}
+          className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100">
+          {labelSoundOn}
         </button>
       ) : (
-        <button
-          onClick={enableSound}
-          className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
-        >
-          🔕 Enable sound
+        <button onClick={enableSound}
+          className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-900">
+          {labelSoundOff}
         </button>
       )}
     </div>

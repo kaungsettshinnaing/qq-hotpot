@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getLiveAttendanceStatus } from "@/lib/hr-attendance";
 import LiveAttendance from "./attendance/LiveAttendance";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,12 @@ function fmtMins(mins: number) {
 }
 
 export default async function ManagerDashboard() {
-  const [statuses, pendingLeave, pendingAtt] = await Promise.all([
+  const t = await getT();
+  const [statuses, pendingLeave, pendingAtt, unconfirmedExp] = await Promise.all([
     getLiveAttendanceStatus(),
     prisma.leaveRequest.count({ where: { status: "PENDING" } }),
     prisma.attendance.count({ where: { isApproved: false, status: { not: "REST_DAY" } } }),
+    prisma.expense.count({ where: { confirmedAt: null } }),
   ]);
 
   const workingList = statuses.filter((s) => s.status === "working");
@@ -34,13 +37,12 @@ export default async function ManagerDashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Manager Dashboard</h1>
+      <h1 className="text-xl font-bold">{t("nav_manager")}</h1>
 
-      {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <div className="text-2xl font-bold text-green-600">{workingList.length}</div>
-          <div className="text-sm text-gray-600">Working now</div>
+          <div className="text-sm text-gray-600">{t("card_working_now")}</div>
           {workingList.length > 0 && (
             <ul className="mt-2 space-y-0.5 border-t border-gray-100 pt-2">
               {workingList.map((s) => (
@@ -52,7 +54,7 @@ export default async function ManagerDashboard() {
 
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <div className="text-2xl font-bold text-yellow-500">{onBreakList.length}</div>
-          <div className="text-sm text-gray-600">On break</div>
+          <div className="text-sm text-gray-600">{t("card_on_break")}</div>
           {onBreakList.length > 0 && (
             <ul className="mt-2 space-y-0.5 border-t border-gray-100 pt-2">
               {onBreakList.map((s) => (
@@ -69,30 +71,33 @@ export default async function ManagerDashboard() {
 
         <div className={`rounded-xl border bg-white p-4 shadow-sm ${pendingLeave > 0 ? "border-red-300" : ""}`}>
           <div className="text-2xl font-bold text-brand">{pendingLeave}</div>
-          <div className="text-sm text-gray-600">Pending leave</div>
+          <div className="text-sm text-gray-600">{t("card_pending_leave")}</div>
           {pendingLeave > 0 && (
-            <Link href="/manager/leave" className="text-xs text-brand hover:underline">Review →</Link>
+            <Link href="/manager/leave" className="text-xs text-brand hover:underline">{t("link_review")} →</Link>
           )}
         </div>
 
         <div className={`rounded-xl border bg-white p-4 shadow-sm ${pendingAtt > 0 ? "border-orange-300" : ""}`}>
           <div className="text-2xl font-bold text-orange-500">{pendingAtt}</div>
-          <div className="text-sm text-gray-600">Unapproved attendance</div>
+          <div className="text-sm text-gray-600">{t("card_unapproved_attendance")}</div>
           {pendingAtt > 0 && (
-            <Link href="/reports?tab=attendance" className="text-xs text-brand hover:underline">
-              Review →
-            </Link>
+            <Link href="/reports?tab=attendance" className="text-xs text-brand hover:underline">{t("link_review")} →</Link>
+          )}
+        </div>
+
+        <div className={`rounded-xl border bg-white p-4 shadow-sm ${unconfirmedExp > 0 ? "border-amber-300" : ""}`}>
+          <div className="text-2xl font-bold text-amber-600">{unconfirmedExp}</div>
+          <div className="text-sm text-gray-600">{t("card_unconfirmed_expenses")}</div>
+          {unconfirmedExp > 0 && (
+            <Link href="/manager/expenses" className="text-xs text-brand hover:underline">{t("link_review")} →</Link>
           )}
         </div>
       </div>
 
-      {/* ── Live Attendance ── */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-800">Live Attendance — Today</h2>
-          <Link href="/manager/attendance" className="text-xs text-brand hover:underline">
-            Full view →
-          </Link>
+          <h2 className="text-base font-semibold text-gray-800">{t("heading_live_attendance")}</h2>
+          <Link href="/manager/attendance" className="text-xs text-brand hover:underline">{t("link_full_view")} →</Link>
         </div>
         <LiveAttendance entries={serialised} />
       </div>

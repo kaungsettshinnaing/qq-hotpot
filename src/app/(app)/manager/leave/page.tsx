@@ -1,8 +1,8 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { notifyManagers } from "@/lib/notifications";
 import { formatDate } from "@/lib/format";
+import { getT } from "@/lib/lang";
 
 async function reviewLeave(fd: FormData) {
   "use server";
@@ -18,7 +18,6 @@ async function reviewLeave(fd: FormData) {
   });
 
   if (status === "APPROVED") {
-    // Create attendance LEAVE rows for each day in range
     const start = new Date(req.startDate);
     const end = new Date(req.endDate);
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -29,7 +28,6 @@ async function reviewLeave(fd: FormData) {
         create: { employeeId: req.employeeId, date, status: "LEAVE", isApproved: true, approvedById: session.id },
       });
     }
-    // Notify the employee
     await prisma.notification.create({
       data: {
         userId: req.employee.userId,
@@ -52,29 +50,35 @@ async function reviewLeave(fd: FormData) {
 }
 
 export default async function ManagerLeavePage() {
-  const pending = await prisma.leaveRequest.findMany({
-    where: { status: "PENDING" },
-    include: { employee: { include: { user: { select: { name: true } } } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const t = await getT();
 
-  const recent = await prisma.leaveRequest.findMany({
-    where: { status: { not: "PENDING" } },
-    include: {
-      employee: { include: { user: { select: { name: true } } } },
-      reviewedBy: { select: { name: true } },
-    },
-    orderBy: { reviewedAt: "desc" },
-    take: 20,
-  });
+  const [pending, recent] = await Promise.all([
+    prisma.leaveRequest.findMany({
+      where: { status: "PENDING" },
+      include: { employee: { include: { user: { select: { name: true } } } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.leaveRequest.findMany({
+      where: { status: { not: "PENDING" } },
+      include: {
+        employee: { include: { user: { select: { name: true } } } },
+        reviewedBy: { select: { name: true } },
+      },
+      orderBy: { reviewedAt: "desc" },
+      take: 20,
+    }),
+  ]);
+
+  const decisionLabel = (status: string) =>
+    status === "APPROVED" ? t("status_leave_approved") : t("status_leave_rejected");
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Leave Requests</h1>
+      <h1 className="text-xl font-bold">{t("heading_leave_requests")}</h1>
 
       {pending.length > 0 ? (
         <div className="space-y-2">
-          <h2 className="font-semibold text-sm">Pending ({pending.length})</h2>
+          <h2 className="font-semibold text-sm">{t("section_pending")} ({pending.length})</h2>
           {pending.map((r) => (
             <div key={r.id} className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
               <div className="flex items-start justify-between">
@@ -90,14 +94,14 @@ export default async function ManagerLeavePage() {
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="action" value="approve" />
                     <button type="submit" className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700">
-                      Approve
+                      {t("btn_approve")}
                     </button>
                   </form>
                   <form action={reviewLeave}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="action" value="reject" />
                     <button type="submit" className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
-                      Reject
+                      {t("btn_reject")}
                     </button>
                   </form>
                 </div>
@@ -106,20 +110,22 @@ export default async function ManagerLeavePage() {
           ))}
         </div>
       ) : (
-        <p className="rounded-xl border bg-white p-6 text-center text-sm text-gray-400">No pending leave requests</p>
+        <p className="rounded-xl border bg-white p-6 text-center text-sm text-gray-400">
+          {t("empty_no_pending_leave")}
+        </p>
       )}
 
       {recent.length > 0 && (
         <div>
-          <h2 className="mb-2 font-semibold text-sm">Recent Decisions</h2>
+          <h2 className="mb-2 font-semibold text-sm">{t("section_recent_decisions")}</h2>
           <div className="rounded-xl border bg-white shadow-sm">
             <table className="w-full text-sm">
               <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
-                  <th className="px-4 py-2 text-left">Employee</th>
-                  <th className="px-4 py-2 text-left">Dates</th>
-                  <th className="px-4 py-2 text-left">Decision</th>
-                  <th className="px-4 py-2 text-left">By</th>
+                  <th className="px-4 py-2 text-left">{t("col_employee")}</th>
+                  <th className="px-4 py-2 text-left">{t("col_dates")}</th>
+                  <th className="px-4 py-2 text-left">{t("col_decision")}</th>
+                  <th className="px-4 py-2 text-left">{t("col_by")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -128,7 +134,9 @@ export default async function ManagerLeavePage() {
                     <td className="px-4 py-2">{r.employee.user.name}</td>
                     <td className="px-4 py-2 text-gray-500">{formatDate(r.startDate)} – {formatDate(r.endDate)}</td>
                     <td className="px-4 py-2">
-                      <span className={`badge ${r.status === "APPROVED" ? "badge-green" : "badge-red"}`}>{r.status}</span>
+                      <span className={`badge ${r.status === "APPROVED" ? "badge-green" : "badge-red"}`}>
+                        {decisionLabel(r.status)}
+                      </span>
                     </td>
                     <td className="px-4 py-2 text-gray-500">{r.reviewedBy?.name ?? "—"}</td>
                   </tr>

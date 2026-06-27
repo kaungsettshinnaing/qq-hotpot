@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/format";
+import { getT } from "@/lib/lang";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -9,6 +10,7 @@ export default async function PayrollSummaryPage({
 }: {
   params: Promise<{ yearMonth: string }>;
 }) {
+  const t = await getT();
   const { yearMonth } = await params;
   const [yearStr, monthStr] = yearMonth.split("-");
   const year = parseInt(yearStr);
@@ -30,26 +32,28 @@ export default async function PayrollSummaryPage({
   return (
     <div className="mx-auto max-w-2xl print:shadow-none">
       <div className="mb-4 flex justify-end gap-2 print:hidden">
-        <button onClick={() => window.print()} className="btn-brand">Print</button>
+        <button onClick={() => window.print()} className="btn-brand">{t("btn_print")}</button>
       </div>
 
       <div className="rounded-xl border bg-white p-8 shadow-sm print:border-0">
         <div className="mb-6 text-center">
           <h1 className="text-xl font-bold">QQ Hotpot BBQ</h1>
-          <p className="text-sm font-medium">Payroll Summary — {MONTHS[month - 1]} {year}</p>
-          <p className="text-xs text-gray-400">{payroll.status === "LOCKED" ? "Locked ✓" : "Draft"}</p>
+          <p className="text-sm font-medium">{t("payroll_summary_title")} — {MONTHS[month - 1]} {year}</p>
+          <p className="text-xs text-gray-400">
+            {payroll.status === "LOCKED" ? `${t("payroll_locked")} ✓` : t("status_draft")}
+          </p>
         </div>
 
         <table className="w-full text-sm">
           <thead className="border-b text-left text-xs uppercase text-gray-500">
             <tr>
-              <th className="py-2">No.</th>
-              <th className="py-2">Name</th>
-              <th className="py-2 text-right">Basic</th>
-              <th className="py-2 text-right">Deduct</th>
-              <th className="py-2 text-right">Bonus</th>
-              <th className="py-2 text-right font-bold">Net Pay (MMK)</th>
-              <th className="py-2 text-center">Signature</th>
+              <th className="py-2">{t("col_no")}</th>
+              <th className="py-2">{t("col_name")}</th>
+              <th className="py-2 text-right">{t("col_basic")}</th>
+              <th className="py-2 text-right">{t("col_deductions")}</th>
+              <th className="py-2 text-right">{t("col_bonus")}</th>
+              <th className="py-2 text-right font-bold">{t("col_net_pay")} (MMK)</th>
+              <th className="py-2 text-center">{t("col_signature")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -72,7 +76,7 @@ export default async function PayrollSummaryPage({
           </tbody>
           <tfoot className="border-t">
             <tr>
-              <td colSpan={5} className="py-3 text-right font-bold">Total</td>
+              <td colSpan={5} className="py-3 text-right font-bold">{t("label_total")}</td>
               <td className="py-3 text-right font-bold text-brand">{total.toLocaleString()}</td>
               <td />
             </tr>
@@ -80,7 +84,7 @@ export default async function PayrollSummaryPage({
         </table>
 
         <div className="mt-8 text-xs text-gray-400">
-          Generated on {formatDate(new Date())}
+          {t("label_generated_on")} {formatDate(new Date())}
         </div>
       </div>
     </div>

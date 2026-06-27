@@ -2,6 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { formatMoney } from "@/lib/format";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,8 @@ async function markPaid(fd: FormData) {
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
-  return d.toLocaleString([], {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  return d.toLocaleString([], { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-
 function fmtDate(d: Date) {
   return d.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -42,103 +39,136 @@ function fmtDate(d: Date) {
 export default async function AccountingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; year?: string; month?: string }>;
 }) {
   await requireAnyRole(["ADMIN"]);
-  const { tab = "ar" } = await searchParams;
+  const t = await getT();
+  const sp = await searchParams;
+  const tab = sp.tab ?? "ar";
 
-  const [pendingPayments, reconciledPayments, pendingExpenses, paidExpenses] =
+  const now = new Date();
+  const plYear  = parseInt(sp.year  ?? String(now.getFullYear()), 10);
+  const plMonth = parseInt(sp.month ?? String(now.getMonth() + 1), 10);
+  const plStart = new Date(plYear, plMonth - 1, 1);
+  const plEnd   = new Date(plYear, plMonth, 1);
+
+  // ── Shared summary counts ─────────────────────────────────────────────────
+  const [pendingPayments, reconciledPayments, accrualExpenses, confirmedPendingExpenses, paidExpenses] =
     await Promise.all([
-      // AR — pending: KBZPay/OTHER not yet reconciled
       prisma.payment.findMany({
         where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: null },
-        include: {
-          session: { include: { table: { select: { label: true } } } },
-          receivedBy: { select: { name: true } },
-        },
+        include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
         orderBy: { receivedAt: "asc" },
       }),
-      // AR — reconciled history
       prisma.payment.findMany({
         where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { not: null } },
-        include: {
-          session: { include: { table: { select: { label: true } } } },
-          receivedBy: { select: { name: true } },
-        },
+        include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
         orderBy: { receivedAt: "asc" },
       }),
-      // AP — pending: BANK_TRANSFER expenses not yet confirmed paid
       prisma.expense.findMany({
-        where: { paymentSource: "BANK_TRANSFER", paidAt: null },
-        include: {
-          category: { select: { name: true } },
-          enteredBy: { select: { name: true } },
-        },
+        where: { paymentSource: "BANK_TRANSFER", confirmedAt: null },
+        include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.expense.findMany({
+        where: { paymentSource: "BANK_TRANSFER", confirmedAt: { not: null }, paidAt: null },
+        include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
         orderBy: { businessDate: "asc" },
       }),
-      // AP — paid history
       prisma.expense.findMany({
         where: { paymentSource: "BANK_TRANSFER", paidAt: { not: null } },
-        include: {
-          category: { select: { name: true } },
-          enteredBy: { select: { name: true } },
-        },
+        include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
         orderBy: { businessDate: "asc" },
       }),
     ]);
 
-  const pendingARTotal = pendingPayments.reduce((s, p) => s + p.amount, 0);
-  const pendingAPTotal = pendingExpenses.reduce((s, e) => s + e.amount, 0);
+  // ── P&L data ──────────────────────────────────────────────────────────────
+  const [plPayments, plExpenses] = tab === "pl"
+    ? await Promise.all([
+        prisma.payment.findMany({
+          where: { receivedAt: { gte: plStart, lt: plEnd } },
+          select: { amount: true, method: true },
+        }),
+        prisma.expense.findMany({
+          where: { businessDate: { gte: plStart, lt: plEnd } },
+          include: { category: { select: { name: true } } },
+        }),
+      ])
+    : [[], []];
+
+  const revenue = {
+    cash:  plPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0),
+    kbz:   plPayments.filter((p) => p.method === "KBZPAY").reduce((s, p) => s + p.amount, 0),
+    other: plPayments.filter((p) => p.method === "OTHER").reduce((s, p) => s + p.amount, 0),
+  };
+  const totalRevenue = revenue.cash + revenue.kbz + revenue.other;
+
+  const expByCat = new Map<string, { name: string; confirmed: number; accrual: number }>();
+  for (const e of plExpenses) {
+    const key = e.categoryId;
+    const row = expByCat.get(key) ?? { name: e.category.name, confirmed: 0, accrual: 0 };
+    if (e.confirmedAt) row.confirmed += e.amount;
+    else row.accrual += e.amount;
+    expByCat.set(key, row);
+  }
+  const totalExpenses = plExpenses.reduce((s, e) => s + e.amount, 0);
+  const netPL = totalRevenue - totalExpenses;
+
+  const pendingARTotal    = pendingPayments.reduce((s, p) => s + p.amount, 0);
+  const accrualTotal      = accrualExpenses.reduce((s, e) => s + e.amount, 0);
+  const confirmedAPTotal  = confirmedPendingExpenses.reduce((s, e) => s + e.amount, 0);
 
   const tabs = [
-    { key: "ar", label: "Accounts Receivable" },
-    { key: "ap", label: "Accounts Payable" },
+    { key: "ar", label: t("tab_ar") },
+    { key: "ap", label: t("tab_ap") },
+    { key: "pl", label: t("tab_pl") },
   ];
 
   return (
     <div className="space-y-5 px-4 py-6 max-w-3xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900">Accounting</h1>
+      <h1 className="text-xl font-bold text-gray-900">{t("heading_accounting")}</h1>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Pending receivable</p>
-          <p className="mt-1 text-2xl font-extrabold text-blue-700">
-            {formatMoney(pendingARTotal)}
-          </p>
-          <p className="text-xs text-gray-400">{pendingPayments.length} transactions</p>
+          <p className="text-xs text-gray-500">{t("stat_pending_receivable")}</p>
+          <p className="mt-1 text-xl font-extrabold text-blue-700">{formatMoney(pendingARTotal)}</p>
+          <p className="text-xs text-gray-400">{t("label_n_txn", { n: String(pendingPayments.length) })}</p>
         </div>
         <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Pending payable</p>
-          <p className="mt-1 text-2xl font-extrabold text-red-700">
-            {formatMoney(pendingAPTotal)}
-          </p>
-          <p className="text-xs text-gray-400">{pendingExpenses.length} transactions</p>
+          <p className="text-xs text-gray-500">{t("stat_accruals_unconfirmed")}</p>
+          <p className="mt-1 text-xl font-extrabold text-amber-600">{formatMoney(accrualTotal)}</p>
+          <p className="text-xs text-gray-400">{t("label_n_expenses", { n: String(accrualExpenses.length) })}</p>
+        </div>
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-xs text-gray-500">{t("stat_confirmed_payable")}</p>
+          <p className="mt-1 text-xl font-extrabold text-red-700">{formatMoney(confirmedAPTotal)}</p>
+          <p className="text-xs text-gray-400">{t("label_n_txn", { n: String(confirmedPendingExpenses.length) })}</p>
         </div>
       </div>
 
       {/* Tab strip */}
       <div className="flex gap-1 border-b">
-        {tabs.map((t) => (
+        {tabs.map((tb) => (
           <a
-            key={t.key}
-            href={`/accounting?tab=${t.key}`}
+            key={tb.key}
+            href={`/accounting?tab=${tb.key}${tb.key === "pl" ? `&year=${plYear}&month=${plMonth}` : ""}`}
             className={
               "px-4 py-2 text-sm font-medium border-b-2 transition-colors " +
-              (tab === t.key
+              (tab === tb.key
                 ? "border-brand-dark text-brand-dark"
                 : "border-transparent text-gray-500 hover:text-gray-700")
             }
           >
-            {t.label}
-            {t.key === "ar" && pendingPayments.length > 0 && (
+            {tb.label}
+            {tb.key === "ar" && pendingPayments.length > 0 && (
               <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
                 {pendingPayments.length}
               </span>
             )}
-            {t.key === "ap" && pendingExpenses.length > 0 && (
+            {tb.key === "ap" && (accrualExpenses.length + confirmedPendingExpenses.length) > 0 && (
               <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
-                {pendingExpenses.length}
+                {accrualExpenses.length + confirmedPendingExpenses.length}
               </span>
             )}
           </a>
@@ -148,100 +178,65 @@ export default async function AccountingPage({
       {/* ── Accounts Receivable ── */}
       {tab === "ar" && (
         <div className="space-y-5">
-          {/* Pending */}
           {pendingPayments.length > 0 ? (
             <div className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-                Pending reconciliation ({pendingPayments.length})
+                {t("section_pending_recon")} ({pendingPayments.length})
               </h2>
               {pendingPayments.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-3"
-                >
+                <div key={p.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-gray-900">
-                        {formatMoney(p.amount)}
-                      </span>
-                      <span
-                        className={
-                          "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
-                          (p.method === "KBZPAY"
-                            ? "bg-purple-100 text-purple-700"
-                            : "bg-gray-100 text-gray-600")
-                        }
-                      >
-                        {p.method}
-                      </span>
+                      <span className="font-semibold text-gray-900">{formatMoney(p.amount)}</span>
+                      <span className={
+                        "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
+                        (p.method === "KBZPAY" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600")
+                      }>{p.method}</span>
                     </div>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      Table {p.session.table.label} &nbsp;·&nbsp; {fmt(p.receivedAt)}
+                      {t("label_table_prefix")} {p.session.table.label} · {fmt(p.receivedAt)}
+                      {p.reference && <> · Ref: {p.reference}</>}
                     </p>
-                    {p.reference && (
-                      <p className="text-xs text-gray-400">Ref: {p.reference}</p>
-                    )}
-                    <p className="text-[11px] text-gray-400">
-                      Received by {p.receivedBy.name}
-                    </p>
+                    <p className="text-[11px] text-gray-400">{t("label_received_by")} {p.receivedBy.name}</p>
                   </div>
                   <form action={markReceived}>
                     <input type="hidden" name="id" value={p.id} />
-                    <button
-                      type="submit"
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 active:scale-95 transition"
-                    >
-                      Received
+                    <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 active:scale-95 transition">
+                      {t("btn_received")}
                     </button>
                   </form>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="py-4 text-center text-sm text-gray-400">
-              No pending receivables — all caught up.
-            </p>
+            <p className="py-4 text-center text-sm text-gray-400">{t("msg_no_pending_ar")}</p>
           )}
 
-          {/* Reconciled history */}
           {reconciledPayments.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Reconciled history ({reconciledPayments.length})
+                {t("section_reconciled_history")} ({reconciledPayments.length})
               </h2>
               <div className="rounded-xl border bg-white divide-y overflow-hidden">
                 {reconciledPayments.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
-                  >
+                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-gray-900">
-                          {formatMoney(p.amount)}
-                        </span>
-                        <span
-                          className={
-                            "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
-                            (p.method === "KBZPAY"
-                              ? "bg-purple-100 text-purple-700"
-                              : "bg-gray-100 text-gray-600")
-                          }
-                        >
-                          {p.method}
-                        </span>
+                        <span className="font-medium text-gray-900">{formatMoney(p.amount)}</span>
+                        <span className={
+                          "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
+                          (p.method === "KBZPAY" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600")
+                        }>{p.method}</span>
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                          Received
+                          {t("badge_received")}
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-gray-400">
-                        Table {p.session.table.label} &nbsp;·&nbsp; {fmt(p.receivedAt)}
-                        {p.reference && <> &nbsp;·&nbsp; Ref: {p.reference}</>}
+                        {t("label_table_prefix")} {p.session.table.label} · {fmt(p.receivedAt)}
+                        {p.reference && <> · Ref: {p.reference}</>}
                       </p>
                     </div>
-                    <p className="text-xs text-gray-400">
-                      Confirmed {fmt(p.reconciledAt)}
-                    </p>
+                    <p className="text-xs text-gray-400">{t("badge_confirmed")} {fmt(p.reconciledAt)}</p>
                   </div>
                 ))}
               </div>
@@ -253,85 +248,88 @@ export default async function AccountingPage({
       {/* ── Accounts Payable ── */}
       {tab === "ap" && (
         <div className="space-y-5">
-          {/* Pending */}
-          {pendingExpenses.length > 0 ? (
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-red-600">
-                Pending payment ({pendingExpenses.length})
-              </h2>
-              {pendingExpenses.map((e) => (
-                <div
-                  key={e.id}
-                  className="rounded-xl border border-red-100 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-3"
-                >
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+              {t("section_accruals_await")} ({accrualExpenses.length})
+            </h2>
+            {accrualExpenses.length === 0 ? (
+              <p className="rounded-xl border bg-white px-4 py-4 text-center text-sm text-gray-400">
+                {t("msg_no_accruals")}
+              </p>
+            ) : (
+              accrualExpenses.map((e) => (
+                <div key={e.id} className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{formatMoney(e.amount)}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                      {t("badge_accrual")}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-sm text-gray-700">{e.description}</p>
+                  <p className="text-xs text-gray-400">
+                    {e.category.name}{e.vendor && <> · {e.vendor}</>} · {fmtDate(e.businessDate)} · {t("label_entered_by")} {e.enteredBy.name}
+                  </p>
+                  <p className="mt-1 text-xs italic text-amber-600">{t("msg_accrual_hint")}</p>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-red-600">
+              {t("section_confirmed_pending_pay")} ({confirmedPendingExpenses.length})
+            </h2>
+            {confirmedPendingExpenses.length === 0 ? (
+              <p className="rounded-xl border bg-white px-4 py-4 text-center text-sm text-gray-400">
+                {t("msg_no_confirmed_payable")}
+              </p>
+            ) : (
+              confirmedPendingExpenses.map((e) => (
+                <div key={e.id} className="rounded-xl border border-red-100 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-gray-900">
-                        {formatMoney(e.amount)}
-                      </span>
+                      <span className="font-semibold text-gray-900">{formatMoney(e.amount)}</span>
                       <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
-                        Bank Transfer
+                        {t("label_bank_transfer")}
                       </span>
                     </div>
                     <p className="mt-0.5 text-sm text-gray-700">{e.description}</p>
                     <p className="text-xs text-gray-500">
-                      {e.category.name}
-                      {e.vendor && <> &nbsp;·&nbsp; {e.vendor}</>}
-                      &nbsp;·&nbsp; {fmtDate(e.businessDate)}
-                    </p>
-                    <p className="text-[11px] text-gray-400">
-                      Entered by {e.enteredBy.name}
+                      {e.category.name}{e.vendor && <> · {e.vendor}</>} · {fmtDate(e.businessDate)}
                     </p>
                   </div>
                   <form action={markPaid}>
                     <input type="hidden" name="id" value={e.id} />
-                    <button
-                      type="submit"
-                      className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 active:scale-95 transition"
-                    >
-                      Paid
+                    <button type="submit" className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 active:scale-95 transition">
+                      {t("btn_paid")}
                     </button>
                   </form>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="py-4 text-center text-sm text-gray-400">
-              No pending payables — all cleared.
-            </p>
-          )}
+              ))
+            )}
+          </div>
 
-          {/* Paid history */}
           {paidExpenses.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Payment history ({paidExpenses.length})
+                {t("section_ap_history")} ({paidExpenses.length})
               </h2>
               <div className="rounded-xl border bg-white divide-y overflow-hidden">
                 {paidExpenses.map((e) => (
-                  <div
-                    key={e.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
-                  >
+                  <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-gray-900">
-                          {formatMoney(e.amount)}
-                        </span>
+                        <span className="font-medium">{formatMoney(e.amount)}</span>
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                          Paid
+                          {t("btn_paid")}
                         </span>
                       </div>
                       <p className="text-sm text-gray-700">{e.description}</p>
                       <p className="text-xs text-gray-400">
-                        {e.category.name}
-                        {e.vendor && <> &nbsp;·&nbsp; {e.vendor}</>}
-                        &nbsp;·&nbsp; {fmtDate(e.businessDate)}
+                        {e.category.name}{e.vendor && <> · {e.vendor}</>} · {fmtDate(e.businessDate)}
                       </p>
                     </div>
-                    <p className="text-xs text-gray-400">
-                      Confirmed {fmt(e.paidAt)}
-                    </p>
+                    <p className="text-xs text-gray-400">{t("badge_confirmed")} {fmt(e.paidAt)}</p>
                   </div>
                 ))}
               </div>
@@ -339,6 +337,100 @@ export default async function AccountingPage({
           )}
         </div>
       )}
+
+      {/* ── P&L ── */}
+      {tab === "pl" && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-2">
+            <a
+              href={`/accounting?tab=pl&year=${plMonth === 1 ? plYear - 1 : plYear}&month=${plMonth === 1 ? 12 : plMonth - 1}`}
+              className="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              ←
+            </a>
+            <span className="font-semibold">
+              {plStart.toLocaleDateString([], { month: "long", year: "numeric" })}
+            </span>
+            <a
+              href={`/accounting?tab=pl&year=${plMonth === 12 ? plYear + 1 : plYear}&month=${plMonth === 12 ? 1 : plMonth + 1}`}
+              className="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              →
+            </a>
+          </div>
+
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-green-700">{t("section_revenue")}</h2>
+            <div className="space-y-1.5 text-sm">
+              <PLRow label={t("label_cash_sales")} value={revenue.cash}  color="text-gray-700" />
+              <PLRow label="KBZPay"                value={revenue.kbz}   color="text-gray-700" />
+              <PLRow label={t("label_other")}      value={revenue.other} color="text-gray-700" />
+              <div className="flex justify-between border-t pt-2 font-bold">
+                <span>{t("row_total_revenue")}</span>
+                <span className="tabular-nums text-green-700">{formatMoney(totalRevenue)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-red-700">{t("section_expenses_accruals")}</h2>
+            {expByCat.size === 0 ? (
+              <p className="text-sm text-gray-400">{t("msg_no_expenses_month")}</p>
+            ) : (
+              <div className="space-y-1.5 text-sm">
+                {Array.from(expByCat.values())
+                  .sort((a, b) => (b.confirmed + b.accrual) - (a.confirmed + a.accrual))
+                  .map((row) => (
+                    <div key={row.name} className="flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-700">{row.name}</span>
+                        {row.accrual > 0 && (
+                          <span className="ml-2 text-[11px] text-amber-600">
+                            ({formatMoney(row.accrual)} {t("label_accrual_suffix")})
+                          </span>
+                        )}
+                      </div>
+                      <span className="tabular-nums text-red-700">
+                        {formatMoney(row.confirmed + row.accrual)}
+                      </span>
+                    </div>
+                  ))}
+                <div className="flex justify-between border-t pt-2 font-bold">
+                  <span>{t("row_total_expenses")}</span>
+                  <span className="tabular-nums text-red-700">{formatMoney(totalExpenses)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={
+            "rounded-xl border p-5 shadow-sm " +
+            (netPL >= 0 ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")
+          }>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-gray-800">{t("label_net_pl")}</span>
+              <span className={
+                "text-2xl font-extrabold tabular-nums " +
+                (netPL >= 0 ? "text-green-700" : "text-red-700")
+              }>
+                {netPL >= 0 ? "+" : ""}{formatMoney(netPL)}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {t("label_pl_formula", { rev: formatMoney(totalRevenue), exp: formatMoney(totalExpenses) })}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PLRow({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className={`tabular-nums ${color}`}>{formatMoney(value)}</span>
     </div>
   );
 }

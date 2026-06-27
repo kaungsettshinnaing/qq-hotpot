@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/db";
 import SubmitButton from "@/components/SubmitButton";
 import { createCategory, toggleCategory, toggleCategoryStock } from "../actions";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCategoriesPage() {
+  const t = await getT();
   const categories = await prisma.expenseCategory.findMany({ orderBy: { name: "asc" } });
 
   return (
@@ -12,20 +14,20 @@ export default async function AdminCategoriesPage() {
       <div className="lg:col-span-2">
         <section className="rounded-xl bg-white shadow-sm">
           <h3 className="border-b border-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
-            Expense categories ({categories.length})
+            {t("admin_card_expense_categories_label")} ({categories.length})
           </h3>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500">
-                <th className="px-4 py-2 text-left font-medium">Name</th>
-                <th className="px-4 py-2 text-center font-medium">Stock?</th>
-                <th className="px-4 py-2 text-right font-medium">Visibility</th>
+                <th className="px-4 py-2 text-left font-medium">{t("col_name")}</th>
+                <th className="px-4 py-2 text-center font-medium">{t("col_stock")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("col_visibility")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {categories.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 text-gray-400">No categories yet.</td>
+                  <td colSpan={3} className="px-4 py-3 text-gray-400">{t("empty_no_categories")}</td>
                 </tr>
               )}
               {categories.map((c) => (
@@ -45,7 +47,7 @@ export default async function AdminCategoriesPage() {
                             : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                         }`}
                       >
-                        {c.isStock ? "Stock" : "Non-stock"}
+                        {c.isStock ? t("col_stock_level") : t("label_non_stock")}
                       </button>
                     </form>
                   </td>
@@ -53,7 +55,7 @@ export default async function AdminCategoriesPage() {
                     <form action={toggleCategory} className="inline">
                       <input type="hidden" name="id" value={c.id} />
                       <button className="text-xs text-gray-500 hover:underline">
-                        {c.isActive ? "Hide" : "Show"}
+                        {c.isActive ? t("btn_hide") : t("btn_show")}
                       </button>
                     </form>
                   </td>
@@ -65,26 +67,23 @@ export default async function AdminCategoriesPage() {
       </div>
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-sm font-semibold text-gray-700">Add category</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("btn_add_category")}</h3>
         <form action={createCategory} className="space-y-2 text-sm">
           <input
             name="name"
             required
-            placeholder="Category name"
+            placeholder={t("placeholder_category_name")}
             className="w-full rounded-lg border border-gray-300 px-3 py-2"
           />
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" name="isStock" className="rounded" />
-            Linked to stock deliveries
+            {t("checkbox_linked_to_stock")}
           </label>
           <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-            Add category
+            {t("btn_add_category")}
           </SubmitButton>
         </form>
-        <p className="mt-3 text-xs text-gray-400">
-          Mark <strong>Stock</strong> categories (e.g. beverages, groceries) to link them with delivery reconciliation.
-          Non-stock categories (utilities, rent, wages) are expenses only.
-        </p>
+        <p className="mt-3 text-xs text-gray-400">{t("hint_stock_category")}</p>
       </section>
     </div>
   );

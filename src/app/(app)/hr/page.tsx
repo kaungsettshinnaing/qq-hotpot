@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
+import { getT } from "@/lib/lang";
 
 export default async function HRDashboard() {
+  const t = await getT();
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
@@ -13,20 +15,22 @@ export default async function HRDashboard() {
     prisma.payroll.findUnique({ where: { month_year: { month, year } } }),
   ]);
 
+  const monthName = now.toLocaleString("default", { month: "long" });
+  const payrollValue = payroll
+    ? payroll.status === "LOCKED" ? t("payroll_locked") : t("payroll_draft")
+    : t("payroll_not_generated");
+  const payrollSub = payroll?.status === "LOCKED" ? t("payroll_locked") : t("payroll_draft");
+
   const cards = [
-    { label: "Total Employees", value: total, sub: `${active} active` },
-    { label: "Pending Leave Requests", value: pendingLeave, urgent: pendingLeave > 0 },
-    { label: "Unapproved Attendance", value: pendingAttendance, urgent: pendingAttendance > 0 },
-    {
-      label: `${now.toLocaleString("default", { month: "long" })} Payroll`,
-      value: payroll ? payroll.status : "Not generated",
-      sub: payroll?.status === "LOCKED" ? "Locked" : "Draft / pending",
-    },
+    { label: t("card_total_employees"), value: total, sub: `${active} ${t("card_active_suffix")}` },
+    { label: t("card_pending_leave_hr"), value: pendingLeave, urgent: pendingLeave > 0 },
+    { label: t("card_unapproved_att_hr"), value: pendingAttendance, urgent: pendingAttendance > 0 },
+    { label: `${monthName} ${t("heading_payroll")}`, value: payrollValue, sub: payrollSub },
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">HR Overview</h1>
+      <h1 className="text-xl font-bold">{t("heading_hr_overview")}</h1>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((c) => (
           <div key={c.label}

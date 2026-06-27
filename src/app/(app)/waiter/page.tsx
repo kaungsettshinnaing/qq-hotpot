@@ -5,17 +5,26 @@ import { getSettings } from "@/lib/settings";
 import {
   reservationBlocksNow,
   STATUS_STYLES,
-  STATUS_LABEL,
   type TableStatus,
 } from "@/lib/floor";
 import { formatTime } from "@/lib/format";
 import LiveRefresh from "@/components/LiveRefresh";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
 export default async function WaiterPage() {
   await requireAnyRole(["WAITER", "MANAGER", "ADMIN"]);
   const settings = await getSettings();
+  const t = await getT();
+
+  const statusLabels: Record<TableStatus, string> = {
+    AVAILABLE: t("legend_available"),
+    OCCUPIED:  t("legend_occupied"),
+    BLOCKED:   t("legend_reserved"),
+    MERGED:    t("legend_merged"),
+    OVERDUE:   t("legend_overdue"),
+  };
 
   const [areas, openSessions, reservations, merges] = await Promise.all([
     prisma.area.findMany({
@@ -31,9 +40,7 @@ export default async function WaiterPage() {
       where: { status: "BOOKED" },
       select: { tableId: true, bookingAt: true, durationMin: true },
     }),
-    prisma.tableMerge.findMany({
-      select: { tableId: true, sessionId: true },
-    }),
+    prisma.tableMerge.findMany({ select: { tableId: true, sessionId: true } }),
   ]);
 
   const openByTable = new Map(openSessions.map((s) => [s.tableId, s]));
@@ -45,13 +52,13 @@ export default async function WaiterPage() {
       <LiveRefresh room="floor" events={["table:update"]} seconds={10} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Tables</h1>
+        <h1 className="text-xl font-bold">{t("heading_tables")}</h1>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-          <Legend className="bg-emerald-300" label="Available" />
-          <Legend className="bg-red-300" label="Occupied" />
-          <Legend className="bg-orange-400" label="Overdue" />
-          <Legend className="bg-amber-300" label="Reserved" />
-          <Legend className="bg-violet-300" label="Merged" />
+          <Legend className="bg-emerald-300" label={statusLabels.AVAILABLE} />
+          <Legend className="bg-red-300"     label={statusLabels.OCCUPIED} />
+          <Legend className="bg-orange-400"  label={statusLabels.OVERDUE} />
+          <Legend className="bg-amber-300"   label={statusLabels.BLOCKED} />
+          <Legend className="bg-violet-300"  label={statusLabels.MERGED} />
         </div>
       </div>
 
@@ -61,9 +68,9 @@ export default async function WaiterPage() {
             Area {area.name}
           </h2>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-            {area.tables.map((t) => {
-              const sess = openByTable.get(t.id);
-              const mergedSessId = mergedToSession.get(t.id);
+            {area.tables.map((tbl) => {
+              const sess = openByTable.get(tbl.id);
+              const mergedSessId = mergedToSession.get(tbl.id);
               let status: TableStatus = "AVAILABLE";
               let resAt: Date | null = null;
 
@@ -75,32 +82,29 @@ export default async function WaiterPage() {
               } else {
                 const res = reservations.find(
                   (r) =>
-                    r.tableId === t.id &&
+                    r.tableId === tbl.id &&
                     reservationBlocksNow(r.bookingAt, r.durationMin, settings.reservationBlockMins, now),
                 );
-                if (res) {
-                  status = "BLOCKED";
-                  resAt = res.bookingAt;
-                }
+                if (res) { status = "BLOCKED"; resAt = res.bookingAt; }
               }
 
               const href =
                 sess ? `/waiter/session/${sess.id}`
                 : mergedSessId ? `/waiter/session/${mergedSessId}`
-                : status === "AVAILABLE" ? `/waiter/open/${t.id}`
+                : status === "AVAILABLE" ? `/waiter/open/${tbl.id}`
                 : "#";
 
               return (
                 <Link
-                  key={t.id}
+                  key={tbl.id}
                   href={href}
                   className={
                     "flex min-h-[80px] flex-col items-center justify-center rounded-xl border-2 p-2 text-center transition active:scale-95 " +
                     STATUS_STYLES[status]
                   }
                 >
-                  <div className="text-xl font-extrabold leading-tight">{t.label}</div>
-                  <div className="text-[11px] font-semibold">{STATUS_LABEL[status]}</div>
+                  <div className="text-xl font-extrabold leading-tight">{tbl.label}</div>
+                  <div className="text-[11px] font-semibold">{statusLabels[status]}</div>
                   {sess && (
                     <div className="text-[10px] opacity-80">
                       {sess.adults + sess.children}p · {formatTime(sess.openedAt)}
@@ -113,16 +117,14 @@ export default async function WaiterPage() {
               );
             })}
             {area.tables.length === 0 && (
-              <p className="col-span-full text-sm text-gray-400">No tables in this area.</p>
+              <p className="col-span-full text-sm text-gray-400">{t("empty_no_tables_in_area")}</p>
             )}
           </div>
         </section>
       ))}
 
       {areas.length === 0 && (
-        <p className="text-sm text-gray-500">
-          No areas/tables yet. Ask an admin to add them in the Admin panel.
-        </p>
+        <p className="text-sm text-gray-500">{t("empty_no_areas")}</p>
       )}
     </div>
   );

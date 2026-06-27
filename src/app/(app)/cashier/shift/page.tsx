@@ -6,6 +6,7 @@ import { getOpenShift, computeShiftTotals } from "@/lib/shift";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import SubmitButton from "@/components/SubmitButton";
 import { closeShift } from "../actions";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function ShiftPage() {
   const user = await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
   const settings = await getSettings();
   const c = settings.currency;
+  const t = await getT();
 
   const shift = await getOpenShift(user.id);
   const totals = shift ? await computeShiftTotals(shift.id, shift.openingFloat) : null;
@@ -26,114 +28,97 @@ export default async function ShiftPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/cashier" className="text-sm text-brand hover:underline">← Cashier</Link>
-        <h1 className="text-xl font-bold">Shift &amp; Reconciliation</h1>
+        <Link href="/cashier" className="text-sm text-brand hover:underline">← {t("nav_cashier")}</Link>
+        <h1 className="text-xl font-bold">{t("heading_shift_reconciliation")}</h1>
       </div>
 
       {!shift ? (
         <div className="rounded-xl bg-white p-5 shadow-sm text-center py-10">
-          <p className="text-gray-500 text-sm">No active shift. Start one from the cashier home.</p>
+          <p className="text-gray-500 text-sm">{t("warning_no_shift")}</p>
           <Link href="/cashier" className="mt-3 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">
-            ← Back to Cashier
+            ← {t("nav_cashier")}
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Cash reconciliation & close */}
           <section className="rounded-xl bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Cash reconciliation</h3>
-              <span className="text-xs text-gray-400">opened {formatDateTime(shift.openedAt)}</span>
+              <h3 className="text-sm font-semibold text-gray-700">{t("section_current_shift")}</h3>
+              <span className="text-xs text-gray-400">{t("label_opened")} {formatDateTime(shift.openedAt)}</span>
             </div>
-
             <div className="space-y-1.5 text-sm">
-              <Row label="Start balance" value={formatMoney(shift.openingFloat, c)} />
-              <Row label="+ Cash sales" value={formatMoney(totals!.cashSales, c)} />
-              <Row label="− Supplier payments (cash)" value={formatMoney(totals!.cashExpenses, c)} />
+              <Row label={t("row_start_balance")} value={formatMoney(shift.openingFloat, c)} />
+              <Row label={t("row_cash_sales")} value={formatMoney(totals!.cashSales, c)} />
+              <Row label={t("row_cash_expenses")} value={formatMoney(totals!.cashExpenses, c)} />
               <div className="flex justify-between border-t border-gray-200 pt-2 font-bold">
-                <span>= Expected in drawer</span>
+                <span>{t("row_expected_in_drawer")}</span>
                 <span className="tabular-nums text-brand">{formatMoney(totals!.expected, c)}</span>
               </div>
             </div>
-
             <form action={closeShift} className="mt-5 space-y-2">
               <label className="block">
                 <span className="mb-1 block text-xs text-gray-500">
-                  Counted cash in drawer ({c})
+                  {t("label_counted_cash")} ({c})
                 </span>
-                <input
-                  name="countedCash"
-                  type="number"
-                  min={0}
-                  required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-lg"
-                />
+                <input name="countedCash" type="number" min={0} required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-lg" />
               </label>
               <SubmitButton
                 className="w-full rounded-lg bg-gray-800 py-2.5 font-semibold text-white hover:bg-gray-900 disabled:opacity-60"
-                pendingText="Closing…"
+                pendingText={t("pending_closing")}
               >
-                Close shift &amp; reconcile
+                {t("btn_close_shift")}
               </SubmitButton>
-              <p className="text-[11px] text-gray-400">
-                Variance = counted − expected. Negative = drawer is short.
-              </p>
+              <p className="text-[11px] text-gray-400">{t("shift_variance_note")}</p>
             </form>
           </section>
 
-          {/* Digital payments */}
           <section className="rounded-xl bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">Digital payments (not in drawer)</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_digital_payments")}</h3>
             <div className="space-y-1.5 text-sm">
               <Row label="KBZPay" value={formatMoney(totals!.kbzSales, c)} />
-              <Row label="Other" value={formatMoney(totals!.otherSales, c)} />
+              <Row label={t("payment_method_other")} value={formatMoney(totals!.otherSales, c)} />
               <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold">
-                <span>Total digital</span>
-                <span className="tabular-nums">
-                  {formatMoney(totals!.kbzSales + totals!.otherSales, c)}
-                </span>
+                <span>{t("label_total_digital")}</span>
+                <span className="tabular-nums">{formatMoney(totals!.kbzSales + totals!.otherSales, c)}</span>
               </div>
             </div>
-
             <div className="mt-4 rounded-lg bg-gray-50 border border-gray-100 p-3 text-xs text-gray-500">
               <div className="flex justify-between font-semibold text-gray-700 text-sm mb-1.5">
-                <span>Total shift takings</span>
-                <span className="tabular-nums">
-                  {formatMoney(totals!.cashSales + totals!.kbzSales + totals!.otherSales, c)}
-                </span>
+                <span>{t("label_total_shift_takings")}</span>
+                <span className="tabular-nums">{formatMoney(totals!.cashSales + totals!.kbzSales + totals!.otherSales, c)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Cash</span><span className="tabular-nums">{formatMoney(totals!.cashSales, c)}</span>
+                <span>{t("payment_method_cash")}</span><span className="tabular-nums">{formatMoney(totals!.cashSales, c)}</span>
               </div>
               <div className="flex justify-between">
                 <span>KBZPay</span><span className="tabular-nums">{formatMoney(totals!.kbzSales, c)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Other</span><span className="tabular-nums">{formatMoney(totals!.otherSales, c)}</span>
+                <span>{t("payment_method_other")}</span><span className="tabular-nums">{formatMoney(totals!.otherSales, c)}</span>
               </div>
             </div>
           </section>
         </div>
       )}
 
-      {/* Shift history */}
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Shift history
+          {t("section_recent_closed_shifts")}
         </h2>
         {recent.length === 0 ? (
-          <p className="text-sm text-gray-400">No closed shifts yet.</p>
+          <p className="text-sm text-gray-400">{t("empty_no_closed_shifts")}</p>
         ) : (
           <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-gray-400 border-b">
                 <tr>
-                  <th className="px-4 py-2">Opened</th>
-                  <th className="px-4 py-2">Closed</th>
-                  <th className="px-4 py-2 text-right">Start</th>
-                  <th className="px-4 py-2 text-right">Expected</th>
-                  <th className="px-4 py-2 text-right">Counted</th>
-                  <th className="px-4 py-2 text-right">Variance</th>
+                  <th className="px-4 py-2">{t("col_opened")}</th>
+                  <th className="px-4 py-2">{t("col_closed")}</th>
+                  <th className="px-4 py-2 text-right">{t("col_float")}</th>
+                  <th className="px-4 py-2 text-right">{t("col_expected")}</th>
+                  <th className="px-4 py-2 text-right">{t("col_counted")}</th>
+                  <th className="px-4 py-2 text-right">{t("col_variance")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -144,10 +129,8 @@ export default async function ShiftPage() {
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(s.openingFloat, c)}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(s.expectedCash ?? 0, c)}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(s.countedCash ?? 0, c)}</td>
-                    <td className={
-                      "px-4 py-2.5 text-right font-semibold tabular-nums " +
-                      ((s.variance ?? 0) < 0 ? "text-red-600" : (s.variance ?? 0) > 0 ? "text-amber-600" : "text-emerald-600")
-                    }>
+                    <td className={"px-4 py-2.5 text-right font-semibold tabular-nums " +
+                      ((s.variance ?? 0) < 0 ? "text-red-600" : (s.variance ?? 0) > 0 ? "text-amber-600" : "text-emerald-600")}>
                       {formatMoney(s.variance ?? 0, c)}
                     </td>
                   </tr>

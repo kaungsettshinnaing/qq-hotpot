@@ -7,6 +7,15 @@ export async function getOpenShift(cashierId: string) {
   });
 }
 
+/** Returns whichever shift is currently open, regardless of which cashier opened it. */
+export async function getAnyOpenShift() {
+  return prisma.cashierShift.findFirst({
+    where: { status: "OPEN" },
+    orderBy: { openedAt: "desc" },
+    include: { cashier: { select: { name: true } } },
+  });
+}
+
 export interface ShiftTotals {
   cashSales: number;
   kbzSales: number;

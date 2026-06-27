@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { ALL_ROLES } from "@/lib/rbac";
 import SubmitButton from "@/components/SubmitButton";
 import { createStaffRole, updateStaffRole, toggleStaffRole } from "../actions";
+import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ function PermCheckboxes({ checked = [] }: { checked?: string[] }) {
 }
 
 export default async function AdminRolesPage() {
+  const t = await getT();
   const roles = await prisma.staffRole.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { employees: true } } },
@@ -45,7 +47,7 @@ export default async function AdminRolesPage() {
       <div className="space-y-4 lg:col-span-2">
         {roles.length === 0 && (
           <div className="rounded-xl bg-white p-6 shadow-sm text-center text-sm text-gray-400">
-            No roles yet. Add one on the right.
+            {t("empty_no_roles_admin")}
           </div>
         )}
         {roles.map((role) => (
@@ -56,26 +58,25 @@ export default async function AdminRolesPage() {
               (!role.isActive ? "opacity-60" : "")
             }
           >
-            {/* Header row: name + meta */}
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 {!role.isActive && (
                   <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
-                    inactive
+                    {t("label_inactive_badge")}
                   </span>
                 )}
-                <span className="text-xs text-gray-400">{role._count.employees} staff</span>
+                <span className="text-xs text-gray-400">
+                  {t("label_n_staff", { n: String(role._count.employees) })}
+                </span>
               </div>
-              {/* Toggle activate/deactivate */}
               <form action={toggleStaffRole}>
                 <input type="hidden" name="id" value={role.id} />
                 <button className="text-xs text-gray-500 hover:underline">
-                  {role.isActive ? "Deactivate" : "Activate"}
+                  {role.isActive ? t("btn_deactivate") : t("btn_activate")}
                 </button>
               </form>
             </div>
 
-            {/* Edit form (standalone — no nesting) */}
             <form action={updateStaffRole} className="space-y-3">
               <input type="hidden" name="id" value={role.id} />
               <input
@@ -84,7 +85,6 @@ export default async function AdminRolesPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold focus:border-brand focus:outline-none"
               />
 
-              {/* Current permissions as read-only pills */}
               {(role.permissions as string[]).length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {(role.permissions as string[]).map((p) => (
@@ -104,7 +104,7 @@ export default async function AdminRolesPage() {
               <PermCheckboxes checked={role.permissions as string[]} />
 
               <SubmitButton className="rounded-lg bg-brand px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-                Save changes
+                {t("btn_save_changes")}
               </SubmitButton>
             </form>
           </div>
@@ -114,26 +114,26 @@ export default async function AdminRolesPage() {
       {/* Add new role */}
       <div className="space-y-4">
         <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-gray-700">Add role</h3>
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("btn_add_role")}</h3>
           <form action={createStaffRole} className="space-y-3 text-sm">
             <input
               name="name"
               required
-              placeholder="Role name (e.g. Head Waiter)"
+              placeholder={t("placeholder_role_name_ex")}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-brand focus:outline-none"
             />
             <div>
-              <p className="mb-2 text-xs font-medium text-gray-500">System permissions</p>
+              <p className="mb-2 text-xs font-medium text-gray-500">{t("label_system_permissions")}</p>
               <PermCheckboxes />
             </div>
             <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-              Add role
+              {t("btn_add_role")}
             </SubmitButton>
           </form>
         </section>
 
         <section className="rounded-xl bg-gray-50 p-3 text-xs text-gray-500">
-          <p className="font-medium text-gray-600 mb-1.5">Permission guide</p>
+          <p className="font-medium text-gray-600 mb-1.5">{t("perm_guide_title")}</p>
           <ul className="space-y-1">
             <li><span className="font-medium text-gray-700">WAITER</span> — take orders, manage tables</li>
             <li><span className="font-medium text-gray-700">KITCHEN</span> — view/update kitchen display</li>
