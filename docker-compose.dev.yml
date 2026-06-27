@@ -1,0 +1,47 @@
+# Local dev / test stack — no Traefik, no external networks.
+# Usage:
+#   Start:   docker compose -f docker-compose.dev.yml up -d --build
+#   Seed:    docker compose -f docker-compose.dev.yml exec app npx tsx prisma/seed.ts
+#   App at:  http://localhost:3000
+#
+#   Full teardown (wipes DB):  docker compose -f docker-compose.dev.yml down -v
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qq
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: qq_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qq -d qq_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: Asia/Yangon
+      DATABASE_URL: postgresql://qq:devpassword@db:5432/qq_dev?schema=public
+      AUTH_SECRET: dev-secret-do-not-use-in-production
+      APP_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads_dev:/app/uploads
+
+volumes:
+  pgdata_dev:
+  uploads_dev:
