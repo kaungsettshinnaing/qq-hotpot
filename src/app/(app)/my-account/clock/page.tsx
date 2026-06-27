@@ -1,9 +1,10 @@
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { clockIn, clockOut, breakOut, breakIn, amendClockTime } from "./actions";
+import { clockIn, breakOut, breakIn, amendClockTime } from "./actions";
 import LiveClock from "./LiveClock";
 import LiveDuration from "./LiveDuration";
+import ClockOutButton from "./ClockOutButton";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -48,6 +49,12 @@ export default async function ClockPage() {
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">
+      {/* Who is logged in — shown prominently so staff can verify on a shared phone */}
+      <div className="w-full max-w-sm rounded-xl bg-brand-dark/5 border border-brand-dark/10 px-4 py-2.5 text-center">
+        <p className="text-xs text-gray-500">Logged in as</p>
+        <p className="text-base font-bold text-gray-900">{session.name}</p>
+      </div>
+
       {/* Clock display */}
       <div className="text-center">
         <LiveClock dateStr={formatDate(new Date())} />
@@ -87,11 +94,7 @@ export default async function ClockPage() {
             </form>
           )}
           {clockedIn && !clockedOut && (
-            <form action={clockOut}>
-              <button type="submit" className="w-full rounded-2xl bg-red-700 py-4 text-lg font-bold text-white hover:bg-red-800 active:scale-95 transition">
-                ■ Clock Out
-              </button>
-            </form>
+            <ClockOutButton />
           )}
           {clockedOut && (
             <div className="rounded-2xl bg-gray-100 py-5 text-center text-lg font-semibold text-gray-400">

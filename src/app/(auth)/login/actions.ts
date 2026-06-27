@@ -39,7 +39,12 @@ export async function loginAction(
     roles,
   });
 
-  (await cookies()).set(SESSION_COOKIE, token, {
+  const jar = await cookies();
+  // Explicitly clear any existing session before setting the new one.
+  // Without this, on some mobile browsers the old cookie can linger
+  // and cause the previous user's server action to run on the shared device.
+  jar.delete(SESSION_COOKIE);
+  jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
