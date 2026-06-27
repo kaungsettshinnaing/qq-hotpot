@@ -2,7 +2,7 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, uat]
   workflow_dispatch:
 
 env:
@@ -64,8 +64,8 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    # Skip if VPS secrets aren't configured yet.
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    # Only deploy to production from main, and only if VPS secrets are configured.
+    if: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
