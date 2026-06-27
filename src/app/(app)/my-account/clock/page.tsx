@@ -1,7 +1,7 @@
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { clockIn, breakOut, breakIn, amendClockTime } from "./actions";
+import { clockIn, breakOut, breakIn } from "./actions";
 import LiveClock from "./LiveClock";
 import LiveDuration from "./LiveDuration";
 import ClockOutButton from "./ClockOutButton";
@@ -9,11 +9,6 @@ import ClockOutButton from "./ClockOutButton";
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function toTimeValue(d: Date | null | undefined) {
-  if (!d) return "";
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function durationMins(start: Date, end: Date | null | undefined) {
@@ -104,61 +99,9 @@ export default async function ClockPage() {
         </div>
       </div>
 
-      {/* ── Amend times (only while unapproved) ── */}
-      {att && !att.isApproved && (att.clockInAt || att.clockOutAt) && (
-        <div className="w-full max-w-sm space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Amend times
-          </h2>
-          <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-            Correct a wrong clock-in or clock-out time. Once your manager approves the record, amendments are locked.
-          </div>
-          <div className="rounded-xl border bg-white p-4 shadow-sm space-y-3">
-            {att.clockInAt && (
-              <form action={amendClockTime} className="flex items-center gap-2">
-                <input type="hidden" name="field" value="clockInAt" />
-                <label className="w-20 flex-shrink-0 text-sm text-gray-500">Clock In</label>
-                <input
-                  name="time"
-                  type="time"
-                  defaultValue={toTimeValue(att.clockInAt)}
-                  required
-                  className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 active:scale-95 transition"
-                >
-                  Save
-                </button>
-              </form>
-            )}
-            {att.clockOutAt && (
-              <form action={amendClockTime} className="flex items-center gap-2">
-                <input type="hidden" name="field" value="clockOutAt" />
-                <label className="w-20 flex-shrink-0 text-sm text-gray-500">Clock Out</label>
-                <input
-                  name="time"
-                  type="time"
-                  defaultValue={toTimeValue(att.clockOutAt)}
-                  required
-                  className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 active:scale-95 transition"
-                >
-                  Save
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {att?.isApproved && (att.clockInAt || att.clockOutAt) && (
+      {att?.clockOutAt && (
         <p className="text-xs text-gray-400 max-w-sm text-center">
-          Your attendance has been approved — contact your manager to make corrections.
+          Accidentally clocked out? Ask your manager to remove the clock-out in Reports.
         </p>
       )}
 

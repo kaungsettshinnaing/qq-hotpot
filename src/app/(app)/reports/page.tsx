@@ -49,6 +49,17 @@ async function markAbsent(fd: FormData) {
   revalidatePath("/reports");
 }
 
+async function deleteClockOut(fd: FormData) {
+  "use server";
+  await requireAnyRole(["MANAGER", "ADMIN"]);
+  const id = fd.get("id") as string;
+  await prisma.attendance.update({
+    where: { id },
+    data: { clockOutAt: null },
+  });
+  revalidatePath("/reports");
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pad(n: number) { return String(n).padStart(2, "0"); }
@@ -141,6 +152,7 @@ export default async function ReportsPage({
       {/* ── Attendance ───────────────────────────────────────────────────── */}
       {tab === "attendance" && (
         <AttendanceTab
+          deleteClockOut={deleteClockOut}
           dayStr={dayStr}
           start={start}
           end={end}
@@ -294,13 +306,14 @@ async function CashTab({ dayStr, start, end, c, settings }: {
 
 // ── Attendance tab ────────────────────────────────────────────────────────────
 
-async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAttendance, markAbsent }: {
+async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAttendance, markAbsent, deleteClockOut }: {
   dayStr: string;
   start: Date;
   end: Date;
   approveAttendance: (fd: FormData) => Promise<void>;
   rejectAttendance: (fd: FormData) => Promise<void>;
   markAbsent: (fd: FormData) => Promise<void>;
+  deleteClockOut: (fd: FormData) => Promise<void>;
 }) {
   const [allUnapproved, todayAttendances, allEmployees] = await Promise.all([
     // All pending across ALL dates — matches the dashboard count
@@ -387,6 +400,16 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                     Reject
                   </button>
                 </form>
+                {/* Delete accidental clock-out */}
+                {a.clockOutAt && (
+                  <form action={deleteClockOut}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <button type="submit"
+                      className="rounded-xl border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 active:scale-95 transition">
+                      Remove clock-out
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           ))}
@@ -441,6 +464,15 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                       Reject
                     </button>
                   </form>
+                  {a.clockOutAt && (
+                    <form action={deleteClockOut}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button type="submit"
+                        className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 active:scale-95 transition">
+                        Remove clock-out
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>
