@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getOpenShift, computeShiftTotals } from "@/lib/shift";
+import { getOpenShift, getAnyOpenShift, computeShiftTotals } from "@/lib/shift";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import SubmitButton from "@/components/SubmitButton";
 import { closeShift } from "../actions";
@@ -18,6 +18,8 @@ export default async function ShiftPage() {
 
   const shift = await getOpenShift(user.id);
   const totals = shift ? await computeShiftTotals(shift.id, shift.openingFloat) : null;
+  const anyOpen = shift ? null : await getAnyOpenShift();
+  const otherShift = anyOpen?.cashierId !== user.id ? anyOpen : null;
 
   const recent = await prisma.cashierShift.findMany({
     where: { cashierId: user.id, status: "CLOSED" },
@@ -32,7 +34,21 @@ export default async function ShiftPage() {
         <h1 className="text-xl font-bold">{t("heading_shift_reconciliation")}</h1>
       </div>
 
-      {!shift ? (
+      {!shift && otherShift ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 space-y-1">
+          <p className="text-sm font-bold text-red-800">{t("shift_handover_title")}</p>
+          <p className="text-sm text-red-700">
+            {t("shift_handover_body", {
+              name: otherShift.cashier.name,
+              time: otherShift.openedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            })}
+          </p>
+          <p className="text-xs text-red-500">{t("shift_handover_hint")}</p>
+          <Link href="/cashier" className="mt-2 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">
+            ← {t("nav_cashier")}
+          </Link>
+        </div>
+      ) : !shift ? (
         <div className="rounded-xl bg-white p-5 shadow-sm text-center py-10">
           <p className="text-gray-500 text-sm">{t("warning_no_shift")}</p>
           <Link href="/cashier" className="mt-3 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">

@@ -53,7 +53,7 @@ export default async function CashierHome({
               time: otherShift.openedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             })}
           </p>
-          <p className="text-xs text-red-500">{t("shift_handover_instructions")}</p>
+          <p className="text-xs text-red-500">{t("shift_handover_hint")}</p>
           {error === "shift-blocked" && (
             <p className="mt-1 text-xs font-semibold text-red-700">{t("shift_blocked_error")}</p>
           )}
