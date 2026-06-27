@@ -80,10 +80,10 @@ export default async function AccountPage({
             {t("btn_update_password")}
           </SubmitButton>
         </form>
+      </div>
 
-        <hr />
-
-        <h2 className="text-sm font-semibold text-gray-700">{t("heading_language")}</h2>
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">{t("heading_language")}</h2>
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">{lang === "en" ? "English" : "မြန်မာ"}</span>
           <LangToggle lang={lang} />
