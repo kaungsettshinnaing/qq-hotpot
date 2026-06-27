@@ -97,6 +97,36 @@ export async function breakOut() {
   revalidatePath("/my-account/clock");
 }
 
+export async function amendClockTime(fd: FormData) {
+  const session = await requireSession();
+  const emp = await prisma.employee.findUnique({ where: { userId: session.id } });
+  if (!emp) throw new Error("No employee profile found");
+
+  const field = fd.get("field") as "clockInAt" | "clockOutAt";
+  const time = (fd.get("time") as string | null)?.trim();
+  if (!field || !time || !/^\d{2}:\d{2}$/.test(time)) return;
+  if (field !== "clockInAt" && field !== "clockOutAt") return;
+
+  const date = todayDate();
+  const att = await prisma.attendance.findUnique({
+    where: { employeeId_date: { employeeId: emp.userId, date } },
+  });
+  if (!att) throw new Error("No attendance record today");
+  if (att.isApproved) throw new Error("Attendance already approved — contact your manager to make changes");
+
+  const [hours, minutes] = time.split(":").map(Number);
+  const newTime = new Date(date);
+  newTime.setHours(hours, minutes, 0, 0);
+
+  await prisma.attendance.update({
+    where: { id: att.id },
+    data: { [field]: newTime },
+  });
+
+  emitHR("attendance:update", { employeeId: emp.userId, event: "amend" });
+  revalidatePath("/my-account/clock");
+}
+
 export async function breakIn() {
   const session = await requireSession();
   const emp = await prisma.employee.findUnique({
