@@ -5,7 +5,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 export async function createAdvance(fd: FormData) {
-  const session = await requireAnyRole(["HR", "ADMIN"]);
+  const session = await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
   const employeeId = fd.get("employeeId") as string;
   const amount = parseInt(fd.get("amount") as string);
   const note = ((fd.get("note") as string) ?? "").trim();
@@ -23,7 +23,7 @@ export async function createAdvance(fd: FormData) {
 }
 
 export async function addInstalment(fd: FormData) {
-  await requireAnyRole(["HR", "ADMIN"]);
+  await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
   const advanceId = fd.get("advanceId") as string;
   const month = parseInt(fd.get("month") as string);
   const year = parseInt(fd.get("year") as string);
@@ -34,7 +34,7 @@ export async function addInstalment(fd: FormData) {
 }
 
 export async function deleteInstalment(fd: FormData) {
-  await requireAnyRole(["HR", "ADMIN"]);
+  await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
   const id = fd.get("id") as string;
   const inst = await prisma.advanceInstalment.findUnique({ where: { id } });
   if (!inst || inst.deducted) return;

@@ -14,7 +14,7 @@ const TABS = [
 ];
 
 export default async function HRLayout({ children }: { children: React.ReactNode }) {
-  await requireAnyRole(["HR", "ADMIN"]);
+  await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-white p-3 shadow-sm border border-gray-100">
