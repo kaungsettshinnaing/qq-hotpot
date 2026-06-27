@@ -138,7 +138,9 @@ export default async function CashierHome() {
                 className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-brand hover:shadow active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold">{d.session.table.label}</span>
+                  <span className="text-lg font-bold">
+                    {[d.session.table.label, ...d.session.mergedTables.map((m) => m.table.label)].join(" + ")}
+                  </span>
                   <span className="text-xs text-gray-400">{d.diners} pax</span>
                 </div>
                 <div className="mt-2 text-2xl font-extrabold text-brand">

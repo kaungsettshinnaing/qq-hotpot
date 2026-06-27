@@ -34,6 +34,7 @@ export default async function CheckoutPage({
 
   const shift = await getOpenShift(user.id);
   const { session, bill, paid, balance, settings } = detail;
+  const tableLabel = [session.table.label, ...session.mergedTables.map((m) => m.table.label)].join(" + ");
   const isOpen = session.status === "OPEN";
   const isSettled = session.status === "CLOSED" || settled === "1";
   const change = paid > bill.total ? paid - bill.total : 0;
@@ -48,7 +49,7 @@ export default async function CheckoutPage({
             ← Cashier
           </Link>
           <h1 className="text-xl font-bold">
-            Checkout — Table {session.table.label}
+            Checkout — Table {tableLabel}
             <span className="ml-2 text-sm font-normal text-gray-400">{detail.diners} pax</span>
           </h1>
         </div>
@@ -176,7 +177,7 @@ export default async function CheckoutPage({
           {settings.restaurantName}
         </div>
         <div style={{ textAlign: "center", fontSize: 11 }}>
-          Table {session.table.label} · {detail.diners} pax
+          Table {tableLabel} · {detail.diners} pax
         </div>
         <div style={{ textAlign: "center", fontSize: 11 }}>
           {formatDateTime(session.closedAt ?? new Date())}

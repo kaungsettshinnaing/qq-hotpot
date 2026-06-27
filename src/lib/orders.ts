@@ -13,6 +13,7 @@ export async function getSessionDetail(sessionId: string) {
     where: { id: sessionId },
     include: {
       table: { include: { area: true } },
+      mergedTables: { include: { table: { select: { label: true } } }, orderBy: { id: "asc" } },
       openedBy: { select: { id: true, name: true } },
       potOrders: {
         where: { voidedAt: null },

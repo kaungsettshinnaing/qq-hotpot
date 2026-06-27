@@ -32,13 +32,14 @@ export default async function CashierTablesPage() {
   const settings = await getSettings();
   const now = new Date();
 
-  const [areas, openSessions, reservations, tablesFlat] = await Promise.all([
+  const [areas, openSessions, merges, reservations, tablesFlat] = await Promise.all([
     prisma.area.findMany({
       where: { isActive: true },
       include: { tables: { where: { isActive: true }, orderBy: { number: "asc" } } },
       orderBy: { sortOrder: "asc" },
     }),
     prisma.tableSession.findMany({ where: { status: "OPEN" }, select: { id: true, tableId: true, openedAt: true } }),
+    prisma.tableMerge.findMany({ select: { tableId: true, sessionId: true } }),
     prisma.reservation.findMany({
       where: { status: "BOOKED" },
       include: { table: true },
@@ -48,6 +49,13 @@ export default async function CashierTablesPage() {
   ]);
 
   const openByTable = new Map(openSessions.map((s) => [s.tableId, s]));
+  // Map merged table IDs → the session they belong to (so they show as occupied)
+  const sessionById = new Map(openSessions.map((s) => [s.id, s]));
+  const mergedToSession = new Map(
+    merges
+      .map((m) => [m.tableId, sessionById.get(m.sessionId)])
+      .filter((e): e is [string, typeof openSessions[0]] => e[1] !== undefined),
+  );
 
   return (
     <div className="space-y-5">
@@ -70,7 +78,8 @@ export default async function CashierTablesPage() {
               </h2>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
                 {area.tables.map((t) => {
-                  const sess = openByTable.get(t.id);
+                  const sess = openByTable.get(t.id) ?? mergedToSession.get(t.id);
+                  const isMerged = !openByTable.has(t.id) && mergedToSession.has(t.id);
                   let status: TableStatus = "AVAILABLE";
                   if (sess) {
                     const minsOpen = (now.getTime() - new Date(sess.openedAt).getTime()) / 60000;
@@ -86,7 +95,7 @@ export default async function CashierTablesPage() {
                   const inner = (
                     <>
                       <div className="text-base font-bold">{t.label}</div>
-                      <div className="text-[10px]">{STATUS_LABEL[status]}</div>
+                      <div className="text-[10px]">{isMerged ? "Merged" : STATUS_LABEL[status]}</div>
                     </>
                   );
                   return sess ? (

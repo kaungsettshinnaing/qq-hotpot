@@ -266,6 +266,7 @@ model Payment {
   receivedBy   User          @relation(fields: [receivedById], references: [id])
   receivedById String
   receivedAt   DateTime      @default(now())
+  reconciledAt DateTime?     // set by admin when KBZPay/OTHER is confirmed received
 
   @@index([sessionId])
   @@index([shiftId])
@@ -332,6 +333,7 @@ model Expense {
   enteredBy     User            @relation(fields: [enteredById], references: [id])
   enteredById   String
   receiptUrl    String?
+  paidAt        DateTime?       // set by admin when BANK_TRANSFER expense is confirmed paid
   createdAt     DateTime        @default(now())
 
   @@index([businessDate])
