@@ -72,11 +72,28 @@ export async function createEmployee(fd: FormData) {
 export async function updateEmployee(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN"]);
   const userId = fd.get("userId") as string;
+  const name = (fd.get("name") as string).trim();
+  const username = (fd.get("username") as string).trim().toLowerCase();
   const startDate = parseInputDate(fd.get("startDate") as string) ?? new Date();
   const dateOfBirth = parseInputDate(fd.get("dateOfBirth") as string);
   const basicSalary = parseInt(fd.get("basicSalary") as string) || 0;
   const attendanceBonus = parseInt(fd.get("attendanceBonus") as string) || 0;
   const restDaysRaw = fd.getAll("restDays").map((v) => parseInt(v as string));
+
+  if (!name) redirect(`/hr/employees/${userId}/edit?error=missing-name`);
+  if (!username) redirect(`/hr/employees/${userId}/edit?error=missing-username`);
+
+  // Check username uniqueness (excluding this user)
+  const conflict = await prisma.user.findFirst({
+    where: { username, NOT: { id: userId } },
+    select: { id: true },
+  });
+  if (conflict) redirect(`/hr/employees/${userId}/edit?error=username-taken`);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { name, username },
+  });
 
   await prisma.employee.update({
     where: { userId },

@@ -7,8 +7,15 @@ export const dynamic = "force-dynamic";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditEmployeePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { id } = await params;
+  const { error } = await searchParams;
   const emp = await prisma.employee.findUnique({
     where: { userId: id },
     include: {
@@ -25,12 +32,38 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
 
   const valueMap = Object.fromEntries(emp.customValues.map((v) => [v.fieldDefId, v.value]));
 
+  const errorMsg =
+    error === "username-taken" ? "That username is already taken — choose another." :
+    error === "missing-name"   ? "Full name is required." :
+    error === "missing-username" ? "Username is required." : null;
+
   return (
     <div className="max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Edit — {emp.user.name}</h1>
+
+      {errorMsg && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+          {errorMsg}
+        </div>
+      )}
+
       <form action={updateEmployee} className="space-y-4 rounded-xl border bg-white p-6 shadow-sm">
         <input type="hidden" name="userId" value={emp.userId} />
+
+        {/* Account fields */}
         <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Full Name *</label>
+            <input name="name" required className="input" defaultValue={emp.user.name} />
+          </div>
+          <div>
+            <label className="label">Username *</label>
+            <input name="username" required className="input" defaultValue={emp.user.username}
+              autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+          </div>
+        </div>
+
+        <div className="border-t pt-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Employee No.</label>
             <input name="employeeNo" className="input" defaultValue={emp.employeeNo ?? ""} />
