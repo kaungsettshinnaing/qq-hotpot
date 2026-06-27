@@ -145,7 +145,13 @@ async function CashTab({ dayStr, start, end, c, settings }: {
     prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
-      select: { adults: true, children: true, potOrders: { where: { voidedAt: null }, select: { id: true } } },
+      select: {
+        adults: true,
+        children: true,
+        billTotal: true,
+        payments: { select: { method: true, amount: true } },
+        potOrders: { where: { voidedAt: null }, select: { id: true } },
+      },
     }),
     prisma.expense.findMany({ where: { businessDate: { gte: start, lt: end } }, include: { category: true } }),
     prisma.cashierShift.findMany({
@@ -156,9 +162,19 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   ]);
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
-  const cash = sum(payments.filter((p) => p.method === "CASH"));
+  const grossCash = sum(payments.filter((p) => p.method === "CASH"));
   const kbz  = sum(payments.filter((p) => p.method === "KBZPAY"));
   const other = sum(payments.filter((p) => p.method === "OTHER"));
+
+  // Deduct change (cash overpayment) so cash shows net revenue, not tendered amount
+  let cashChange = 0;
+  for (const s of closedSessions) {
+    if (s.payments.some((p) => p.method === "CASH")) {
+      const totalPaid = s.payments.reduce((acc, p) => acc + p.amount, 0);
+      cashChange += Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+    }
+  }
+  const cash = grossCash - cashChange;
   const totalSales = cash + kbz + other;
 
   const adults = closedSessions.reduce((s, x) => s + x.adults, 0);

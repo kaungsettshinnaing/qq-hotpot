@@ -46,11 +46,14 @@ export default async function CashierHistoryPage({
     orderBy: { closedAt: "asc" },
   });
 
-  // Compute per-session payment breakdown
+  // Compute per-session payment breakdown, deducting change from cash to show net revenue
   const rows = sessions.map((s) => {
-    const cash = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
+    const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
     const kbz = s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
     const other = s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = cashPaid + kbz + other;
+    const cashChange = cashPaid > 0 ? Math.max(0, totalPaid - (s.billTotal ?? totalPaid)) : 0;
+    const cash = cashPaid - cashChange;
     const total = cash + kbz + other;
     const tableLabel = [s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + ");
     return { session: s, cash, kbz, other, total, tableLabel };
