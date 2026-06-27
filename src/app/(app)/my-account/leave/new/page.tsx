@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { notifyManagers } from "@/lib/notifications";
-import { formatDate } from "@/lib/format";
+import { formatDate, parseInputDate } from "@/lib/format";
 import SubmitButton from "@/components/SubmitButton";
 
 async function submitLeave(fd: FormData) {
@@ -11,11 +11,9 @@ async function submitLeave(fd: FormData) {
   const raw = (fd.get("date") as string | null)?.trim();
   if (!raw) redirect("/my-account/leave/new?error=date");
 
-  // <input type="date"> sends YYYY-MM-DD
-  const [y, m, d] = raw.split("-").map(Number);
-  if (!y || !m || !d) redirect("/my-account/leave/new?error=date");
-  const date = new Date(y, m - 1, d);
-  if (isNaN(date.getTime())) redirect("/my-account/leave/new?error=date");
+  // parseInputDate handles DD-MMM-YYYY (e.g. 02-Jul-2026)
+  const date = parseInputDate(raw);
+  if (!date) redirect("/my-account/leave/new?error=date");
 
   const reason = (fd.get("reason") as string).trim();
 
@@ -35,13 +33,6 @@ async function submitLeave(fd: FormData) {
   redirect("/my-account/leave");
 }
 
-function toISOLocal(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 export default async function NewLeavePage({
   searchParams,
 }: {
@@ -58,9 +49,6 @@ export default async function NewLeavePage({
       </div>
     );
   }
-
-  // Min date = today; don't allow requesting leave in the past
-  const today = toISOLocal(new Date());
 
   return (
     <div className="mx-auto max-w-md space-y-6">
@@ -84,8 +72,8 @@ export default async function NewLeavePage({
           <label className="label">Date</label>
           <input
             name="date"
-            type="date"
-            min={today}
+            type="text"
+            placeholder="DD-MMM-YYYY  e.g. 02-Jul-2026"
             required
             className="input"
           />

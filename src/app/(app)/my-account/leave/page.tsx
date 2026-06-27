@@ -79,11 +79,11 @@ export default async function MyLeavePage() {
                   <div className={`text-xs font-semibold uppercase tracking-wide ${i === 0 ? "text-emerald-600" : "text-gray-400"}`}>
                     {i === 0 ? "Next" : `+${i}`}
                   </div>
-                  <div className={`mt-0.5 text-sm font-bold ${i === 0 ? "text-emerald-800" : "text-gray-700"}`}>
-                    {DAY_SHORT[d.getDay()]}
-                  </div>
-                  <div className={`text-xs ${i === 0 ? "text-emerald-700" : "text-gray-400"}`}>
+                  <div className={`mt-1 text-xl font-extrabold tabular-nums ${i === 0 ? "text-emerald-800" : "text-gray-700"}`}>
                     {d.getDate()} {MONTH_SHORT[d.getMonth()]}
+                  </div>
+                  <div className={`text-xs mt-0.5 ${i === 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                    {DAY_SHORT[d.getDay()]}
                   </div>
                 </div>
               ))}
