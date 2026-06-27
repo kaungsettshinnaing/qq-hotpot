@@ -2,8 +2,16 @@ import { redirect } from "next/navigation";
 import { requireSession, hashPassword, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import SubmitButton from "@/components/SubmitButton";
-import LangToggle from "@/components/LangToggle";
 import { getT, getLang } from "@/lib/lang";
+import { cookies } from "next/headers";
+
+async function setLang(fd: FormData) {
+  "use server";
+  const next = fd.get("lang") as string;
+  const c = await cookies();
+  c.set("lang", next, { path: "/", maxAge: 31536000, sameSite: "lax" });
+  redirect("/my-account/account");
+}
 
 async function changePassword(fd: FormData) {
   "use server";
@@ -84,9 +92,21 @@ export default async function AccountPage({
 
       <div className="rounded-xl border bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">{t("heading_language")}</h2>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">{lang === "en" ? "English" : "မြန်မာ"}</span>
-          <LangToggle lang={lang} />
+        <div className="flex gap-2">
+          <form action={setLang}>
+            <input type="hidden" name="lang" value="en" />
+            <button type="submit"
+              className={`rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${lang === "en" ? "bg-brand text-white border-brand" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
+              English
+            </button>
+          </form>
+          <form action={setLang}>
+            <input type="hidden" name="lang" value="my" />
+            <button type="submit"
+              className={`rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${lang === "my" ? "bg-brand text-white border-brand" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
+              မြန်မာ
+            </button>
+          </form>
         </div>
       </div>
     </div>
