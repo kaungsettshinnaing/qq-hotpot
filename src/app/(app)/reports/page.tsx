@@ -302,7 +302,13 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
   rejectAttendance: (fd: FormData) => Promise<void>;
   markAbsent: (fd: FormData) => Promise<void>;
 }) {
-  const [todayAttendances, allEmployees] = await Promise.all([
+  const [allUnapproved, todayAttendances, allEmployees] = await Promise.all([
+    // All pending across ALL dates — matches the dashboard count
+    prisma.attendance.findMany({
+      where: { isApproved: false, status: { not: "REST_DAY" } },
+      include: { employee: { include: { user: { select: { name: true } } } } },
+      orderBy: [{ date: "asc" }, { employee: { user: { name: "asc" } } }],
+    }),
     prisma.attendance.findMany({
       where: { date: start, status: { not: "REST_DAY" } },
       include: { employee: { include: { user: { select: { name: true } } } } },
@@ -317,7 +323,7 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
 
   const dayOfWeek = start.getDay();
   const attendedIds = new Set(todayAttendances.map((a) => a.employeeId));
-  const unapproved = todayAttendances.filter((a) => !a.isApproved);
+  const unapproved = allUnapproved; // all dates, not just today
   const approved = todayAttendances.filter((a) => a.isApproved);
 
   // Employees with no attendance record today (and not a rest day)
@@ -337,7 +343,7 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
       {unapproved.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-orange-600">
-            Pending review ({unapproved.length})
+            Pending review — all dates ({unapproved.length})
           </h3>
           {unapproved.map((a) => (
             <div key={a.id} className="rounded-xl border border-orange-200 bg-white p-4 shadow-sm">
@@ -345,7 +351,8 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                 <div>
                   <div className="font-semibold text-gray-800">{a.employee.user.name}</div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    In: {fmt(a.clockInAt)} &nbsp;·&nbsp; Out: {fmt(a.clockOutAt)}
+                    <span className="font-medium text-gray-700">{a.date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric", weekday: "short" })}</span>
+                    &nbsp;·&nbsp; In: {fmt(a.clockInAt)} &nbsp;·&nbsp; Out: {fmt(a.clockOutAt)}
                   </div>
                 </div>
                 <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600">
@@ -404,7 +411,8 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
                     </span>
                   </div>
                   <div className="mt-0.5 text-xs text-gray-400">
-                    In: {fmt(a.clockInAt)} &nbsp;·&nbsp; Out: {fmt(a.clockOutAt)}
+                    {a.date.toLocaleDateString(undefined, { day: "2-digit", month: "short", weekday: "short" })}
+                    &nbsp;·&nbsp; In: {fmt(a.clockInAt)} &nbsp;·&nbsp; Out: {fmt(a.clockOutAt)}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
