@@ -45,17 +45,6 @@ export default async function AccountPage({
     <div className="mx-auto max-w-md space-y-6">
       <h1 className="text-xl font-bold">{t("heading_my_account")}</h1>
 
-      {/* Language */}
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">{t("heading_language")}</h2>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">
-            {lang === "en" ? "English" : "မြန်မာ"}
-          </span>
-          <LangToggle lang={lang} />
-        </div>
-      </div>
-
       <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
         <div>
           <div className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">{t("label_logged_in_as")}</div>
@@ -91,6 +80,14 @@ export default async function AccountPage({
             {t("btn_update_password")}
           </SubmitButton>
         </form>
+
+        <hr />
+
+        <h2 className="text-sm font-semibold text-gray-700">{t("heading_language")}</h2>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">{lang === "en" ? "English" : "မြန်မာ"}</span>
+          <LangToggle lang={lang} />
+        </div>
       </div>
     </div>
   );
