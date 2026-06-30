@@ -972,6 +972,14 @@ const dict: Record<string, { en: string; my: string }> = {
   label_filter_category:       { en: "Filter by category",                 my: "အမျိုးအစားဖြင့် စစ်ထုတ်ရန်" },
   option_all_categories:       { en: "All Items",                          my: "ပစ္စည်းအားလုံး" },
   col_unit_label:              { en: "Unit",                               my: "ယူနစ်" },
+
+  // ── Daily report ────────────────────────────────────────────────────────────
+  tab_daily_report:            { en: "Daily Report",                       my: "နေ့စဉ်အစီရင်ခံစာ" },
+  heading_daily_report:        { en: "Daily Report",                       my: "နေ့စဉ်အစီရင်ခံစာ" },
+  placeholder_daily_report:    { en: "Write a summary of today — operations, incidents, staff feedback, anything worth noting…", my: "ယနေ့ဖြစ်ပျက်ခဲ့သမျှကို မှတ်တမ်းတင်ပါ…" },
+  btn_submit_report:           { en: "Submit Report",                      my: "အစီရင်ခံစာ တင်ရန်" },
+  empty_no_daily_reports:      { en: "No reports submitted yet.",          my: "အစီရင်ခံစာ မရှိသေးပါ" },
+  label_report_by:             { en: "by",                                 my: "မှ" },
 };
 
 export function tKey(key: string, lang: Lang, vars?: Record<string, string>): string {

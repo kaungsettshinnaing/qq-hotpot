@@ -68,6 +68,7 @@ model User {
   deliveryLogs       StockDeliveryLog[] @relation("DeliveryLogActor")
   stockMovements     StockMovement[]    @relation("MovementRecorder")
   stockCounts        StockCount[]       @relation("StockCountCreator")
+  dailyReports       DailyReport[]      @relation("DailyReportAuthor")
 }
 
 // ---------------------------------------------------------------------------
@@ -898,4 +899,20 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Daily manager report
+// ---------------------------------------------------------------------------
+
+model DailyReport {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  content     String
+  createdById String
+  createdBy   User     @relation("DailyReportAuthor", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+  @@index([createdById])
 }

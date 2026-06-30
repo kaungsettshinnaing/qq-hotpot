@@ -8,6 +8,19 @@ import { formatMoney, formatDateTime } from "@/lib/format";
 import { getT } from "@/lib/lang";
 import type { AttendanceStatus, DayType } from "@prisma/client";
 
+async function submitDailyReport(fd: FormData) {
+  "use server";
+  const session = await requireAnyRole(["MANAGER", "ADMIN"]);
+  const content = (fd.get("content") as string ?? "").trim();
+  if (!content) return;
+  const dayStr = fd.get("date") as string;
+  const date = new Date(`${dayStr}T00:00:00`);
+  await prisma.dailyReport.create({
+    data: { date, content, createdById: session.id },
+  });
+  revalidatePath("/reports");
+}
+
 async function confirmExpense(fd: FormData) {
   "use server";
   const session = await requireAnyRole(["MANAGER", "ADMIN"]);
@@ -102,10 +115,11 @@ export default async function ReportsPage({
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
   const tabs = [
-    { key: "cash",       label: t("tab_cash_review") },
-    { key: "attendance", label: t("tab_attendance") },
-    { key: "inventory",  label: t("tab_inventory_review") },
-    { key: "expenses",   label: t("tab_expenses") },
+    { key: "cash",         label: t("tab_cash_review") },
+    { key: "attendance",   label: t("tab_attendance") },
+    { key: "inventory",    label: t("tab_inventory_review") },
+    { key: "expenses",     label: t("tab_expenses") },
+    { key: "daily-report", label: t("tab_daily_report") },
   ];
 
   return (
@@ -143,8 +157,9 @@ export default async function ReportsPage({
           markAbsent={markAbsent}
         />
       )}
-      {tab === "inventory" && <InventoryTab start={start} end={end} />}
-      {tab === "expenses"  && <ExpensesTab confirmExpense={confirmExpense} />}
+      {tab === "inventory"    && <InventoryTab start={start} end={end} />}
+      {tab === "expenses"     && <ExpensesTab confirmExpense={confirmExpense} />}
+      {tab === "daily-report" && <DailyReportTab dayStr={dayStr} submitDailyReport={submitDailyReport} />}
     </div>
   );
 }
@@ -677,6 +692,108 @@ async function ExpensesTab({ confirmExpense }: {
                     ))}
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function DailyReportTab({
+  dayStr,
+  submitDailyReport,
+}: {
+  dayStr: string;
+  submitDailyReport: (fd: FormData) => Promise<void>;
+}) {
+  const t = await getT();
+  const date = new Date(`${dayStr}T00:00:00`);
+  const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+
+  const [todayReports, pastReports] = await Promise.all([
+    prisma.dailyReport.findMany({
+      where: { date: { gte: date, lt: nextDay } },
+      include: { createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.dailyReport.findMany({
+      where: { date: { lt: date } },
+      include: { createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
+  ]);
+
+  function fmtDate(d: Date) {
+    return d.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric", weekday: "short" });
+  }
+  function fmtTime(d: Date) {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Submit form */}
+      <section className="rounded-xl bg-white p-5 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("heading_daily_report")} — {fmtDate(date)}</h3>
+        <form action={submitDailyReport} className="space-y-3">
+          <input type="hidden" name="date" value={dayStr} />
+          <textarea
+            name="content"
+            rows={5}
+            required
+            placeholder={t("placeholder_daily_report")}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm leading-relaxed focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+          <div className="flex justify-end">
+            <button type="submit"
+              className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
+              {t("btn_submit_report")}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* Today's entries */}
+      {todayReports.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Submitted today ({todayReports.length})
+          </h3>
+          {todayReports.map((r) => (
+            <div key={r.id} className="rounded-xl border border-brand/20 bg-brand/5 px-4 py-3 shadow-sm">
+              <div className="mb-1.5 flex items-center gap-2 text-xs text-gray-500">
+                <span className="font-semibold text-gray-700">{r.createdBy.name}</span>
+                <span>·</span>
+                <span>{fmtTime(r.createdAt)}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">{r.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {todayReports.length === 0 && (
+        <p className="text-center text-sm text-gray-400 py-2">{t("empty_no_daily_reports")}</p>
+      )}
+
+      {/* Past reports */}
+      {pastReports.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Previous reports</h3>
+          <div className="space-y-2">
+            {pastReports.map((r) => (
+              <div key={r.id} className="rounded-xl border bg-white px-4 py-3 shadow-sm">
+                <div className="mb-1.5 flex items-center gap-2 text-xs text-gray-500">
+                  <span className="font-medium text-gray-600">{fmtDate(r.date)}</span>
+                  <span>·</span>
+                  <span className="font-semibold text-gray-700">{r.createdBy.name}</span>
+                  <span>·</span>
+                  <span>{fmtTime(r.createdAt)}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{r.content}</p>
               </div>
             ))}
           </div>
