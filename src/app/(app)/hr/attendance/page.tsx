@@ -132,7 +132,8 @@ export default async function HRAttendancePage({
           </select>
           <input name="date" type="date" required className="input"
             defaultValue={now.toISOString().slice(0, 10)} />
-          <select name="status" required className="input">
+          <select name="status" className="input">
+            <option value="">— Clear —</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <input name="note" className="input" placeholder={`${t("col_note")} (optional)`} />

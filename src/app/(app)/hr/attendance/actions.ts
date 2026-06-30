@@ -10,14 +10,19 @@ export async function markAttendance(fd: FormData) {
   const employeeId = fd.get("employeeId") as string;
   const date = new Date(fd.get("date") as string);
   date.setHours(0, 0, 0, 0);
-  const status = fd.get("status") as AttendanceStatus;
+  const status = (fd.get("status") as string).trim();
   const note = (fd.get("note") as string | null) ?? "";
 
-  await prisma.attendance.upsert({
-    where: { employeeId_date: { employeeId, date } },
-    update: { status, note: note || null, isApproved: true, approvedById: session.id },
-    create: { employeeId, date, status, note: note || null, isApproved: true, approvedById: session.id },
-  });
+  if (!status) {
+    // Blank = clear the attendance record for this employee on this date
+    await prisma.attendance.deleteMany({ where: { employeeId, date } });
+  } else {
+    await prisma.attendance.upsert({
+      where: { employeeId_date: { employeeId, date } },
+      update: { status: status as AttendanceStatus, note: note || null, isApproved: true, approvedById: session.id },
+      create: { employeeId, date, status: status as AttendanceStatus, note: note || null, isApproved: true, approvedById: session.id },
+    });
+  }
   revalidatePath("/hr/attendance");
 }
 
