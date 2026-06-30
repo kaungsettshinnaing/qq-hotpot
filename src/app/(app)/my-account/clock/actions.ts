@@ -6,10 +6,11 @@ import { prisma } from "@/lib/db";
 import { emitHR } from "@/lib/realtime";
 import { notifyManagers } from "@/lib/notifications";
 
+/** Returns UTC midnight of the current date in Myanmar time (UTC+6:30). */
 function todayDate() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
+  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
+  return new Date(Date.UTC(mmNow.getUTCFullYear(), mmNow.getUTCMonth(), mmNow.getUTCDate()));
 }
 
 async function getOrCreateAttendance(employeeId: string) {

@@ -20,8 +20,11 @@ export default async function ManagerDashboard() {
     prisma.expense.count({ where: { confirmedAt: null } }),
   ]);
 
-  const workingList = statuses.filter((s) => s.status === "working");
-  const onBreakList = statuses.filter((s) => s.status === "on_break");
+  const workingList    = statuses.filter((s) => s.status === "working");
+  const onBreakList    = statuses.filter((s) => s.status === "on_break");
+  const restDayList    = statuses.filter((s) => s.status === "rest");
+  const notClockedIn   = statuses.filter((s) => s.status === "not_started");
+  const clockedOutList = statuses.filter((s) => s.status === "clocked_out");
 
   const serialised = statuses.map((e) => ({
     employeeId: e.employeeId,
@@ -64,6 +67,42 @@ export default async function ManagerDashboard() {
                     <span className="ml-1 text-yellow-600">({fmtMins(s.totalBreakMins)})</span>
                   )}
                 </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <div className="text-2xl font-bold text-violet-500">{restDayList.length}</div>
+          <div className="text-sm text-gray-600">{t("card_rest_day")}</div>
+          {restDayList.length > 0 && (
+            <ul className="mt-2 space-y-0.5 border-t border-gray-100 pt-2">
+              {restDayList.map((s) => (
+                <li key={s.employeeId} className="text-xs font-medium text-violet-700">{s.name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <div className="text-2xl font-bold text-gray-400">{notClockedIn.length}</div>
+          <div className="text-sm text-gray-600">{t("card_not_clocked_in")}</div>
+          {notClockedIn.length > 0 && (
+            <ul className="mt-2 space-y-0.5 border-t border-gray-100 pt-2">
+              {notClockedIn.map((s) => (
+                <li key={s.employeeId} className="text-xs font-medium text-gray-500">{s.name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <div className="text-2xl font-bold text-gray-500">{clockedOutList.length}</div>
+          <div className="text-sm text-gray-600">{t("card_clocked_out")}</div>
+          {clockedOutList.length > 0 && (
+            <ul className="mt-2 space-y-0.5 border-t border-gray-100 pt-2">
+              {clockedOutList.map((s) => (
+                <li key={s.employeeId} className="text-xs font-medium text-gray-500">{s.name}</li>
               ))}
             </ul>
           )}

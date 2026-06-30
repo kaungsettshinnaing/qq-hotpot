@@ -125,7 +125,6 @@ export default async function ReportsPage({
           deleteClockOut={deleteClockOut}
           dayStr={dayStr}
           start={start}
-          end={end}
           approveAttendance={approveAttendance}
           rejectAttendance={rejectAttendance}
           markAbsent={markAbsent}
@@ -275,22 +274,34 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   );
 }
 
-async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAttendance, markAbsent, deleteClockOut }: {
-  dayStr: string; start: Date; end: Date;
+async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendance, markAbsent, deleteClockOut }: {
+  dayStr: string; start: Date;
   approveAttendance: (fd: FormData) => Promise<void>;
   rejectAttendance: (fd: FormData) => Promise<void>;
   markAbsent: (fd: FormData) => Promise<void>;
   deleteClockOut: (fd: FormData) => Promise<void>;
 }) {
   const t = await getT();
+  // Filter by clockInAt within the Myanmar calendar day (UTC+6:30).
+  // Falls back to the stored date field for records without a clock-in (ABSENT, LEAVE).
+  const startMM = new Date(`${dayStr}T00:00:00+06:30`);
+  const endMM = new Date(startMM.getTime() + 24 * 60 * 60 * 1000);
+  const attWhere = {
+    OR: [
+      { clockInAt: { gte: startMM, lt: endMM } },
+      { clockInAt: null as null, date: start },
+    ],
+    status: { not: "REST_DAY" as const },
+  };
+
   const [allUnapproved, todayAttendances, allEmployees] = await Promise.all([
     prisma.attendance.findMany({
-      where: { isApproved: false, status: { not: "REST_DAY" }, date: start },
+      where: { isApproved: false, ...attWhere },
       include: { employee: { include: { user: { select: { name: true } } } } },
       orderBy: [{ date: "asc" }, { employee: { user: { name: "asc" } } }],
     }),
     prisma.attendance.findMany({
-      where: { date: start, status: { not: "REST_DAY" } },
+      where: attWhere,
       include: { employee: { include: { user: { select: { name: true } } } } },
       orderBy: { employee: { user: { name: "asc" } } },
     }),
