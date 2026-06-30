@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  # ghcr.io/kaungsettshinnaing/qq-hotpot  (resolves automatically from repo)
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
@@ -15,9 +14,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    defaults:
-      run:
-        working-directory: qq-app
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +22,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: qq-app/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - run: npm ci
       - run: npx prisma generate
@@ -54,7 +50,7 @@ jobs:
       - name: Build & push image
         uses: docker/build-push-action@v6
         with:
-          context: qq-app
+          context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -64,7 +60,6 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    # Only deploy to production from main, and only if VPS secrets are configured.
     if: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - name: Deploy over SSH
