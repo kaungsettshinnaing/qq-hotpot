@@ -28,7 +28,11 @@ export async function clockIn() {
   if (!emp) throw new Error("No employee profile found");
 
   const att = await getOrCreateAttendance(emp.userId);
-  if (att.clockInAt) throw new Error("Already clocked in today");
+  // Idempotent: if already clocked in (double-tap), just refresh the page
+  if (att.clockInAt) {
+    revalidatePath("/my-account/clock");
+    return;
+  }
 
   await prisma.attendance.update({
     where: { id: att.id },
@@ -49,8 +53,11 @@ export async function clockOut() {
     where: { employeeId_date: { employeeId: emp.userId, date } },
     include: { breaks: true },
   });
-  if (!att || !att.clockInAt) throw new Error("Not clocked in today");
-  if (att.clockOutAt) throw new Error("Already clocked out");
+  // Idempotent: already clocked out or not yet clocked in → just refresh
+  if (!att || !att.clockInAt || att.clockOutAt) {
+    revalidatePath("/my-account/clock");
+    return;
+  }
 
   // Close any open break before clocking out
   const openBreak = att.breaks.find((b) => !b.endAt);
@@ -83,11 +90,17 @@ export async function breakOut() {
     where: { employeeId_date: { employeeId: emp.userId, date } },
     include: { breaks: true },
   });
-  if (!att || !att.clockInAt) throw new Error("Not clocked in");
-  if (att.clockOutAt) throw new Error("Already clocked out");
+  if (!att || !att.clockInAt || att.clockOutAt) {
+    revalidatePath("/my-account/clock");
+    return;
+  }
 
+  // Idempotent: already on break → just refresh
   const openBreak = att.breaks.find((b) => !b.endAt);
-  if (openBreak) throw new Error("Already on break");
+  if (openBreak) {
+    revalidatePath("/my-account/clock");
+    return;
+  }
 
   await prisma.attendanceBreak.create({
     data: { attendanceId: att.id, startAt: new Date() },
@@ -111,11 +124,17 @@ export async function breakIn() {
     where: { employeeId_date: { employeeId: emp.userId, date } },
     include: { breaks: true },
   });
-  if (!att) throw new Error("No attendance record today");
-  if (att.clockOutAt) throw new Error("Already clocked out");
+  if (!att || att.clockOutAt) {
+    revalidatePath("/my-account/clock");
+    return;
+  }
 
+  // Idempotent: not on break → just refresh
   const openBreak = att.breaks.find((b) => !b.endAt);
-  if (!openBreak) throw new Error("Not on break");
+  if (!openBreak) {
+    revalidatePath("/my-account/clock");
+    return;
+  }
 
   await prisma.attendanceBreak.update({
     where: { id: openBreak.id },
