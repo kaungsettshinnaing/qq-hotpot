@@ -20,10 +20,12 @@ export default async function HRAttendancePage({
 }) {
   await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
-  const now = new Date();
+  const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
+  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
+  const todayMM = mmNow.toISOString().slice(0, 10);
   const sp = await searchParams;
-  const month = parseInt(sp.month ?? String(now.getMonth() + 1));
-  const year = parseInt(sp.year ?? String(now.getFullYear()));
+  const month = parseInt(sp.month ?? String(mmNow.getUTCMonth() + 1));
+  const year = parseInt(sp.year ?? String(mmNow.getUTCFullYear()));
 
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
@@ -131,7 +133,7 @@ export default async function HRAttendancePage({
             {employees.map((e) => <option key={e.userId} value={e.userId}>{e.user.name}</option>)}
           </select>
           <input name="date" type="date" required className="input"
-            defaultValue={now.toISOString().slice(0, 10)} />
+            defaultValue={todayMM} />
           <select name="status" className="input">
             <option value="">— Clear —</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
