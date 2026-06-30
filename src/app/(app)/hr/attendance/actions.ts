@@ -8,14 +8,19 @@ import type { AttendanceStatus } from "@prisma/client";
 export async function markAttendance(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
   const employeeId = fd.get("employeeId") as string;
-  const date = new Date(fd.get("date") as string);
-  date.setHours(0, 0, 0, 0);
+  const rawDate = fd.get("date") as string; // "YYYY-MM-DD"
+  const [y, m, d] = rawDate.split("-").map(Number);
+  const dayStart = new Date(Date.UTC(y, m - 1, d));
+  const dayEnd = new Date(Date.UTC(y, m - 1, d + 1));
+  const date = dayStart;
   const status = (fd.get("status") as string).trim();
   const note = (fd.get("note") as string | null) ?? "";
 
   if (!status) {
-    // Blank = clear the attendance record for this employee on this date
-    await prisma.attendance.deleteMany({ where: { employeeId, date } });
+    // Blank = clear attendance for this employee on this date (range to handle any stored time)
+    await prisma.attendance.deleteMany({
+      where: { employeeId, date: { gte: dayStart, lt: dayEnd } },
+    });
   } else {
     await prisma.attendance.upsert({
       where: { employeeId_date: { employeeId, date } },
