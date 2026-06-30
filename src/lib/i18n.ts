@@ -283,6 +283,7 @@ const dict: Record<string, { en: string; my: string }> = {
   attendance_pending_review:    { en: "Pending review",                    my: "စစ်ဆေးရန် ကျန်ရှိ" },
   attendance_absent:            { en: "Absent",                             my: "ပျက်ကွက်" },
   btn_remove_clock_out:         { en: "Remove clock-out",                   my: "ထွက်ချိန် ဖျက်ရန်" },
+  btn_remove_clock_in:          { en: "Remove clock-in",                    my: "ဝင်ချိန် ဖျက်ရန်" },
   col_item:                     { en: "Item",                               my: "ပစ္စည်း" },
   attendance_clock_in:          { en: "In:",                               my: "ဝင်ချိန်:" },
   attendance_clock_out:         { en: "Out:",                              my: "ထွက်ချိန်:" },

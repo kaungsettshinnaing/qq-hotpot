@@ -78,6 +78,16 @@ async function deleteClockOut(fd: FormData) {
   revalidatePath("/reports");
 }
 
+async function deleteClockIn(fd: FormData) {
+  "use server";
+  await requireAnyRole(["MANAGER", "ADMIN"]);
+  const id = fd.get("id") as string;
+  // Removing clock-in also voids clock-out and all breaks (they depend on clock-in)
+  await prisma.attendanceBreak.deleteMany({ where: { attendanceId: id } });
+  await prisma.attendance.update({ where: { id }, data: { clockInAt: null, clockOutAt: null } });
+  revalidatePath("/reports");
+}
+
 function pad(n: number) { return String(n).padStart(2, "0"); }
 function dayString(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function fmt(d: Date | null) {
@@ -151,6 +161,7 @@ export default async function ReportsPage({
       {tab === "attendance" && (
         <AttendanceTab
           deleteClockOut={deleteClockOut}
+          deleteClockIn={deleteClockIn}
           dayStr={dayStr}
           start={start}
           approveAttendance={approveAttendance}
@@ -305,12 +316,13 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   );
 }
 
-async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendance, markAbsent, deleteClockOut }: {
+async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendance, markAbsent, deleteClockOut, deleteClockIn }: {
   dayStr: string; start: Date;
   approveAttendance: (fd: FormData) => Promise<void>;
   rejectAttendance: (fd: FormData) => Promise<void>;
   markAbsent: (fd: FormData) => Promise<void>;
   deleteClockOut: (fd: FormData) => Promise<void>;
+  deleteClockIn: (fd: FormData) => Promise<void>;
 }) {
   const t = await getT();
   // Filter by clockInAt within the Myanmar calendar day (UTC+6:30).
@@ -407,6 +419,15 @@ async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendanc
                     </button>
                   </form>
                 )}
+                {a.clockInAt && (
+                  <form action={deleteClockIn}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <button type="submit"
+                      className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 active:scale-95 transition">
+                      {t("btn_remove_clock_in")}
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           ))}
@@ -464,6 +485,15 @@ async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendanc
                       <button type="submit"
                         className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 active:scale-95 transition">
                         {t("btn_remove_clock_out")}
+                      </button>
+                    </form>
+                  )}
+                  {a.clockInAt && (
+                    <form action={deleteClockIn}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button type="submit"
+                        className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 active:scale-95 transition">
+                        {t("btn_remove_clock_in")}
                       </button>
                     </form>
                   )}
