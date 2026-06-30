@@ -23,36 +23,34 @@ export async function createStockIn(formData: FormData): Promise<void> {
 
   if (entries.length === 0) redirect("/inventory/deliveries/new?error=no_items");
 
-  // Create delivery header — auto-complete, no cashier/counter workflow
+  // Merge duplicate itemIds by summing qty
+  const merged = new Map<string, { qty: number; unit: string | null }>();
+  for (const e of entries) {
+    const prev = merged.get(e.itemId);
+    merged.set(e.itemId, { qty: (prev?.qty ?? 0) + e.qty, unit: e.unit ?? prev?.unit ?? null });
+  }
+  const mergedEntries = Array.from(merged.entries()).map(([itemId, v]) => ({ itemId, ...v }));
+
+  // Create delivery header — stays OPEN until manager approves
   const delivery = await prisma.stockDelivery.create({
     data: {
       deliveryDate: new Date(),
       invoiceType: "STOCK",
-      status: "COMPLETE",
+      status: "OPEN",
       paymentStatus: "UNPAID",
       createdById: session.id,
     },
   });
 
-  // Create items + stock movements
-  for (const entry of entries) {
+  // Create items only (no stock movements yet — manager approves before stock is credited)
+  for (const entry of mergedEntries) {
     const qty = Math.round(entry.qty);
     await prisma.stockDeliveryItem.create({
       data: {
         deliveryId: delivery.id,
         stockItemId: entry.itemId,
-        finalQty: qty,
         cashierQty: qty,
         unitLabel: entry.unit,
-      },
-    });
-    await prisma.stockMovement.create({
-      data: {
-        stockItemId: entry.itemId,
-        type: "DELIVERY_IN",
-        qty,
-        deliveryId: delivery.id,
-        recordedById: session.id,
       },
     });
   }
@@ -61,8 +59,8 @@ export async function createStockIn(formData: FormData): Promise<void> {
     data: {
       deliveryId: delivery.id,
       actorId: session.id,
-      action: "AUTO_COMPLETED",
-      note: `Stock-in: ${entries.length} item(s)`,
+      action: "CREATED",
+      note: `Stock-in submitted: ${mergedEntries.length} item(s) — awaiting manager approval`,
     },
   });
 

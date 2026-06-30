@@ -342,6 +342,16 @@ const dict: Record<string, { en: string; my: string }> = {
   col_diff:                     { en: "Diff",                              my: "ကွာဟချက်" },
   col_final_qty:                { en: "Final qty",                         my: "နောက်ဆုံးပမာဏ" },
   btn_confirm_complete:         { en: "Confirm & complete",                my: "အတည်ပြုပြီး ပြီးဆုံးရန်" },
+  heading_stock_expense_review: { en: "Stock Expenses — Awaiting Confirmation", my: "ကုန်ပစ္စည်း ကုန်ကျစရိတ် — အတည်ပြုရန်ဆိုင်းဆဲ" },
+  heading_stock_in_review:      { en: "Stock-In Deliveries — Pending Approval", my: "ကုန်ပစ္စည်းဝင်ရောက်မှု — အတည်ပြုချက်ဆိုင်းဆဲ" },
+  label_stock_expense_hint:     { en: "Cashier-recorded stock invoices requiring manager confirmation.", my: "ငွေကောက်မှ ကုန်ပစ္စည်း ဘောင်ချာများ — မန်နေဂျာ အတည်ပြုရန် လိုသည်" },
+  label_stock_in_hint:          { en: "Items received and recorded. Approve to credit stock into the system.", my: "ကုန်ပစ္စည်းများ လက်ခံရရှိပြီး မှတ်တမ်းတင်ထားပြီး — အတည်ပြုမှသာ ကုန်ပမာဏ တိုးသည်" },
+  btn_confirm_expense:          { en: "Confirm",                            my: "အတည်ပြုရန်" },
+  btn_approve_stock_in:         { en: "Approve & Credit Stock",            my: "အတည်ပြုပြီး ကုန်ပမာဏ ထည့်ရန်" },
+  empty_no_stock_expenses:      { en: "No stock expenses pending confirmation.", my: "အတည်ပြုရန် ကုန်ကျစရိတ် မရှိပါ" },
+  empty_no_stock_in:            { en: "No stock deliveries pending approval.", my: "အတည်ပြုရန် ကုန်ဝင်မှု မရှိပါ" },
+  col_submitted_by:             { en: "Submitted by",                      my: "တင်သွင်းသူ" },
+  label_items_received:         { en: "Items received",                    my: "လက်ခံရရှိသော ပစ္စည်းများ" },
 
   // ── My Account ────────────────────────────────────────────────────────────
   tab_payslips:                 { en: "Payslips",                          my: "လစာစလစ်" },

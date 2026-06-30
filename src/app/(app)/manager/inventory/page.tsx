@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { resolveDelivery } from "@/app/(app)/inventory/deliveries/[id]/actions";
-import { startSpotCheck, startWeeklyCount, submitStockCount } from "./actions";
+import { startSpotCheck, startWeeklyCount, submitStockCount, confirmExpense, approveStockIn } from "./actions";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ export default async function ManagerInventoryPage({
 
 async function DiscrepancyTab() {
   const t = await getT();
-  const [discrepancies, prepaid] = await Promise.all([
+  const [discrepancies, prepaid, stockExpenses, pendingStockIns] = await Promise.all([
     prisma.stockDelivery.findMany({
       where: { status: "PENDING_REVIEW" },
       orderBy: { createdAt: "asc" },
@@ -74,10 +74,132 @@ async function DiscrepancyTab() {
       orderBy: { prepaidAt: "asc" },
       include: { supplier: { select: { name: true } } },
     }),
+    // Unconfirmed stock invoices entered by cashier
+    prisma.expense.findMany({
+      where: { invoiceType: "STOCK", confirmedAt: null },
+      orderBy: { createdAt: "asc" },
+      include: {
+        category: { select: { name: true } },
+        enteredBy: { select: { name: true } },
+        lines: { orderBy: { sortOrder: "asc" } },
+      },
+    }),
+    // Simplified stock-ins awaiting manager approval (OPEN + no cashierSubmittedAt)
+    prisma.stockDelivery.findMany({
+      where: { status: "OPEN", cashierSubmittedAt: null, counterSubmittedAt: null },
+      orderBy: { createdAt: "asc" },
+      include: {
+        createdBy: { select: { name: true } },
+        items: {
+          where: { stockItemId: { not: null } },
+          include: { stockItem: { select: { name: true, unit: true } } },
+          orderBy: { stockItem: { name: "asc" } },
+        },
+      },
+    }),
   ]);
 
   return (
     <div className="space-y-6">
+      {/* ── Stock expenses awaiting manager confirmation ───────────────── */}
+      {stockExpenses.length > 0 && (
+        <section className="rounded-xl bg-red-50 border border-red-200 p-4 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold text-red-800">
+            {t("heading_stock_expense_review")} ({stockExpenses.length})
+          </h3>
+          <p className="mb-3 text-xs text-red-600">{t("label_stock_expense_hint")}</p>
+          <div className="space-y-3">
+            {stockExpenses.map((exp) => (
+              <div key={exp.id} className="rounded-lg bg-white border border-red-100 shadow-sm overflow-hidden">
+                <div className="px-3 py-2 border-b border-red-50 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      {exp.category.name}
+                      <span className="ml-2 text-xs text-gray-400">
+                        {formatDate(exp.createdAt)} · {t("col_submitted_by")}: {exp.enteredBy.name}
+                      </span>
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {exp.paymentSource === "CASH_DRAWER" ? "Cash drawer" : "Bank transfer"} ·{" "}
+                      <span className="font-medium">{exp.amount.toLocaleString()} MMK</span>
+                    </p>
+                  </div>
+                  <form action={confirmExpense}>
+                    <input type="hidden" name="expenseId" value={exp.id} />
+                    <button type="submit"
+                      className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
+                      {t("btn_confirm_expense")}
+                    </button>
+                  </form>
+                </div>
+                {exp.lines.length > 0 && (
+                  <ul className="px-3 py-2 space-y-0.5">
+                    {exp.lines.map((line) => (
+                      <li key={line.id} className="flex items-center justify-between text-xs text-gray-600">
+                        <span>
+                          {line.description}
+                          {line.unit ? <span className="text-gray-400"> · {line.qty} {line.unit}</span> : ""}
+                        </span>
+                        <span className="tabular-nums">{line.price.toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Simplified stock-in deliveries awaiting manager approval ──── */}
+      {pendingStockIns.length > 0 && (
+        <section className="rounded-xl bg-blue-50 border border-blue-200 p-4 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold text-blue-800">
+            {t("heading_stock_in_review")} ({pendingStockIns.length})
+          </h3>
+          <p className="mb-3 text-xs text-blue-600">{t("label_stock_in_hint")}</p>
+          <div className="space-y-3">
+            {pendingStockIns.map((d) => (
+              <div key={d.id} className="rounded-lg bg-white border border-blue-100 shadow-sm overflow-hidden">
+                <div className="px-3 py-2 border-b border-blue-50 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      {t("label_items_received")}: {d.items.length}
+                      <span className="ml-2 text-xs text-gray-400">
+                        {formatDate(d.deliveryDate)} · {t("col_submitted_by")}: {d.createdBy.name}
+                      </span>
+                    </p>
+                  </div>
+                  <form action={approveStockIn}>
+                    <input type="hidden" name="deliveryId" value={d.id} />
+                    <button type="submit"
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+                      {t("btn_approve_stock_in")}
+                    </button>
+                  </form>
+                </div>
+                <table className="w-full text-xs px-3 py-2">
+                  <tbody className="divide-y divide-gray-50">
+                    {d.items.map((item) => {
+                      if (!item.stockItem) return null;
+                      const unit = UNIT_ABBR[item.stockItem.unit] ?? item.stockItem.unit;
+                      return (
+                        <tr key={item.id}>
+                          <td className="px-3 py-1.5 text-gray-700">{item.stockItem.name}</td>
+                          <td className="px-3 py-1.5 text-gray-500 text-right">
+                            {item.cashierQty ?? "—"} {item.unitLabel ?? unit}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {prepaid.length > 0 && (
         <section className="rounded-xl bg-yellow-50 border border-yellow-200 p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-yellow-800">

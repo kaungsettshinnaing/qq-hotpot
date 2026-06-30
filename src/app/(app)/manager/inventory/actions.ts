@@ -6,6 +6,71 @@ import { prisma } from "@/lib/db";
 import { requireSession, requireAnyRole } from "@/lib/auth";
 import { computeAllStockLevels } from "@/lib/inventory";
 
+// ── Stock expense confirmation ──────────────────────────────────────────────
+
+export async function confirmExpense(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  await requireAnyRole(["MANAGER", "ADMIN"]);
+  const expenseId = String(formData.get("expenseId") ?? "").trim();
+  if (!expenseId) return;
+  await prisma.expense.update({
+    where: { id: expenseId },
+    data: { confirmedAt: new Date(), confirmedById: session.id },
+  });
+  revalidatePath("/manager/inventory");
+}
+
+// ── Stock-in delivery approval ──────────────────────────────────────────────
+
+export async function approveStockIn(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  await requireAnyRole(["MANAGER", "ADMIN"]);
+  const deliveryId = String(formData.get("deliveryId") ?? "").trim();
+  if (!deliveryId) return;
+
+  const delivery = await prisma.stockDelivery.findUnique({
+    where: { id: deliveryId },
+    include: { items: { where: { stockItemId: { not: null } } } },
+  });
+  if (!delivery || delivery.status !== "OPEN") return;
+
+  for (const item of delivery.items) {
+    if (!item.stockItemId || !item.cashierQty) continue;
+    const qty = item.cashierQty;
+    await prisma.stockDeliveryItem.update({
+      where: { id: item.id },
+      data: { finalQty: qty, counterQty: qty },
+    });
+    await prisma.stockMovement.create({
+      data: {
+        stockItemId: item.stockItemId,
+        type: "DELIVERY_IN",
+        qty,
+        deliveryId: delivery.id,
+        recordedById: session.id,
+      },
+    });
+  }
+
+  await prisma.stockDelivery.update({
+    where: { id: deliveryId },
+    data: { status: "COMPLETE" },
+  });
+
+  await prisma.stockDeliveryLog.create({
+    data: {
+      deliveryId,
+      actorId: session.id,
+      action: "MANAGER_APPROVED",
+      note: `Approved by manager — stock credited for ${delivery.items.length} item(s)`,
+    },
+  });
+
+  revalidatePath("/manager/inventory");
+  revalidatePath("/inventory");
+  revalidatePath("/inventory/deliveries");
+}
+
 const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
 function myanmarToday(): Date {
   const mmNow = new Date(Date.now() + MM_OFFSET_MS);
