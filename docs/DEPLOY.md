@@ -1,6 +1,7 @@
 # Deployment Guide — QQ Hotpot BBQ
 
-**Live URL:** https://app.qqhotpotbbq.com  
+**Prod URL:** https://app.qqhotpotbbq.com  
+**UAT URL:** https://uat.qqhotpotbbq.com  
 **VPS IP:** 187.127.106.81 (Hostinger)  
 **GitHub repo:** kaungsettshinnaing/qq-hotpot  
 
@@ -9,25 +10,80 @@
 ## Infrastructure overview
 
 ```
-Internet → Traefik (external reverse proxy, handles TLS)
-              └── app.qqhotpotbbq.com → app container (port 3000)
+Internet → Traefik (external reverse proxy, TLS via Let's Encrypt)
+              ├── app.qqhotpotbbq.com → prod app container (port 3000)
+              └── uat.qqhotpotbbq.com → UAT app container (port 3000)
 
-Docker services:
-  db   — postgres:16, localhost-only (127.0.0.1:5432)
-  app  — Next.js + Socket.IO, exposes port 3000 internally
+VPS directories:
+  /opt/qq-hotpot        — production (tracks origin/main)
+  /opt/qq-hotpot-uat    — UAT (tracks origin/uat)
+
+Docker projects (both run on the same VPS, fully isolated):
+  qq-hotpot (default)   — prod: services app + db
+  qq-uat                — UAT: services app + db (--project-name qq-uat)
 
 Networks:
-  default        — db ↔ app
-  traefik-public — external network shared with Traefik container
+  default        — db ↔ app within each stack
+  traefik-public — external; shared with Traefik container
 ```
-
-Traefik is configured via **labels** on the `app` service in `docker-compose.yml`. It auto-provisions a Let's Encrypt TLS certificate for `app.qqhotpotbbq.com`.
 
 ---
 
-## First-time VPS setup (do once)
+## Environments
 
-### 1. SSH into the VPS
+### Production
+
+| Item | Value |
+|---|---|
+| Domain | app.qqhotpotbbq.com |
+| VPS dir | /opt/qq-hotpot |
+| Compose file | docker-compose.yml |
+| Env file | .env |
+| DB volume | pgdata |
+| Deploy trigger | Push to `main` branch → GitHub Actions auto-deploys |
+
+### UAT
+
+| Item | Value |
+|---|---|
+| Domain | uat.qqhotpotbbq.com |
+| VPS dir | /opt/qq-hotpot-uat |
+| Compose file | docker-compose.uat.yml |
+| Env file | .env.uat |
+| DB volume | pgdata_uat |
+| Deploy trigger | Manual — push to `uat` branch triggers CI build, then SSH to VPS to rebuild |
+
+Both compose files set `NODE_OPTIONS: "--max-old-space-size=512"` on the app service to prevent OOM-driven 503s under RSC background polling.
+
+---
+
+## Git branch → environment mapping
+
+| Branch | CI action | Deploys to |
+|---|---|---|
+| `main` | tsc + lint + Docker image build → push GHCR → **auto SSH deploy** to prod | Production |
+| `uat` | tsc + lint + Docker image build → push GHCR → **no auto-deploy** | UAT (manual rebuild) |
+
+The CI build runs on both branches. Auto-deploy to production only happens from `main` (controlled by `DEPLOY_ENABLED` repo variable).
+
+### Typical workflow
+
+```
+Develop locally → git push origin uat (from local machine)
+               → SSH into VPS → git pull + docker rebuild + prisma db push
+               → test on UAT
+               → git checkout main && git merge uat && git push origin main
+               → CI auto-deploys prod → SSH into VPS → prisma db push
+```
+
+> **`git push` always runs on your LOCAL machine, never on the VPS.**  
+> The VPS only ever runs `git pull`. GitHub no longer accepts password auth — the local machine uses your configured SSH key or PAT.
+
+---
+
+## First-time VPS setup
+
+### 1. SSH in
 
 ```bash
 ssh root@187.127.106.81
@@ -40,12 +96,11 @@ apt update && apt install -y docker.io docker-compose-plugin
 systemctl enable docker && systemctl start docker
 ```
 
-### 3. Set up Traefik (if not already running)
-
-Traefik needs to be running as a separate container on the `traefik-public` network before the app can start.
+### 3. Set up Traefik (once per VPS)
 
 ```bash
 docker network create traefik-public
+touch /opt/traefik/acme.json && chmod 600 /opt/traefik/acme.json
 
 docker run -d \
   --name traefik \
@@ -65,87 +120,110 @@ docker run -d \
   --certificatesresolvers.letsencrypt.acme.storage=/acme.json
 ```
 
-### 4. Clone the repo
+### 4. Set up production
 
 ```bash
 git clone https://github.com/kaungsettshinnaing/qq-hotpot.git /opt/qq-hotpot
-```
-
-### 5. Create the `.env` file
-
-```bash
-cd /opt/qq-hotpot/qq-app
-cp .env.example .env
-nano .env
-```
-
-| Variable | Value |
-|---|---|
-| `AUTH_SECRET` | Long random string — run `openssl rand -base64 48` |
-| `POSTGRES_PASSWORD` | Strong password of your choice |
-| `POSTGRES_USER` | e.g. `qquser` |
-| `POSTGRES_DB` | e.g. `qqdb` |
-| `APP_URL` | `https://app.qqhotpotbbq.com` |
-| `APP_IMAGE` | `ghcr.io/kaungsettshinnaing/qq-hotpot:latest` |
-| `TZ` | `Asia/Yangon` |
-
-### 6. Start the app
-
-```bash
+cd /opt/qq-hotpot
+cp .env.example .env && nano .env   # fill AUTH_SECRET, POSTGRES_*, APP_URL
 docker compose up -d --build
+docker compose exec app npx prisma db seed   # first time only
 ```
 
-### 7. Seed the database (first time only)
+### 5. Set up UAT
 
 ```bash
-docker compose exec app npx prisma db seed
+git clone https://github.com/kaungsettshinnaing/qq-hotpot.git /opt/qq-hotpot-uat
+cd /opt/qq-hotpot-uat
+git fetch origin && git checkout -b uat --track origin/uat
+cp .env.uat.example .env.uat && nano .env.uat   # fill AUTH_SECRET, POSTGRES_* (different from prod!)
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat up -d --build
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat exec app npx prisma db seed
 ```
 
 ---
 
-## Updating after code changes
+## Routine operations
 
-Auto-deploy is configured: every push to `main` triggers GitHub Actions → builds the image → pushes to GHCR → SSH deploys to the VPS.
+### Deploy UAT (manual)
 
-### Manual update on the VPS
-
+**On your local machine:**
 ```bash
-cd /opt/qq-hotpot/qq-app
-git pull
-docker compose pull
-docker compose up -d
+git push origin uat
 ```
 
-### After a schema change (`prisma/schema.prisma` modified)
-
+Wait for GitHub Actions CI build to go green, then **on the VPS:**
 ```bash
-docker compose exec app npx prisma db push
-docker compose up -d --build
+cd /opt/qq-hotpot-uat
+git pull --ff-only
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat up -d --build
+docker image prune -f
 ```
 
-> **Note:** This project uses `prisma db push` (not `prisma migrate deploy`) for schema changes. The `.env` on the VPS does not have migration history.
+### Deploy production (automatic)
+
+**On your local machine:**
+```bash
+git checkout main
+git merge uat --ff-only
+git push origin main
+```
+
+GitHub Actions handles the build + deploy. Once the Actions tab shows green, schema changes still need a manual push:
+```bash
+cd /opt/qq-hotpot
+docker compose exec app npx prisma db push --accept-data-loss
+```
+
+### After a schema change (prisma/schema.prisma modified)
+
+Run this **after** the docker rebuild completes (containers must be running):
+
+```bash
+# UAT
+cd /opt/qq-hotpot-uat
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat exec app npx prisma db push --accept-data-loss
+
+# Production
+cd /opt/qq-hotpot
+docker compose exec app npx prisma db push --accept-data-loss
+```
+
+> This project uses `prisma db push` (not `prisma migrate deploy`). No migration history on VPS.
+
+### Reset UAT database (re-seed)
+
+```bash
+cd /opt/qq-hotpot-uat
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat down -v
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat up -d --build
+docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat exec app npx prisma db seed
+```
 
 ---
 
 ## GitHub Actions CI/CD
 
-Workflow file: `.github/workflows/deploy.yml`
+Workflow: `.github/workflows/deploy.yml`
 
-On every push to `main`:
-1. Typecheck (`tsc --noEmit`)
-2. Build Docker image → push to `ghcr.io/kaungsettshinnaing/qq-hotpot:latest`
-3. SSH into VPS → `docker compose pull && docker compose up -d`
+**On push to `main` or `uat`** (build job runs on both):
+1. `npm ci`
+2. `npx prisma generate`
+3. `tsc --noEmit`
+4. `npm run lint`
+5. Build + push Docker image to `ghcr.io/kaungsettshinnaing/qq-hotpot:latest` + short SHA tag
+
+**On push to `main` only** (deploy job, requires `DEPLOY_ENABLED = true`):
+6. SSH into VPS → `git pull`, `docker compose pull`, `docker compose up -d`, `docker image prune -f`
 
 ### Required GitHub Secrets
-
-Go to repo → **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
 |---|---|
 | `VPS_HOST` | `187.127.106.81` |
 | `VPS_USER` | `root` |
 | `VPS_SSH_KEY` | Private SSH key (ed25519) |
-| `VPS_APP_DIR` | `/opt/qq-hotpot/qq-app` |
+| `VPS_APP_DIR` | `/opt/qq-hotpot` |
 | `GHCR_PAT` | GitHub PAT with `read:packages` scope |
 
 ### Required GitHub Variables
@@ -156,32 +234,30 @@ Go to repo → **Settings → Secrets and variables → Actions**:
 
 ---
 
-## Useful commands on the VPS
+## Useful VPS commands
 
 ```bash
-# View live app logs
-docker compose logs -f app
+# --- Production ---
+cd /opt/qq-hotpot
 
-# View all service status
-docker compose ps
+docker compose logs -f app          # live app logs
+docker compose ps                   # service status
+docker compose restart app          # restart app only
+docker compose exec db psql -U qquser -d qqdb   # psql
+docker compose exec app npx prisma <cmd>        # any prisma command
+docker stats                        # memory/CPU per container
 
-# Restart app only
-docker compose restart app
+# --- UAT ---
+cd /opt/qq-hotpot-uat
+alias dc-uat="docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat"
 
-# Stop everything
-docker compose down
+dc-uat logs -f app
+dc-uat ps
+dc-uat exec app npx prisma db seed
 
-# Connect to the database directly
-docker compose exec db psql -U qquser -d qqdb
-
-# Run a Prisma command
-docker compose exec app npx prisma <command>
-
-# Check disk usage
-docker system df
-
-# Clean up old images
-docker image prune -f
+# --- VPS housekeeping ---
+docker image prune -f               # remove dangling images
+docker system df                    # disk usage
 ```
 
 ---
@@ -190,11 +266,11 @@ docker image prune -f
 
 | Var | Purpose |
 |---|---|
-| `AUTH_SECRET` | Signs session JWTs — must be long & random in prod |
+| `AUTH_SECRET` | Signs session JWTs — long & random; different between prod and UAT |
 | `DATABASE_URL` | Auto-composed from POSTGRES_* vars in docker-compose |
 | `POSTGRES_USER` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
 | `POSTGRES_DB` | Database name |
-| `APP_URL` | Used in notifications and absolute links (`https://app.qqhotpotbbq.com`) |
-| `APP_IMAGE` | Docker image path (pulled by VPS on deploy) |
+| `APP_URL` | Used in notifications/links (`https://app.qqhotpotbbq.com` or `https://uat.qqhotpotbbq.com`) |
 | `TZ` | Timezone (`Asia/Yangon`) |
+| `NODE_OPTIONS` | `--max-old-space-size=512` — caps Node.js heap; prevents OOM-driven 503s under RSC polling |
