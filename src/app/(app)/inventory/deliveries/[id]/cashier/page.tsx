@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
+import { recordPrepayment } from "../actions";
 import SubmitButton from "@/components/SubmitButton";
-import { submitCashierSide, recordPrepayment } from "../actions";
+import StockInvoiceForm from "./StockInvoiceForm";
+import NonStockInvoiceForm from "./NonStockInvoiceForm";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,14 @@ export default async function CashierEntryPage({
     where: { id },
     include: {
       supplier: true,
-      items: { include: { stockItem: { select: { name: true, unit: true } } } },
+      items: {
+        select: {
+          stockItemId: true,
+          orderedQty: true,
+          cashierQty: true,
+          unitCost: true,
+        },
+      },
     },
   });
 
@@ -32,33 +41,29 @@ export default async function CashierEntryPage({
     redirect(`/inventory/deliveries/${id}`);
   }
 
-  const [stockItems, categories] = await Promise.all([
-    prisma.stockItem.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.expenseCategory.findMany({ where: { isActive: true, isStock: true }, orderBy: { name: "asc" } }),
-  ]);
+  const expenseCategories = await prisma.expenseCategory.findMany({
+    where: { isActive: true, isStock: true },
+    orderBy: { name: "asc" },
+  });
 
-  const UNIT_LABEL: Record<string, string> = {
-    UNIT: "Unit", GRAM: "Gram", KG: "KG", LITRE: "Litre", BOX: "Box", BOTTLE: "Bottle", PACK: "Pack",
-  };
+  const title = delivery.invoiceNo ? `#${delivery.invoiceNo}` : `Delivery ${id.slice(-6)}`;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">
-          {isPrepay ? t("heading_record_prepayment") : t("heading_enter_invoice")} —{" "}
-          {delivery.invoiceNo ? `#${delivery.invoiceNo}` : `${t("heading_delivery_prefix")} ${id.slice(-6)}`}
+          {isPrepay ? t("heading_record_prepayment") : t("heading_enter_invoice")} — {title}
         </h2>
-        <a href={`/inventory/deliveries/${id}`} className="text-sm text-blue-600 hover:underline">{t("btn_cancel")}</a>
+        <a href={`/inventory/deliveries/${id}`} className="text-sm text-blue-600 hover:underline">
+          {t("btn_cancel")}
+        </a>
       </div>
-
-      {isPrepay && (
-        <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
-          {t("hint_prepayment_notice")}
-        </div>
-      )}
 
       {isPrepay ? (
         <section className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
+            {t("hint_prepayment_notice")}
+          </div>
           <form action={recordPrepayment} className="space-y-4 text-sm">
             <input type="hidden" name="id" value={id} />
             <div>
@@ -70,7 +75,7 @@ export default async function CashierEntryPage({
               <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_expense_category")}</label>
               <select name="categoryId" required className="w-full rounded-lg border border-gray-300 px-3 py-2">
                 <option value="">— {t("label_select_placeholder")} —</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {expenseCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
@@ -94,92 +99,73 @@ export default async function CashierEntryPage({
             </SubmitButton>
           </form>
         </section>
+      ) : delivery.invoiceType === "NON_STOCK" ? (
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+              {t("option_non_stock_invoice")}
+            </span>
+          </div>
+          <NonStockInvoiceForm
+            deliveryId={id}
+            expenseCategories={expenseCategories}
+          />
+        </section>
       ) : (
         <section className="rounded-xl bg-white p-5 shadow-sm">
-          <form action={submitCashierSide} className="space-y-5 text-sm">
-            <input type="hidden" name="deliveryId" value={id} />
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_expense_category")}</label>
-                <select name="categoryId" required className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                  <option value="">— {t("label_select_placeholder")} —</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_payment_method")}</label>
-                <div className="flex gap-4 pt-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> {t("label_cash_short")}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> {t("label_bank_short")}
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_description")}</label>
-              <input name="description" placeholder="e.g. Weekly grocery delivery" maxLength={300}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2" />
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{t("section_line_items")}</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-xs text-gray-500">
-                      <th className="pb-2 text-left font-medium">{t("col_item")}</th>
-                      <th className="pb-2 text-center font-medium">{t("col_ordered_qty")}</th>
-                      <th className="pb-2 text-center font-medium">{t("col_this_batch")}</th>
-                      <th className="pb-2 text-right font-medium">{t("col_unit_cost")} (MMK)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {stockItems.map((item) => {
-                      const existing = delivery.items.find((di) => di.stockItemId === item.id);
-                      return (
-                        <tr key={item.id}>
-                          <td className="py-2">
-                            <input type="hidden" name="itemId" value={item.id} />
-                            <span className="text-gray-700">{item.name}</span>
-                            <span className="ml-1 text-xs text-gray-400">({UNIT_LABEL[item.unit]})</span>
-                          </td>
-                          <td className="py-2 text-center">
-                            <input name="orderedQty" type="number" min="0" placeholder="—"
-                              defaultValue={existing?.orderedQty ?? ""}
-                              className="w-20 rounded border border-gray-200 px-2 py-1 text-center text-sm" />
-                          </td>
-                          <td className="py-2 text-center">
-                            <input name="cashierQty" type="number" min="0" placeholder="0"
-                              defaultValue={existing?.cashierQty ?? ""}
-                              className="w-20 rounded border border-gray-200 px-2 py-1 text-center text-sm" />
-                          </td>
-                          <td className="py-2 text-right">
-                            <input name="unitCost" type="number" min="0" placeholder="0"
-                              defaultValue={existing?.unitCost ?? ""}
-                              className="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm" />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-xs text-gray-400">{t("hint_cashier_line_items")}</p>
-            </div>
-
-            <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-              {t("btn_submit_invoice")}
-            </SubmitButton>
-          </form>
+          <div className="mb-4">
+            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+              {t("option_stock_invoice")}
+            </span>
+          </div>
+          <StockInvoiceFormLoader
+            deliveryId={id}
+            expenseCategories={expenseCategories}
+            existingItems={delivery.items}
+          />
         </section>
       )}
     </div>
+  );
+}
+
+async function StockInvoiceFormLoader({
+  deliveryId,
+  expenseCategories,
+  existingItems,
+}: {
+  deliveryId: string;
+  expenseCategories: { id: string; name: string }[];
+  existingItems: { stockItemId: string | null; orderedQty: number | null; cashierQty: number | null; unitCost: number | null }[];
+}) {
+  const [stockItems, categories] = await Promise.all([
+    prisma.stockItem.findMany({
+      where: { isActive: true },
+      orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        unit: true,
+        categoryId: true,
+        category: { select: { name: true } },
+      },
+    }),
+    prisma.stockCategory.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+  ]);
+
+  return (
+    <StockInvoiceForm
+      deliveryId={deliveryId}
+      stockItems={stockItems.map((i) => ({
+        id: i.id,
+        name: i.name,
+        unit: i.unit,
+        categoryId: i.categoryId,
+        categoryName: i.category?.name ?? null,
+      }))}
+      categories={categories}
+      expenseCategories={expenseCategories}
+      existingItems={existingItems}
+    />
   );
 }

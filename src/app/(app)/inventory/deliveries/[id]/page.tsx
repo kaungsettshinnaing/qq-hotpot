@@ -43,7 +43,7 @@ export default async function DeliveryDetailPage({
         batches: { select: { id: true, invoiceNo: true, status: true, deliveryDate: true } },
         items: {
           include: { stockItem: { select: { name: true, unit: true } } },
-          orderBy: { stockItem: { name: "asc" } },
+          orderBy: { id: "asc" },
         },
         logs: {
           include: { actor: { select: { name: true } } },
@@ -92,8 +92,8 @@ export default async function DeliveryDetailPage({
         </Link>
       </div>
 
-      {/* Two panels: cashier + counter */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Two panels: cashier + counter (counter hidden for non-stock) */}
+      <div className={`grid grid-cols-1 gap-4 ${delivery.invoiceType !== "NON_STOCK" ? "lg:grid-cols-2" : ""}`}>
         {/* Cashier panel */}
         <div className={`rounded-xl border-2 p-4 ${delivery.cashierSubmittedAt ? "border-green-300 bg-green-50" : "border-blue-200 bg-white"} shadow-sm`}>
           <div className="mb-3 flex items-center justify-between">
@@ -121,9 +121,13 @@ export default async function DeliveryDetailPage({
               <tbody className="divide-y divide-gray-100">
                 {delivery.items.map((item) => (
                   <tr key={item.id}>
-                    <td className="py-1 text-gray-700">{item.stockItem.name}</td>
+                    <td className="py-1 text-gray-700">
+                      {item.stockItem?.name ?? item.description ?? "—"}
+                      {item.unitLabel && <span className="ml-1 text-xs text-gray-400">({item.unitLabel})</span>}
+                    </td>
                     <td className="py-1 text-center text-gray-600">
-                      {item.orderedQty ?? "—"} <span className="text-xs text-gray-400">{UNIT_ABBR[item.stockItem.unit]}</span>
+                      {item.orderedQty ?? "—"}
+                      {item.stockItem?.unit && <span className="text-xs text-gray-400"> {UNIT_ABBR[item.stockItem.unit]}</span>}
                     </td>
                     <td className="py-1 text-center font-medium">{item.cashierQty ?? "—"}</td>
                     <td className="py-1 text-right text-gray-600">
@@ -166,8 +170,8 @@ export default async function DeliveryDetailPage({
           )}
         </div>
 
-        {/* Counter panel */}
-        <div className={`rounded-xl border-2 p-4 ${delivery.counterSubmittedAt ? "border-green-300 bg-green-50" : "border-orange-200 bg-white"} shadow-sm`}>
+        {/* Counter panel — only for STOCK invoices */}
+        {delivery.invoiceType !== "NON_STOCK" && <div className={`rounded-xl border-2 p-4 ${delivery.counterSubmittedAt ? "border-green-300 bg-green-50" : "border-orange-200 bg-white"} shadow-sm`}>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-700">{t("panel_physical_count")}</h3>
             {delivery.counterSubmittedAt ? (
@@ -192,14 +196,14 @@ export default async function DeliveryDetailPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {delivery.items.map((item) => {
+                {delivery.items.filter((i) => i.stockItemId != null).map((item) => {
                   const match =
                     item.cashierQty != null && item.counterQty != null
                       ? item.cashierQty === item.counterQty
                       : null;
                   return (
                     <tr key={item.id}>
-                      <td className="py-1 text-gray-700">{item.stockItem.name}</td>
+                      <td className="py-1 text-gray-700">{item.stockItem?.name ?? "—"}</td>
                       <td className="py-1 text-center font-medium">{item.counterQty ?? "—"}</td>
                       {delivery.cashierSubmittedAt && (
                         <td className="py-1 text-center">
@@ -232,7 +236,7 @@ export default async function DeliveryDetailPage({
           ) : (
             <p className="text-sm text-gray-400">{t("waiting_counter")}</p>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Manager resolution */}
@@ -253,9 +257,14 @@ export default async function DeliveryDetailPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-orange-100">
-                  {delivery.items.map((item) => (
+                  {delivery.items.filter((i) => i.stockItemId != null).map((item) => (
                     <tr key={item.id}>
-                      <td className="py-1 text-gray-700">{item.stockItem.name}</td>
+                      <td className="py-1 text-gray-700">
+                        {item.stockItem?.name ?? "—"}
+                        {item.stockItem?.unit && (
+                          <span className="ml-1 text-xs text-gray-400">({UNIT_ABBR[item.stockItem.unit]})</span>
+                        )}
+                      </td>
                       <td className="py-1 text-center">{item.cashierQty ?? "—"}</td>
                       <td className="py-1 text-center">{item.counterQty ?? "—"}</td>
                       <td className="py-1 text-center">

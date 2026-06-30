@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { ExpenseSource } from "@prisma/client";
+import type { ExpenseSource, InvoiceType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAnyRole, requireSession } from "@/lib/auth";
 
@@ -17,6 +17,10 @@ function posInt(v: unknown): number {
   const n = parseInt(String(v ?? ""), 10);
   return Number.isNaN(n) || n < 0 ? 0 : n;
 }
+function posFloat(v: unknown): number {
+  const n = parseFloat(String(v ?? ""));
+  return Number.isNaN(n) || n < 0 ? 0 : n;
+}
 
 // ---- Create delivery header (either party) ----
 
@@ -26,6 +30,8 @@ export async function createDelivery(formData: FormData): Promise<void> {
   const deliveryDate = new Date(str(formData.get("deliveryDate")) || Date.now());
   const invoiceNo = str(formData.get("invoiceNo"), 100) || null;
   const parentId = str(formData.get("parentId")) || null;
+  const invoiceTypeRaw = str(formData.get("invoiceType"));
+  const invoiceType: InvoiceType = invoiceTypeRaw === "NON_STOCK" ? "NON_STOCK" : "STOCK";
 
   const delivery = await prisma.stockDelivery.create({
     data: {
@@ -33,6 +39,7 @@ export async function createDelivery(formData: FormData): Promise<void> {
       invoiceNo,
       supplierId,
       parentDeliveryId: parentId,
+      invoiceType,
       createdById: session.id,
     },
   });
@@ -57,7 +64,6 @@ export async function recordPrepayment(formData: FormData): Promise<void> {
   const delivery = await prisma.stockDelivery.findUniqueOrThrow({ where: { id } });
   if (delivery.paymentStatus !== "UNPAID") redirect(`/inventory/deliveries/${id}?error=already_paid`);
 
-  // Create expense record
   const expense = await prisma.expense.create({
     data: {
       businessDate: new Date(),
@@ -65,11 +71,7 @@ export async function recordPrepayment(formData: FormData): Promise<void> {
       amount: totalCost,
       paymentSource,
       description,
-      vendor: delivery.supplierId ? undefined : undefined,
       enteredById: session.id,
-      ...(paymentSource === "CASH_DRAWER"
-        ? {}
-        : {}),
     },
   });
 
@@ -93,7 +95,7 @@ export async function recordPrepayment(formData: FormData): Promise<void> {
   redirect(`/inventory/deliveries/${id}`);
 }
 
-// ---- Submit cashier side (invoice quantities + cost) ----
+// ---- Submit cashier side — STOCK invoice (invoice quantities + cost) ----
 
 export async function submitCashierSide(formData: FormData): Promise<void> {
   const session = await requireSession();
@@ -110,7 +112,6 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
   });
   if (delivery.cashierSubmittedAt) redirect(`/inventory/deliveries/${id}?error=already_submitted`);
 
-  // Parse item entries from form: itemId[] + cashierQty[] + orderedQty[] + unitCost[]
   const itemIds = formData.getAll("itemId").map(String);
   const cashierQtys = formData.getAll("cashierQty").map((v) => posInt(v));
   const orderedQtys = formData.getAll("orderedQty").map((v) => optInt(v));
@@ -122,7 +123,6 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
 
   if (filteredItems.length === 0) redirect(`/inventory/deliveries/${id}?error=no_items`);
 
-  // Upsert delivery items
   for (const item of filteredItems) {
     await prisma.stockDeliveryItem.upsert({
       where: { deliveryId_stockItemId: { deliveryId: id, stockItemId: item.itemId } },
@@ -141,7 +141,6 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
     return sum + ((x.orderedQty ?? x.cashierQty) * (x.unitCost ?? 0));
   }, 0);
 
-  // Create expense if not already pre-paid
   let expenseId = delivery.expenseId;
   if (!expenseId && categoryId) {
     const expense = await prisma.expense.create({
@@ -176,7 +175,6 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
       note: `${filteredItems.length} items, ${totalCost.toLocaleString()} MMK` },
   });
 
-  // If counter already submitted, run comparison
   if (delivery.counterSubmittedAt) {
     await runComparison(id, session.id);
   }
@@ -184,7 +182,85 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
   redirect(`/inventory/deliveries/${id}`);
 }
 
-// ---- Submit counter side (physical count) ----
+// ---- Submit cashier side — NON_STOCK invoice (free-text lines, auto-completes) ----
+
+export async function submitNonStockCashierSide(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
+  const id = str(formData.get("deliveryId"));
+  const paymentSourceRaw = str(formData.get("paymentSource")) as ExpenseSource;
+  const paymentSource: ExpenseSource = paymentSourceRaw === "BANK_TRANSFER" ? "BANK_TRANSFER" : "CASH_DRAWER";
+  const categoryId = str(formData.get("categoryId"));
+  const description = str(formData.get("description"), 300) || "Non-stock delivery";
+
+  const delivery = await prisma.stockDelivery.findUniqueOrThrow({ where: { id } });
+  if (delivery.cashierSubmittedAt) redirect(`/inventory/deliveries/${id}?error=already_submitted`);
+
+  const descs     = formData.getAll("lineDesc").map(String);
+  const qtys      = formData.getAll("lineQty").map((v) => posFloat(v));
+  const units     = formData.getAll("lineUnit").map(String);
+  const unitCosts = formData.getAll("lineUnitCost").map((v) => posInt(v));
+
+  const lines = descs
+    .map((desc, i) => ({ description: desc.trim(), qty: qtys[i], unitLabel: units[i].trim(), unitCost: unitCosts[i] }))
+    .filter((l) => l.description);
+
+  if (lines.length === 0) redirect(`/inventory/deliveries/${id}?error=no_items`);
+
+  // Create line items (non-stock = stockItemId null)
+  for (const line of lines) {
+    await prisma.stockDeliveryItem.create({
+      data: {
+        deliveryId: id,
+        stockItemId: null,
+        description: line.description,
+        unitLabel: line.unitLabel || null,
+        cashierQty: Math.round(line.qty),
+        finalQty: Math.round(line.qty),
+        unitCost: line.unitCost || null,
+      },
+    });
+  }
+
+  const totalCost = lines.reduce((sum, l) => sum + l.qty * (l.unitCost ?? 0), 0);
+
+  let expenseId = delivery.expenseId;
+  if (!expenseId && categoryId) {
+    const expense = await prisma.expense.create({
+      data: {
+        businessDate: delivery.deliveryDate,
+        categoryId,
+        amount: Math.round(totalCost),
+        paymentSource,
+        description,
+        enteredById: session.id,
+      },
+    });
+    expenseId = expense.id;
+  }
+
+  // Non-stock: auto-complete immediately, no counter step
+  await prisma.stockDelivery.update({
+    where: { id },
+    data: {
+      cashierEnteredById: session.id,
+      cashierSubmittedAt: new Date(),
+      totalCost: Math.round(totalCost),
+      paymentStatus: "PAID",
+      paymentSource,
+      expenseId,
+      status: "COMPLETE",
+    },
+  });
+  await prisma.stockDeliveryLog.create({
+    data: { deliveryId: id, actorId: session.id, action: "AUTO_COMPLETED",
+      note: `Non-stock: ${lines.length} line(s), ${Math.round(totalCost).toLocaleString()} MMK` },
+  });
+  revalidatePath(`/inventory/deliveries/${id}`);
+  redirect(`/inventory/deliveries/${id}`);
+}
+
+// ---- Submit counter side (physical count — STOCK only) ----
 
 export async function submitCounterSide(formData: FormData): Promise<void> {
   const session = await requireSession();
@@ -225,7 +301,6 @@ export async function submitCounterSide(formData: FormData): Promise<void> {
       note: `${entries.length} items counted` },
   });
 
-  // If cashier already submitted, run comparison
   if (delivery.cashierSubmittedAt) {
     await runComparison(id, session.id);
   }
@@ -233,10 +308,12 @@ export async function submitCounterSide(formData: FormData): Promise<void> {
   redirect(`/inventory/deliveries/${id}`);
 }
 
-// ---- Internal: compare both sides ----
+// ---- Internal: compare both sides (STOCK items only) ----
 
 async function runComparison(deliveryId: string, actorId: string) {
-  const items = await prisma.stockDeliveryItem.findMany({ where: { deliveryId } });
+  const items = await prisma.stockDeliveryItem.findMany({
+    where: { deliveryId, stockItemId: { not: null } },
+  });
   const hasDiscrepancy = items.some(
     (item) => item.cashierQty != null && item.counterQty != null && item.cashierQty !== item.counterQty
   );
@@ -250,9 +327,8 @@ async function runComparison(deliveryId: string, actorId: string) {
         note: "Quantities differ between cashier and counter — manager review required" },
     });
   } else {
-    // Auto-complete: all match
     for (const item of items) {
-      if (item.cashierQty != null) {
+      if (item.cashierQty != null && item.stockItemId) {
         await prisma.stockDeliveryItem.update({
           where: { id: item.id },
           data: { finalQty: item.cashierQty },
@@ -279,7 +355,7 @@ async function runComparison(deliveryId: string, actorId: string) {
   }
 }
 
-// ---- Manager: resolve discrepancy ----
+// ---- Manager: resolve discrepancy (STOCK only) ----
 
 export async function resolveDelivery(formData: FormData): Promise<void> {
   const session = await requireSession();
@@ -288,7 +364,10 @@ export async function resolveDelivery(formData: FormData): Promise<void> {
   const resolutionNote = str(formData.get("resolutionNote"), 500);
   const isPartial = formData.get("isPartial") === "on";
 
-  const items = await prisma.stockDeliveryItem.findMany({ where: { deliveryId: id } });
+  // Only resolve stock items (non-stock lines have no counter side)
+  const items = await prisma.stockDeliveryItem.findMany({
+    where: { deliveryId: id, stockItemId: { not: null } },
+  });
 
   for (const item of items) {
     const finalQtyRaw = formData.get(`final_${item.id}`);
@@ -297,15 +376,17 @@ export async function resolveDelivery(formData: FormData): Promise<void> {
       where: { id: item.id },
       data: { finalQty },
     });
-    await prisma.stockMovement.create({
-      data: {
-        stockItemId: item.stockItemId,
-        type: "DELIVERY_IN",
-        qty: finalQty,
-        deliveryId: id,
-        recordedById: session.id,
-      },
-    });
+    if (item.stockItemId) {
+      await prisma.stockMovement.create({
+        data: {
+          stockItemId: item.stockItemId,
+          type: "DELIVERY_IN",
+          qty: finalQty,
+          deliveryId: id,
+          recordedById: session.id,
+        },
+      });
+    }
   }
 
   const newStatus = isPartial ? "PARTIAL" : "COMPLETE";

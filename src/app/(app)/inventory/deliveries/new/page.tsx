@@ -67,6 +67,26 @@ export default async function NewDeliveryPage({
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           </div>
 
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_invoice_type")}</label>
+            <div className="space-y-2">
+              <label className="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand/5">
+                <input type="radio" name="invoiceType" value="STOCK" defaultChecked className="mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium text-gray-800">{t("option_stock_invoice")}</div>
+                  <div className="text-xs text-gray-500">{t("hint_stock_invoice_desc")}</div>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand/5">
+                <input type="radio" name="invoiceType" value="NON_STOCK" className="mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium text-gray-800">{t("option_non_stock_invoice")}</div>
+                  <div className="text-xs text-gray-500">{t("hint_non_stock_invoice_desc")}</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500 space-y-1">
             <p>{t("hint_delivery_workflow_intro")}</p>
             <ul className="list-disc pl-4 space-y-0.5">

@@ -128,7 +128,7 @@ export default async function ManagerDashboard() {
           <div className="text-2xl font-bold text-amber-600">{unconfirmedExp}</div>
           <div className="text-sm text-gray-600">{t("card_unconfirmed_expenses")}</div>
           {unconfirmedExp > 0 && (
-            <Link href="/manager/expenses" className="text-xs text-brand hover:underline">{t("link_review")} →</Link>
+            <Link href="/reports?tab=expenses" className="text-xs text-brand hover:underline">{t("link_review")} →</Link>
           )}
         </div>
       </div>

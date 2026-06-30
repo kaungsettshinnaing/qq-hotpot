@@ -26,8 +26,9 @@ export async function createStockItem(formData: FormData): Promise<void> {
   const unit = VALID_UNITS.includes(unitRaw) ? unitRaw : "UNIT";
   const minStock = optInt(formData.get("minStock"));
   const optimalStock = optInt(formData.get("optimalStock"));
+  const categoryId = str(formData.get("categoryId")) || null;
   if (!name) redirect("/admin/stock-items?error=missing");
-  await prisma.stockItem.create({ data: { name, unit, minStock, optimalStock } });
+  await prisma.stockItem.create({ data: { name, unit, minStock, optimalStock, categoryId } });
   revalidatePath("/admin/stock-items");
   redirect("/admin/stock-items");
 }
@@ -40,8 +41,9 @@ export async function updateStockItem(formData: FormData): Promise<void> {
   const unit = VALID_UNITS.includes(unitRaw) ? unitRaw : "UNIT";
   const minStock = optInt(formData.get("minStock"));
   const optimalStock = optInt(formData.get("optimalStock"));
+  const categoryId = str(formData.get("categoryId")) || null;
   if (!name) redirect("/admin/stock-items?error=missing");
-  await prisma.stockItem.update({ where: { id }, data: { name, unit, minStock, optimalStock } });
+  await prisma.stockItem.update({ where: { id }, data: { name, unit, minStock, optimalStock, categoryId } });
   revalidatePath("/admin/stock-items");
   redirect("/admin/stock-items");
 }

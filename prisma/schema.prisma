@@ -67,6 +67,7 @@ model User {
   deliveriesResolved StockDelivery[]    @relation("DeliveryResolver")
   deliveryLogs       StockDeliveryLog[] @relation("DeliveryLogActor")
   stockMovements     StockMovement[]    @relation("MovementRecorder")
+  stockCounts        StockCount[]       @relation("StockCountCreator")
 }
 
 // ---------------------------------------------------------------------------
@@ -685,6 +686,16 @@ enum MovementType {
   ADJUSTMENT  // manual stock correction
 }
 
+enum InvoiceType {
+  STOCK
+  NON_STOCK
+}
+
+enum StockCountType {
+  SPOT    // random daily check of ≥5% items
+  WEEKLY  // full weekly count
+}
+
 model Supplier {
   id         String          @id @default(cuid())
   name       String
@@ -697,9 +708,19 @@ model Supplier {
   deliveries StockDelivery[]
 }
 
+model StockCategory {
+  id        String      @id @default(cuid())
+  name      String
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  items     StockItem[]
+}
+
 model StockItem {
   id           String              @id @default(cuid())
   name         String
+  categoryId   String?
+  category     StockCategory?      @relation(fields: [categoryId], references: [id])
   unit         StockUnit           @default(UNIT)
   minStock     Int?                // below this → "Low Stock" red alert
   optimalStock Int?                // target level; order qty = optimalStock − currentStock
@@ -707,6 +728,7 @@ model StockItem {
   createdAt    DateTime            @default(now())
   deliveryItems StockDeliveryItem[]
   movements    StockMovement[]
+  countItems   StockCountItem[]
 }
 
 model StockDelivery {
@@ -717,6 +739,7 @@ model StockDelivery {
   supplier       Supplier?      @relation(fields: [supplierId], references: [id])
   status         DeliveryStatus @default(DRAFT)
   paymentStatus  PaymentStatus  @default(UNPAID)
+  invoiceType    InvoiceType    @default(STOCK)
   prepaidAt      DateTime?
 
   // Batch delivery link (optional — for partial orders)
@@ -758,8 +781,10 @@ model StockDeliveryItem {
   id          String        @id @default(cuid())
   deliveryId  String
   delivery    StockDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  stockItemId String
-  stockItem   StockItem     @relation(fields: [stockItemId], references: [id])
+  stockItemId String?
+  stockItem   StockItem?    @relation(fields: [stockItemId], references: [id])
+  description String?       // for NON_STOCK invoice lines (free text)
+  unitLabel   String?       // free-text unit for NON_STOCK lines
   orderedQty  Int?          // total qty on the purchase order (spans all batches)
   cashierQty  Int?          // this batch — from invoice
   counterQty  Int?          // this batch — from physical count
@@ -789,6 +814,7 @@ model StockMovement {
   stockItem    StockItem    @relation(fields: [stockItemId], references: [id])
   type         MovementType
   qty          Int          // positive = in, negative = out
+  previousQty  Int?         // stock level before this movement (for ADJUSTMENT)
   note         String?
   deliveryId   String?      // set for DELIVERY_IN movements
   recordedById String
@@ -797,6 +823,35 @@ model StockMovement {
 
   @@index([stockItemId])
   @@index([createdAt])
+}
+
+model StockCount {
+  id          String           @id @default(cuid())
+  date        DateTime         @db.Date
+  type        StockCountType
+  createdById String
+  createdBy   User             @relation("StockCountCreator", fields: [createdById], references: [id])
+  completedAt DateTime?
+  note        String?
+  items       StockCountItem[]
+  createdAt   DateTime         @default(now())
+
+  @@index([date])
+}
+
+model StockCountItem {
+  id          String     @id @default(cuid())
+  countId     String
+  count       StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  stockItemId String
+  stockItem   StockItem  @relation(fields: [stockItemId], references: [id])
+  systemQty   Int
+  actualQty   Int?
+  confirmed   Boolean    @default(false)
+  note        String?
+
+  @@unique([countId, stockItemId])
+  @@index([countId])
 }
 
 // ---------------------------------------------------------------------------

@@ -935,6 +935,43 @@ const dict: Record<string, { en: string; my: string }> = {
   col_table:                   { en: "Table",                             my: "စားပွဲ" },
   col_total:                   { en: "Total",                             my: "စုစုပေါင်း" },
   label_change_due:            { en: "Change Due",                        my: "အမ်းငွေ" },
+
+  // ── Stock categories (admin) ──────────────────────────────────────────────
+  admin_card_stock_categories_label: { en: "Stock Categories",             my: "ကုန်ပစ္စည်းအမျိုးအစားများ" },
+  heading_add_stock_category:  { en: "Add Category",                       my: "အမျိုးအစား ထည့်ရန်" },
+  empty_no_stock_categories:   { en: "No categories yet.",                 my: "အမျိုးအစား မရှိသေးပါ" },
+
+  // ── Delivery invoice type ────────────────────────────────────────────────
+  label_invoice_type:          { en: "Invoice Type",                       my: "ငွေတောင်းခံမှုအမျိုးအစား" },
+  option_stock_invoice:        { en: "Stock Invoice",                      my: "ကုန်ပစ္စည်း ဘောင်ချာ" },
+  option_non_stock_invoice:    { en: "Non-Stock Invoice",                  my: "ကုန်ပစ္စည်းမဟုတ်သော ဘောင်ချာ" },
+  hint_stock_invoice_desc:     { en: "Items tracked in stock",             my: "ကုန်ပမာဏ ခြေရာခံနိုင်သည်" },
+  hint_non_stock_invoice_desc: { en: "Free text, expense only",            my: "လွတ်လပ်သောစာသား၊ ကုန်ကျစရိတ်သာ" },
+  btn_add_line:                { en: "Add Line",                           my: "မျဉ်းထပ်ထည့်ရန်" },
+
+  // ── Reports expenses tab ─────────────────────────────────────────────────
+  tab_expenses:                { en: "Expenses",                           my: "ကုန်ကျစရိတ်" },
+
+  // ── Manager inventory tabs ───────────────────────────────────────────────
+  tab_discrepancy_review:      { en: "Review",                             my: "စစ်ဆေးမှု" },
+  tab_spot_check:              { en: "Spot Check",                         my: "စစ်ဆေးချက်" },
+  tab_weekly_count:            { en: "Weekly Count",                       my: "အပတ်စဉ်စစ်ဆေး" },
+
+  // ── Stock count (manager) ────────────────────────────────────────────────
+  heading_spot_check:          { en: "Daily Spot Check",                   my: "နေ့စဉ် စစ်ဆေးချက်" },
+  heading_weekly_count:        { en: "Weekly Full Count",                  my: "အပတ်စဉ် ကုန်ပစ္စည်းစစ်" },
+  btn_start_spot_check:        { en: "Start Spot Check",                   my: "စစ်ဆေးချက် စတင်ရန်" },
+  btn_start_weekly_count:      { en: "Start Weekly Count",                 my: "အပတ်စဉ်စစ်ဆေး စတင်ရန်" },
+  btn_complete_count:          { en: "Submit Count",                       my: "စစ်ဆေးမှု ပြီးဆုံးရန်" },
+  col_system_qty:              { en: "System",                             my: "စနစ်ပမာဏ" },
+  col_actual_qty:              { en: "Actual",                             my: "စစ်ဆေးပမာဏ" },
+  label_confirm_system_qty:    { en: "System qty correct",                 my: "စနစ်ပမာဏ မှန်ကန်သည်" },
+  empty_no_active_count:       { en: "No stock count in progress today.",  my: "ယနေ့ ကုန်ပစ္စည်းစစ်ဆေးမှု မရှိပါ" },
+  label_spot_check_hint:       { en: "Randomly checks ≥5% of active stock items", my: "တက်ကြွသောပစ္စည်းများ၏ ၅%+ စစ်ဆေးရန်" },
+  label_weekly_count_hint:     { en: "Count all active items; adjust if needed", my: "ကုန်ပစ္စည်းအားလုံး စစ်ဆေးရန်" },
+  label_filter_category:       { en: "Filter by category",                 my: "အမျိုးအစားဖြင့် စစ်ထုတ်ရန်" },
+  option_all_categories:       { en: "All Items",                          my: "ပစ္စည်းအားလုံး" },
+  col_unit_label:              { en: "Unit",                               my: "ယူနစ်" },
 };
 
 export function tKey(key: string, lang: Lang, vars?: Record<string, string>): string {

@@ -20,11 +20,14 @@ export default async function CounterEntryPage({
     where: { id },
     include: {
       supplier: true,
-      items: { include: { stockItem: { select: { name: true, unit: true } } } },
+      items: {
+        where: { stockItemId: { not: null } },
+        include: { stockItem: { select: { name: true, unit: true } } },
+      },
     },
   });
 
-  if (delivery.counterSubmittedAt) {
+  if (delivery.counterSubmittedAt || delivery.invoiceType === "NON_STOCK") {
     redirect(`/inventory/deliveries/${id}`);
   }
 
@@ -34,7 +37,9 @@ export default async function CounterEntryPage({
     : [];
 
   const items = delivery.cashierSubmittedAt
-    ? delivery.items.map((di) => ({ id: di.stockItemId, name: di.stockItem.name, unit: di.stockItem.unit }))
+    ? delivery.items
+        .filter((di) => di.stockItemId != null && di.stockItem != null)
+        .map((di) => ({ id: di.stockItemId!, name: di.stockItem!.name, unit: di.stockItem!.unit }))
     : stockItems.map((si) => ({ id: si.id, name: si.name, unit: si.unit }));
 
   const UNIT_LABEL: Record<string, string> = {

@@ -18,7 +18,13 @@ export default async function StockItemsPage({
 }) {
   const t = await getT();
   const { edit } = await searchParams;
-  const items = await prisma.stockItem.findMany({ orderBy: { name: "asc" } });
+  const [items, categories] = await Promise.all([
+    prisma.stockItem.findMany({
+      orderBy: { name: "asc" },
+      include: { category: { select: { id: true, name: true } } },
+    }),
+    prisma.stockCategory.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+  ]);
   const editing = edit ? items.find((i) => i.id === edit) : null;
 
   const movements = await prisma.stockMovement.groupBy({
@@ -38,6 +44,7 @@ export default async function StockItemsPage({
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500">
                 <th className="px-4 py-2 text-left font-medium">{t("col_name")}</th>
+                <th className="px-4 py-2 text-left font-medium">{t("label_category")}</th>
                 <th className="px-4 py-2 text-center font-medium">{t("label_unit")}</th>
                 <th className="px-4 py-2 text-center font-medium">{t("col_stock_level")}</th>
                 <th className="px-4 py-2 text-center font-medium">{t("col_min_optimal")}</th>
@@ -47,7 +54,7 @@ export default async function StockItemsPage({
             <tbody className="divide-y divide-gray-100">
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-3 text-gray-400">{t("empty_no_stock_items")}</td>
+                  <td colSpan={6} className="px-4 py-3 text-gray-400">{t("empty_no_stock_items")}</td>
                 </tr>
               )}
               {items.map((item) => {
@@ -61,6 +68,9 @@ export default async function StockItemsPage({
                       <span className={item.isActive ? "font-medium" : "font-medium text-gray-400 line-through"}>
                         {item.name}
                       </span>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-500">
+                      {item.category?.name ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-2 text-center text-gray-500">{UNIT_LABEL[item.unit]}</td>
                     <td className={`px-4 py-2 text-center ${stockColor}`}>{current}</td>
@@ -96,6 +106,11 @@ export default async function StockItemsPage({
               <input type="hidden" name="id" value={editing.id} />
               <input name="name" required defaultValue={editing.name}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <select name="categoryId" defaultValue={editing.categoryId ?? ""}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <option value="">— {t("label_category")} (optional) —</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
               <select name="unit" defaultValue={editing.unit}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2">
                 {UNITS.map((u) => <option key={u} value={u}>{UNIT_LABEL[u]}</option>)}
@@ -130,8 +145,12 @@ export default async function StockItemsPage({
         <section className="rounded-xl bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("heading_add_stock_item")}</h3>
           <form action={createStockItem} className="space-y-2 text-sm">
-            <input name="name" required placeholder="e.g. Dagon Beer Bottle"
+            <input name="name" required placeholder="e.g. Pork Meat"
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+            <select name="categoryId" className="w-full rounded-lg border border-gray-300 px-3 py-2">
+              <option value="">— {t("label_category")} (optional) —</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
             <select name="unit" className="w-full rounded-lg border border-gray-300 px-3 py-2">
               {UNITS.map((u) => <option key={u} value={u}>{UNIT_LABEL[u]}</option>)}
             </select>
