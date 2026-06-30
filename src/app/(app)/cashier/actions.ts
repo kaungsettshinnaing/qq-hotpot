@@ -170,18 +170,34 @@ export async function closeShift(formData: FormData): Promise<void> {
 export async function addExpense(formData: FormData): Promise<void> {
   const user = await requireAnyRole(CASHIER_ROLES);
   const categoryId = str(formData.get("categoryId"));
-  const amount = clampInt(formData.get("amount"), 0, 1_000_000_000);
   const paymentSource =
     str(formData.get("paymentSource")) === "BANK_TRANSFER" ? "BANK_TRANSFER" : "CASH_DRAWER";
-  const description = str(formData.get("description"));
-  const vendor = str(formData.get("vendor"), 200) || null;
-  const dateStr = str(formData.get("businessDate"), 40);
-  const businessDate = dateStr ? new Date(dateStr) : new Date();
+  const invoiceType = str(formData.get("invoiceType")) === "STOCK" ? "STOCK" : "NON_STOCK";
 
-  if (!categoryId || amount <= 0 || !description) {
+  // Line items
+  const lineDescs  = formData.getAll("lineDesc").map(String);
+  const lineUnits  = formData.getAll("lineUnit").map(String);
+  const lineQtys   = formData.getAll("lineQty").map((v) => parseFloat(String(v)) || 1);
+  const linePrices = formData.getAll("linePrice").map((v) => Math.max(0, parseInt(String(v)) || 0));
+
+  const lines = lineDescs
+    .map((desc, i) => ({
+      description: desc.trim(),
+      unit: lineUnits[i]?.trim() || null,
+      qty: lineQtys[i],
+      price: linePrices[i],
+      sortOrder: i,
+    }))
+    .filter((l) => l.description && l.price > 0);
+
+  if (!categoryId || lines.length === 0) {
     redirect("/cashier/expenses?error=missing");
   }
-  // Cash-drawer expenses attach to the open shift so they hit reconciliation.
+
+  const amount = lines.reduce((sum, l) => sum + l.price, 0);
+  const description = lines.map((l) => l.description).join(", ").slice(0, 300);
+  const businessDate = new Date();
+
   const shift = paymentSource === "CASH_DRAWER" ? await getOpenShift(user.id) : null;
   const expense = await prisma.expense.create({
     data: {
@@ -189,10 +205,11 @@ export async function addExpense(formData: FormData): Promise<void> {
       amount,
       paymentSource,
       description,
-      vendor,
+      invoiceType,
       businessDate,
       enteredById: user.id,
       shiftId: shift?.id ?? null,
+      lines: { create: lines },
     },
   });
 

@@ -316,6 +316,20 @@ model ExpenseCategory {
   isStock  Boolean   @default(false) // true = linked to stock deliveries
   isActive Boolean   @default(true)
   expenses Expense[]
+  items    ExpenseCategoryItem[]
+}
+
+model ExpenseCategoryItem {
+  id          String          @id @default(cuid())
+  categoryId  String
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  defaultUnit String?
+  isActive    Boolean         @default(true)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+
+  @@index([categoryId])
 }
 
 enum ExpenseSource {
@@ -337,16 +351,31 @@ model Expense {
   enteredBy     User            @relation(fields: [enteredById], references: [id])
   enteredById   String
   receiptUrl    String?
+  invoiceType   String?         // "STOCK" | "NON_STOCK" — null for legacy entries
   paidAt        DateTime?       // set by admin when BANK_TRANSFER expense is confirmed paid
   confirmedAt   DateTime?       // set by manager when expense receipt is verified
   confirmedById String?
   confirmedBy   User?           @relation("ExpenseConfirmer", fields: [confirmedById], references: [id])
   attachments   ExpenseAttachment[]
+  lines         ExpenseLine[]
   createdAt     DateTime        @default(now())
 
   @@index([businessDate])
   @@index([shiftId])
   @@index([confirmedAt])
+}
+
+model ExpenseLine {
+  id          String   @id @default(cuid())
+  expenseId   String
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  description String
+  unit        String?
+  qty         Float    @default(1)
+  price       Int
+  sortOrder   Int      @default(0)
+
+  @@index([expenseId])
 }
 
 model ExpenseAttachment {

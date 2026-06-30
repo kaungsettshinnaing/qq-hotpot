@@ -21,6 +21,7 @@ export default async function AdminCategoriesPage() {
               <tr className="border-b border-gray-100 text-xs text-gray-500">
                 <th className="px-4 py-2 text-left font-medium">{t("col_name")}</th>
                 <th className="px-4 py-2 text-center font-medium">{t("col_stock")}</th>
+                <th className="px-4 py-2 text-center font-medium">Items</th>
                 <th className="px-4 py-2 text-right font-medium">{t("col_visibility")}</th>
               </tr>
             </thead>
@@ -50,6 +51,13 @@ export default async function AdminCategoriesPage() {
                         {c.isStock ? t("col_stock_level") : t("label_non_stock")}
                       </button>
                     </form>
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    {c.isStock && (
+                      <a href={`/admin/categories/${c.id}`} className="text-xs text-blue-600 hover:underline">
+                        Configure
+                      </a>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <form action={toggleCategory} className="inline">
