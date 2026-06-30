@@ -33,8 +33,9 @@ export default async function ClockPage() {
     );
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
+  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
+  const today = new Date(Date.UTC(mmNow.getUTCFullYear(), mmNow.getUTCMonth(), mmNow.getUTCDate()));
   const att = await prisma.attendance.findUnique({
     where: { employeeId_date: { employeeId: emp.userId, date: today } },
     include: { breaks: { orderBy: { startAt: "asc" } } },
