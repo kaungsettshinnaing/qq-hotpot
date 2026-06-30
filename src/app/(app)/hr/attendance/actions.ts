@@ -10,17 +10,33 @@ export async function markAttendance(fd: FormData) {
   const employeeId = fd.get("employeeId") as string;
   const rawDate = fd.get("date") as string; // "YYYY-MM-DD"
   const [y, m, d] = rawDate.split("-").map(Number);
-  const dayStart = new Date(Date.UTC(y, m - 1, d));
-  const dayEnd = new Date(Date.UTC(y, m - 1, d + 1));
-  const date = dayStart;
+  const target = `${y}-${m}-${d}`;
+  // Store on the upsert path as UTC midnight of the chosen calendar day.
+  const date = new Date(Date.UTC(y, m - 1, d));
   const status = (fd.get("status") as string).trim();
   const note = (fd.get("note") as string | null) ?? "";
 
   if (!status) {
-    // Blank = clear attendance for this employee on this date (range to handle any stored time)
-    await prisma.attendance.deleteMany({
-      where: { employeeId, date: { gte: dayStart, lt: dayEnd } },
+    // Blank = clear attendance for this employee on this calendar day.
+    // Records may have been stored as UTC midnight (clock-in) OR local/Yangon midnight
+    // (older manual marks via setHours), which land on different UTC instants. Fetch a
+    // ±1-day window and match by either UTC-day or local-day interpretation, then delete.
+    const windowStart = new Date(Date.UTC(y, m - 1, d - 1));
+    const windowEnd = new Date(Date.UTC(y, m - 1, d + 2));
+    const candidates = await prisma.attendance.findMany({
+      where: { employeeId, date: { gte: windowStart, lt: windowEnd } },
+      select: { id: true, date: true },
     });
+    const ids = candidates
+      .filter((c) => {
+        const utcDay = `${c.date.getUTCFullYear()}-${c.date.getUTCMonth() + 1}-${c.date.getUTCDate()}`;
+        const locDay = `${c.date.getFullYear()}-${c.date.getMonth() + 1}-${c.date.getDate()}`;
+        return utcDay === target || locDay === target;
+      })
+      .map((c) => c.id);
+    if (ids.length) {
+      await prisma.attendance.deleteMany({ where: { id: { in: ids } } });
+    }
   } else {
     await prisma.attendance.upsert({
       where: { employeeId_date: { employeeId, date } },
