@@ -1,9 +1,11 @@
+import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { hrReviewLeave, hrMarkAbsence } from "./actions";
 import { getT } from "@/lib/lang";
 
 export default async function HRLeavePage() {
+  await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const now = new Date();
 

@@ -1,3 +1,4 @@
+import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { markAttendance, approveAttendance } from "./actions";
@@ -17,6 +18,7 @@ export default async function HRAttendancePage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const now = new Date();
   const sp = await searchParams;

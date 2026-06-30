@@ -285,7 +285,7 @@ async function AttendanceTab({ dayStr, start, end, approveAttendance, rejectAtte
   const t = await getT();
   const [allUnapproved, todayAttendances, allEmployees] = await Promise.all([
     prisma.attendance.findMany({
-      where: { isApproved: false, status: { not: "REST_DAY" } },
+      where: { isApproved: false, status: { not: "REST_DAY" }, date: start },
       include: { employee: { include: { user: { select: { name: true } } } } },
       orderBy: [{ date: "asc" }, { employee: { user: { name: "asc" } } }],
     }),

@@ -54,6 +54,12 @@ function fmtMins(mins: number) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+function fmtBreakSummary(count: number, mins: number) {
+  const countStr = count === 1 ? "1 break" : `${count} breaks`;
+  const timeStr = fmtMins(mins);
+  return timeStr ? `${countStr}; ${timeStr} total` : countStr;
+}
+
 export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) {
   useRoomRefresh("hr", ["attendance:update", "break:out", "break:in"]);
 
@@ -87,13 +93,12 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
               <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-500">
                 <span>In: <span className="font-medium text-gray-700">{fmtTime(e.clockInAt)}</span></span>
                 <span>Out: <span className="font-medium text-gray-700">{fmtTime(e.clockOutAt)}</span></span>
-                {e.currentBreakStartAt ? (
-                  <span className="text-yellow-700 font-medium">
-                    Break since {fmtTime(e.currentBreakStartAt)}
-                    {fmtMins(e.totalBreakMins) && ` (${fmtMins(e.totalBreakMins)} total)`}
+                {e.breakCount > 0 ? (
+                  <span className={e.currentBreakStartAt ? "text-yellow-700 font-medium" : "text-gray-500"}>
+                    {e.currentBreakStartAt
+                      ? `Break since ${fmtTime(e.currentBreakStartAt)} · ${fmtBreakSummary(e.breakCount, e.totalBreakMins)}`
+                      : fmtBreakSummary(e.breakCount, e.totalBreakMins)}
                   </span>
-                ) : fmtMins(e.totalBreakMins) ? (
-                  <span className="text-gray-500">Break: {fmtMins(e.totalBreakMins)}</span>
                 ) : null}
               </div>
             )}
@@ -130,15 +135,11 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
                 </td>
                 <td className="px-4 py-2.5 text-gray-600">{fmtTime(e.clockInAt)}</td>
                 <td className="px-4 py-2.5 text-xs">
-                  {e.currentBreakStartAt ? (
-                    <span className="font-medium text-yellow-700">
-                      Since {fmtTime(e.currentBreakStartAt)}
-                      {fmtMins(e.totalBreakMins) && (
-                        <span className="ml-1 text-yellow-600/80">· {fmtMins(e.totalBreakMins)} total</span>
-                      )}
+                  {e.breakCount > 0 ? (
+                    <span className={e.currentBreakStartAt ? "font-medium text-yellow-700" : "text-gray-600"}>
+                      {e.currentBreakStartAt && `Since ${fmtTime(e.currentBreakStartAt)} · `}
+                      {fmtBreakSummary(e.breakCount, e.totalBreakMins)}
                     </span>
-                  ) : fmtMins(e.totalBreakMins) ? (
-                    <span className="text-gray-600">{fmtMins(e.totalBreakMins)}</span>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}

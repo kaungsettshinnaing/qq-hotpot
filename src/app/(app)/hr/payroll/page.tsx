@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getT } from "@/lib/lang";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default async function PayrollListPage() {
+  await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const now = new Date();
 

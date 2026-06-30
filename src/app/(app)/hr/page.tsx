@@ -1,7 +1,13 @@
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getT } from "@/lib/lang";
 
 export default async function HRDashboard() {
+  const session = await getSession();
+  if (session && session.roles.includes("MANAGER") && !session.roles.some((r) => r === "HR" || r === "ADMIN")) {
+    redirect("/hr/advances");
+  }
   const t = await getT();
   const now = new Date();
   const month = now.getMonth() + 1;

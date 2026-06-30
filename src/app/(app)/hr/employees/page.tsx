@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import SubmitButton from "@/components/SubmitButton";
 import { ALL_ROLES } from "@/lib/rbac";
@@ -18,6 +19,7 @@ export default async function EmployeesPage({
 }: {
   searchParams: Promise<{ tab?: string; error?: string }>;
 }) {
+  await requireAnyRole(["HR", "ADMIN"]);
   const { tab = "active", error } = await searchParams;
   const t = await getT();
 
