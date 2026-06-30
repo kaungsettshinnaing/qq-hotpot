@@ -39,63 +39,74 @@ function fmtDate(d: Date) {
 export default async function AccountingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; year?: string; month?: string }>;
+  searchParams: Promise<{ tab?: string; from?: string; to?: string }>;
 }) {
   await requireAnyRole(["ADMIN"]);
   const t = await getT();
   const sp = await searchParams;
   const tab = sp.tab ?? "ar";
 
+  // Date range — default to current month
   const now = new Date();
-  const plYear  = parseInt(sp.year  ?? String(now.getFullYear()), 10);
-  const plMonth = parseInt(sp.month ?? String(now.getMonth() + 1), 10);
-  const plStart = new Date(plYear, plMonth - 1, 1);
-  const plEnd   = new Date(plYear, plMonth, 1);
+  const cy = now.getFullYear();
+  const cm = String(now.getMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(cy, now.getMonth() + 1, 0).getDate();
+  const defaultFrom = `${cy}-${cm}-01`;
+  const defaultTo   = `${cy}-${cm}-${String(lastDay).padStart(2, "0")}`;
 
-  // ── Shared summary counts ─────────────────────────────────────────────────
-  const [pendingPayments, reconciledPayments, accrualExpenses, confirmedPendingExpenses, paidExpenses] =
-    await Promise.all([
-      prisma.payment.findMany({
-        where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: null },
-        include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
-        orderBy: { receivedAt: "asc" },
-      }),
-      prisma.payment.findMany({
-        where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { not: null } },
-        include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
-        orderBy: { receivedAt: "asc" },
-      }),
-      prisma.expense.findMany({
-        where: { paymentSource: "BANK_TRANSFER", confirmedAt: null },
-        include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
-        orderBy: { createdAt: "asc" },
-      }),
-      prisma.expense.findMany({
-        where: { paymentSource: "BANK_TRANSFER", confirmedAt: { not: null }, paidAt: null },
-        include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
-        orderBy: { businessDate: "asc" },
-      }),
-      prisma.expense.findMany({
-        where: { paymentSource: "BANK_TRANSFER", paidAt: { not: null } },
-        include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
-        orderBy: { businessDate: "asc" },
-      }),
-    ]);
+  const fromStr = sp.from ?? defaultFrom;
+  const toStr   = sp.to   ?? defaultTo;
 
-  // ── P&L data ──────────────────────────────────────────────────────────────
-  const [plPayments, plExpenses] = tab === "pl"
-    ? await Promise.all([
-        prisma.payment.findMany({
-          where: { receivedAt: { gte: plStart, lt: plEnd } },
+  const rangeStart = new Date(fromStr + "T00:00:00.000Z");
+  const rangeEnd   = new Date(toStr + "T00:00:00.000Z");
+  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1); // exclusive end
+
+  // ── Summary card queries (always unfiltered — show current outstanding) ────
+  const [pendingPayments, accrualExpenses, confirmedPendingExpenses] = await Promise.all([
+    prisma.payment.findMany({
+      where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: null },
+      include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
+      orderBy: { receivedAt: "asc" },
+    }),
+    prisma.expense.findMany({
+      where: { paymentSource: "BANK_TRANSFER", confirmedAt: null },
+      include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.expense.findMany({
+      where: { paymentSource: "BANK_TRANSFER", confirmedAt: { not: null }, paidAt: null },
+      include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
+      orderBy: { businessDate: "asc" },
+    }),
+  ]);
+
+  // ── Date-filtered queries (history sections + P&L) ────────────────────────
+  const [reconciledPayments, paidExpenses, plPayments, plExpenses] = await Promise.all([
+    prisma.payment.findMany({
+      where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd } },
+      include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
+      orderBy: { receivedAt: "desc" },
+    }),
+    prisma.expense.findMany({
+      where: { paymentSource: "BANK_TRANSFER", paidAt: { gte: rangeStart, lt: rangeEnd } },
+      include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
+      orderBy: { businessDate: "desc" },
+    }),
+    tab === "pl"
+      ? prisma.payment.findMany({
+          where: { receivedAt: { gte: rangeStart, lt: rangeEnd } },
           select: { amount: true, method: true },
-        }),
-        prisma.expense.findMany({
-          where: { businessDate: { gte: plStart, lt: plEnd } },
+        })
+      : Promise.resolve([]),
+    tab === "pl"
+      ? prisma.expense.findMany({
+          where: { businessDate: { gte: rangeStart, lt: rangeEnd } },
           include: { category: { select: { name: true } } },
-        }),
-      ])
-    : [[], []];
+        })
+      : Promise.resolve([]),
+  ]);
 
+  // ── P&L aggregation ───────────────────────────────────────────────────────
   const revenue = {
     cash:  plPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0),
     kbz:   plPayments.filter((p) => p.method === "KBZPAY").reduce((s, p) => s + p.amount, 0),
@@ -114,9 +125,9 @@ export default async function AccountingPage({
   const totalExpenses = plExpenses.reduce((s, e) => s + e.amount, 0);
   const netPL = totalRevenue - totalExpenses;
 
-  const pendingARTotal    = pendingPayments.reduce((s, p) => s + p.amount, 0);
-  const accrualTotal      = accrualExpenses.reduce((s, e) => s + e.amount, 0);
-  const confirmedAPTotal  = confirmedPendingExpenses.reduce((s, e) => s + e.amount, 0);
+  const pendingARTotal   = pendingPayments.reduce((s, p) => s + p.amount, 0);
+  const accrualTotal     = accrualExpenses.reduce((s, e) => s + e.amount, 0);
+  const confirmedAPTotal = confirmedPendingExpenses.reduce((s, e) => s + e.amount, 0);
 
   const tabs = [
     { key: "ar", label: t("tab_ar") },
@@ -128,7 +139,7 @@ export default async function AccountingPage({
     <div className="space-y-5 px-4 py-6 max-w-3xl mx-auto">
       <h1 className="text-xl font-bold text-gray-900">{t("heading_accounting")}</h1>
 
-      {/* Summary cards */}
+      {/* Summary cards — always show current outstanding */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <p className="text-xs text-gray-500">{t("stat_pending_receivable")}</p>
@@ -152,7 +163,7 @@ export default async function AccountingPage({
         {tabs.map((tb) => (
           <a
             key={tb.key}
-            href={`/accounting?tab=${tb.key}${tb.key === "pl" ? `&year=${plYear}&month=${plMonth}` : ""}`}
+            href={`/accounting?tab=${tb.key}&from=${fromStr}&to=${toStr}`}
             className={
               "px-4 py-2 text-sm font-medium border-b-2 transition-colors " +
               (tab === tb.key
@@ -174,6 +185,37 @@ export default async function AccountingPage({
           </a>
         ))}
       </div>
+
+      {/* Date range filter — applies to AR history, AP history, and P&L */}
+      <form method="GET" action="/accounting" className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="tab" value={tab} />
+        <span className="text-xs font-medium text-gray-500">Date range</span>
+        <input
+          type="date"
+          name="from"
+          defaultValue={fromStr}
+          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
+        />
+        <span className="text-xs text-gray-400">→</span>
+        <input
+          type="date"
+          name="to"
+          defaultValue={toStr}
+          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
+        />
+        <button
+          type="submit"
+          className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark active:scale-95 transition"
+        >
+          Apply
+        </button>
+        <a
+          href={`/accounting?tab=${tab}&from=${defaultFrom}&to=${defaultTo}`}
+          className="text-xs text-gray-400 hover:text-gray-600"
+        >
+          This month
+        </a>
+      </form>
 
       {/* ── Accounts Receivable ── */}
       {tab === "ar" && (
@@ -212,11 +254,15 @@ export default async function AccountingPage({
             <p className="py-4 text-center text-sm text-gray-400">{t("msg_no_pending_ar")}</p>
           )}
 
-          {reconciledPayments.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                {t("section_reconciled_history")} ({reconciledPayments.length})
-              </h2>
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              {t("section_reconciled_history")} ({reconciledPayments.length})
+            </h2>
+            {reconciledPayments.length === 0 ? (
+              <p className="rounded-xl border bg-white px-4 py-4 text-center text-sm text-gray-400">
+                No reconciled payments in this period.
+              </p>
+            ) : (
               <div className="rounded-xl border bg-white divide-y overflow-hidden">
                 {reconciledPayments.map((p) => (
                   <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -240,8 +286,8 @@ export default async function AccountingPage({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
@@ -309,11 +355,15 @@ export default async function AccountingPage({
             )}
           </div>
 
-          {paidExpenses.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                {t("section_ap_history")} ({paidExpenses.length})
-              </h2>
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              {t("section_ap_history")} ({paidExpenses.length})
+            </h2>
+            {paidExpenses.length === 0 ? (
+              <p className="rounded-xl border bg-white px-4 py-4 text-center text-sm text-gray-400">
+                No paid expenses in this period.
+              </p>
+            ) : (
               <div className="rounded-xl border bg-white divide-y overflow-hidden">
                 {paidExpenses.map((e) => (
                   <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -333,32 +383,14 @@ export default async function AccountingPage({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
       {/* ── P&L ── */}
       {tab === "pl" && (
         <div className="space-y-5">
-          <div className="flex items-center gap-2">
-            <a
-              href={`/accounting?tab=pl&year=${plMonth === 1 ? plYear - 1 : plYear}&month=${plMonth === 1 ? 12 : plMonth - 1}`}
-              className="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              ←
-            </a>
-            <span className="font-semibold">
-              {plStart.toLocaleDateString([], { month: "long", year: "numeric" })}
-            </span>
-            <a
-              href={`/accounting?tab=pl&year=${plMonth === 12 ? plYear + 1 : plYear}&month=${plMonth === 12 ? 1 : plMonth + 1}`}
-              className="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              →
-            </a>
-          </div>
-
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-green-700">{t("section_revenue")}</h2>
             <div className="space-y-1.5 text-sm">
