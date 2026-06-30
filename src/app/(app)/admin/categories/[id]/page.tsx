@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
@@ -202,9 +203,9 @@ export default async function CategoryItemsPage({
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center gap-3">
-        <a href="/admin/categories" className="text-sm text-brand hover:underline">
+        <Link href="/admin/categories" className="text-sm text-brand hover:underline">
           ← Expense Categories
-        </a>
+        </Link>
         <h2 className="text-base font-semibold text-gray-800">
           {category.name} — Items
         </h2>
