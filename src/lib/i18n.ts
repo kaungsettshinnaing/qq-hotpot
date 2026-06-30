@@ -96,6 +96,8 @@ const dict: Record<string, { en: string; my: string }> = {
   btn_cancel_table:             { en: "Cancel table",                      my: "စားပွဲဖျက်ရန်" },
   select_merge_table:           { en: "Merge table…",                      my: "စားပွဲပေါင်းရန်…" },
   btn_merge:                    { en: "+ Merge",                            my: "+ ပေါင်းရန်" },
+  select_change_table:          { en: "Move to table…",                    my: "စားပွဲပြောင်းရန်…" },
+  btn_change_table:             { en: "Change Table",                      my: "စားပွဲပြောင်းရန်" },
   section_pots_sent:            { en: "Pots sent to kitchen",              my: "မီးဖိုချောင်သို့ ပို့ပြီးသော ဟင်းရည်အိုး" },
   empty_no_pots:                { en: "No pots yet.",                      my: "ဟင်းရည်အိုး မရှိသေးပါ" },
   pot_kind_hotpot:              { en: "🍲 Hotpot",                         my: "🍲 ဟော့ပေါ့" },

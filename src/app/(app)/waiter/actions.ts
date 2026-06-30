@@ -249,3 +249,21 @@ export async function unmergeTable(formData: FormData): Promise<void> {
   revalidatePath(`/waiter/session/${merge.sessionId}`);
   revalidatePath("/waiter");
 }
+
+export async function changeTable(formData: FormData): Promise<void> {
+  await requireAnyRole(WAITER_ROLES);
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const newTableId = String(formData.get("tableId") ?? "");
+  if (!sessionId || !newTableId) return;
+
+  const session = await prisma.tableSession.findUnique({ where: { id: sessionId } });
+  if (!session || session.status !== "OPEN") redirect("/waiter");
+
+  const oldTableId = session.tableId;
+  await prisma.tableSession.update({ where: { id: sessionId }, data: { tableId: newTableId } });
+  emitFloor("table:update", { tableId: oldTableId });
+  emitFloor("table:update", { tableId: newTableId });
+  revalidatePath(`/waiter/session/${sessionId}`);
+  revalidatePath("/waiter");
+  redirect(`/waiter/session/${sessionId}`);
+}

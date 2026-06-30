@@ -7,7 +7,7 @@ import { formatTime } from "@/lib/format";
 import BillSummary from "@/components/BillSummary";
 import LiveRefresh from "@/components/LiveRefresh";
 import SessionControls from "./SessionControls";
-import { voidPot, cancelSession, mergeTable, unmergeTable } from "../../actions";
+import { voidPot, cancelSession, mergeTable, unmergeTable, changeTable } from "../../actions";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +93,7 @@ export default async function SessionPage({
         )}
       </div>
 
-      {/* Merge controls */}
+      {/* Merge + Change Table controls */}
       <div className="flex flex-wrap items-center gap-2">
         {merges.map((m) => (
           <form key={m.id} action={unmergeTable} className="flex items-center gap-1">
@@ -117,6 +117,20 @@ export default async function SessionPage({
             </select>
             <button type="submit" className="rounded-lg bg-violet-600 px-3 py-1 text-xs font-semibold text-white hover:bg-violet-700">
               {t("btn_merge")}
+            </button>
+          </form>
+        )}
+        {availableTables.length > 0 && (
+          <form action={changeTable} className="flex items-center gap-2">
+            <input type="hidden" name="sessionId" value={session.id} />
+            <select name="tableId" className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:border-brand focus:outline-none">
+              <option value="">{t("select_change_table")}</option>
+              {availableTables.map((tbl) => (
+                <option key={tbl.id} value={tbl.id}>{tbl.label}</option>
+              ))}
+            </select>
+            <button type="submit" className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700">
+              {t("btn_change_table")}
             </button>
           </form>
         )}
