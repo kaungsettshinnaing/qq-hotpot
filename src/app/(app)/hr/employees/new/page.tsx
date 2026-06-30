@@ -136,7 +136,7 @@ export default async function NewEmployeePage({
         </div>
         <div className="flex gap-2 pt-2">
           <button type="submit" className="btn-brand">{t("btn_create_employee")}</button>
-          <a href="/hr/employees" className="btn-outline">{t("btn_cancel")}</a>
+          <Link href="/hr/employees" className="btn-outline">{t("btn_cancel")}</Link>
         </div>
       </form>
     </div>

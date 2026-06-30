@@ -87,7 +87,7 @@ export default async function ManagerLeavePage() {
                   <span className="ml-2 text-sm text-gray-500">
                     {formatDate(r.startDate)} – {formatDate(r.endDate)}
                   </span>
-                  {r.reason && <p className="mt-1 text-sm text-gray-600">"{r.reason}"</p>}
+                  {r.reason && <p className="mt-1 text-sm text-gray-600">&ldquo;{r.reason}&rdquo;</p>}
                 </div>
                 <div className="flex gap-2">
                   <form action={reviewLeave}>
