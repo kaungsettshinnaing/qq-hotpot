@@ -27,9 +27,9 @@ export default async function HRAttendancePage({
   const month = parseInt(sp.month ?? String(mmNow.getUTCMonth() + 1));
   const year = parseInt(sp.year ?? String(mmNow.getUTCFullYear()));
 
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month, 0).getDate();
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 1));
+  const daysInMonth = new Date(Date.UTC(year, month, 1) - 1).getUTCDate();
 
   const [employees, pending] = await Promise.all([
     prisma.employee.findMany({
@@ -93,7 +93,7 @@ export default async function HRAttendancePage({
           </thead>
           <tbody className="divide-y">
             {employees.map((emp) => {
-              const attMap = new Map(emp.attendances.map((a) => [a.date.getDate(), a]));
+              const attMap = new Map(emp.attendances.map((a) => [a.date.getUTCDate(), a]));
               return (
                 <tr key={emp.userId}>
                   <td className="sticky left-0 bg-white px-3 py-1.5 font-medium whitespace-nowrap">{emp.user.name}</td>
