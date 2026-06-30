@@ -5,19 +5,21 @@ import { createStockIn } from "./actions";
 import SubmitButton from "@/components/SubmitButton";
 
 interface StockItem {
-  id: string;
+  id: string;          // StockItem.id — used as FK in delivery/movement records
   name: string;
-  unit: string;
-  categoryId: string | null;
+  unit: string;        // StockUnit enum value
+  unitLabel: string | null; // free-text label for display (defaultUnit)
+  categoryId: string;
+  categoryName: string;
 }
 
-interface StockCategory {
+interface Category {
   id: string;
   name: string;
 }
 
-const UNIT_LABEL: Record<string, string> = {
-  UNIT: "Unit", GRAM: "g", KG: "kg", LITRE: "L", BOX: "Box", BOTTLE: "Btl", PACK: "Pack",
+const UNIT_ABBR: Record<string, string> = {
+  UNIT: "unit", GRAM: "g", KG: "kg", LITRE: "L", BOX: "box", BOTTLE: "btl", PACK: "pack",
 };
 
 interface Row {
@@ -36,7 +38,7 @@ export default function StockInForm({
   categories,
   items,
 }: {
-  categories: StockCategory[];
+  categories: Category[];
   items: StockItem[];
 }) {
   const [rows, setRows] = useState<Row[]>([newRow()]);
@@ -49,19 +51,15 @@ export default function StockInForm({
 
   function handleItemChange(key: string, itemId: string) {
     const item = items.find((i) => i.id === itemId);
-    setRows((prev) => prev.map((r) =>
-      r.key === key ? { ...r, itemId, unit: UNIT_LABEL[item?.unit ?? ""] ?? item?.unit ?? "" } : r
-    ));
+    const unit = item?.unitLabel ?? UNIT_ABBR[item?.unit ?? ""] ?? item?.unit ?? "";
+    setRows((prev) => prev.map((r) => r.key === key ? { ...r, itemId, unit } : r));
   }
 
   function updateRow(key: string, field: keyof Omit<Row, "key">, value: string) {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
   }
 
-  function addRow() {
-    setRows((prev) => [...prev, newRow()]);
-  }
-
+  function addRow() { setRows((prev) => [...prev, newRow()]); }
   function removeRow(key: string) {
     if (rows.length > 1) setRows((prev) => prev.filter((r) => r.key !== key));
   }
@@ -96,9 +94,7 @@ export default function StockInForm({
                   <span className="text-xs font-medium text-gray-500">Item {i + 1}</span>
                   {rows.length > 1 && (
                     <button type="button" onClick={() => removeRow(row.key)}
-                      className="text-xs text-red-400 hover:text-red-600">
-                      Remove
-                    </button>
+                      className="text-xs text-red-400 hover:text-red-600">Remove</button>
                   )}
                 </div>
 
@@ -106,64 +102,44 @@ export default function StockInForm({
                   {/* Category */}
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-gray-400">Category *</label>
-                    <select
-                      name="categoryId"
-                      value={row.categoryId}
+                    <select value={row.categoryId}
                       onChange={(e) => handleCategoryChange(row.key, e.target.value)}
                       required
-                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
-                    >
+                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm">
                       <option value="">— Select —</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
+                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
 
                   {/* Item */}
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-gray-400">Item *</label>
-                    <select
-                      name="itemId"
-                      value={row.itemId}
+                    <select name="itemId" value={row.itemId}
                       onChange={(e) => handleItemChange(row.key, e.target.value)}
                       required
                       disabled={!row.categoryId}
-                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
-                    >
+                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400">
                       <option value="">{row.categoryId ? "— Select item —" : "Select category first"}</option>
-                      {catItems.map((it) => (
-                        <option key={it.id} value={it.id}>{it.name}</option>
-                      ))}
+                      {catItems.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
                     </select>
                   </div>
 
-                  {/* Unit (auto-filled, display only) */}
+                  {/* Unit (auto-filled, editable) */}
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-gray-400">Unit</label>
-                    <input
-                      name="unit"
-                      value={row.unit}
+                    <input name="unit" value={row.unit}
                       onChange={(e) => updateRow(row.key, "unit", e.target.value)}
                       placeholder="kg / box"
-                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
-                    />
+                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm" />
                   </div>
 
-                  {/* Measurement (qty) */}
+                  {/* Measurement */}
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-gray-400">Measurement *</label>
-                    <input
-                      name="qty"
-                      value={row.qty}
+                    <input name="qty" value={row.qty}
                       onChange={(e) => updateRow(row.key, "qty", e.target.value)}
-                      type="number"
-                      min="0.01"
-                      step="any"
-                      required
-                      placeholder="0"
-                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
-                    />
+                      type="number" min="0.01" step="any" required placeholder="0"
+                      className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm" />
                   </div>
                 </div>
               </div>

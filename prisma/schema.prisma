@@ -320,14 +320,19 @@ model ExpenseCategory {
 }
 
 model ExpenseCategoryItem {
-  id          String          @id @default(cuid())
-  categoryId  String
-  category    ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name        String
-  defaultUnit String?
-  isActive    Boolean         @default(true)
-  sortOrder   Int             @default(0)
-  createdAt   DateTime        @default(now())
+  id           String          @id @default(cuid())
+  categoryId   String
+  category     ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String
+  defaultUnit  String?         // free-text unit shown in expense form dropdown
+  isActive     Boolean         @default(true)
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  // Inventory tracking (populated when category.isStock = true)
+  stockUnit    StockUnit?      // enum unit for inventory records
+  minStock     Int?            // low-stock alert threshold
+  optimalStock Int?            // target stock level
+  stockItemId  String?         @unique // auto-linked StockItem for delivery/movement FKs
 
   @@index([categoryId])
 }

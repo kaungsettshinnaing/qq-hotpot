@@ -36,13 +36,6 @@ export default async function AdminHome() {
       color: "hover:border-yellow-400",
     },
     {
-      href: "/admin/stock-items",
-      icon: "📦",
-      label: t("admin_card_stock_items_label"),
-      desc: t("admin_card_stock_items_desc"),
-      color: "hover:border-blue-400",
-    },
-    {
       href: "/admin/suppliers",
       icon: "🚚",
       label: t("admin_card_suppliers_label"),

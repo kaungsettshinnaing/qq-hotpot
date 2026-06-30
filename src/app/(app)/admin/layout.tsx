@@ -13,9 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/menu",        label: t("admin_card_menu_label") },
     { href: "/admin/flavours",    label: t("admin_card_flavours_label") },
     { href: "/admin/categories",  label: t("admin_card_expense_categories_label") },
-    { href: "/admin/stock-categories", label: t("admin_card_stock_categories_label") },
-    { href: "/admin/stock-items",      label: t("admin_card_stock_items_label") },
-    { href: "/admin/suppliers",        label: t("admin_card_suppliers_label") },
+    { href: "/admin/suppliers",   label: t("admin_card_suppliers_label") },
     { href: "/admin/roles",       label: t("admin_card_roles_label") },
     { href: "/admin/hr-fields",   label: t("admin_card_employee_fields_label") },
   ];
