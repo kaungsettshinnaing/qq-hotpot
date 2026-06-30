@@ -974,6 +974,8 @@ const dict: Record<string, { en: string; my: string }> = {
   col_unit_label:              { en: "Unit",                               my: "ယူနစ်" },
 
   // ── Daily report ────────────────────────────────────────────────────────────
+  tab_daily_summary:           { en: "Daily Summary",                      my: "နေ့စဉ်အကျဉ်းချုပ်" },
+  heading_daily_summary:       { en: "Daily Summary",                      my: "နေ့စဉ်အကျဉ်းချုပ်" },
   tab_daily_report:            { en: "Daily Report",                       my: "နေ့စဉ်အစီရင်ခံစာ" },
   heading_daily_report:        { en: "Daily Report",                       my: "နေ့စဉ်အစီရင်ခံစာ" },
   placeholder_daily_report:    { en: "Write a summary of today — operations, incidents, staff feedback, anything worth noting…", my: "ယနေ့ဖြစ်ပျက်ခဲ့သမျှကို မှတ်တမ်းတင်ပါ…" },

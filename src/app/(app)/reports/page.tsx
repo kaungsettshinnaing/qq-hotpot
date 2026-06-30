@@ -115,11 +115,12 @@ export default async function ReportsPage({
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
   const tabs = [
-    { key: "cash",         label: t("tab_cash_review") },
-    { key: "attendance",   label: t("tab_attendance") },
-    { key: "inventory",    label: t("tab_inventory_review") },
-    { key: "expenses",     label: t("tab_expenses") },
-    { key: "daily-report", label: t("tab_daily_report") },
+    { key: "cash",          label: t("tab_cash_review") },
+    { key: "attendance",    label: t("tab_attendance") },
+    { key: "inventory",     label: t("tab_inventory_review") },
+    { key: "expenses",      label: t("tab_expenses") },
+    { key: "daily-report",  label: t("tab_daily_report") },
+    { key: "daily-summary", label: t("tab_daily_summary") },
   ];
 
   return (
@@ -158,8 +159,9 @@ export default async function ReportsPage({
         />
       )}
       {tab === "inventory"    && <InventoryTab start={start} end={end} />}
-      {tab === "expenses"     && <ExpensesTab confirmExpense={confirmExpense} />}
-      {tab === "daily-report" && <DailyReportTab dayStr={dayStr} submitDailyReport={submitDailyReport} />}
+      {tab === "expenses"       && <ExpensesTab confirmExpense={confirmExpense} />}
+      {tab === "daily-report"  && <DailyReportTab dayStr={dayStr} submitDailyReport={submitDailyReport} />}
+      {tab === "daily-summary" && <DailySummaryTab dayStr={dayStr} start={start} end={end} c={c} settings={settings} />}
     </div>
   );
 }
@@ -799,6 +801,203 @@ async function DailyReportTab({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+async function DailySummaryTab({
+  dayStr, start, end, c, settings,
+}: {
+  dayStr: string; start: Date; end: Date; c: string;
+  settings: Awaited<ReturnType<typeof getSettings>>;
+}) {
+  const t = await getT();
+  const date = new Date(`${dayStr}T00:00:00`);
+  const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+
+  const startMM = new Date(`${dayStr}T00:00:00+06:30`);
+  const endMM   = new Date(startMM.getTime() + 24 * 60 * 60 * 1000);
+
+  const [payments, closedSessions, expenses, attendances, dailyReports] = await Promise.all([
+    prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
+    prisma.tableSession.findMany({
+      where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
+      select: {
+        adults: true, children: true, billTotal: true,
+        payments: { select: { method: true, amount: true } },
+        potOrders: { where: { voidedAt: null }, select: { id: true } },
+      },
+    }),
+    prisma.expense.findMany({
+      where: { businessDate: { gte: start, lt: end } },
+      include: { category: { select: { name: true } } },
+    }),
+    prisma.attendance.findMany({
+      where: {
+        OR: [
+          { clockInAt: { gte: startMM, lt: endMM } },
+          { clockInAt: null as null, date: start },
+        ],
+      },
+      include: { employee: { include: { user: { select: { name: true } } } } },
+    }),
+    prisma.dailyReport.findMany({
+      where: { date: { gte: date, lt: nextDay } },
+      include: { createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+
+  const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
+  const grossCash = sum(payments.filter((p) => p.method === "CASH"));
+  const kbz       = sum(payments.filter((p) => p.method === "KBZPAY"));
+  const other      = sum(payments.filter((p) => p.method === "OTHER"));
+
+  let cashChange = 0;
+  for (const s of closedSessions) {
+    if (s.payments.some((p) => p.method === "CASH")) {
+      const totalPaid = s.payments.reduce((acc, p) => acc + p.amount, 0);
+      cashChange += Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+    }
+  }
+  const cash = grossCash - cashChange;
+  const totalSales = cash + kbz + other;
+
+  const adults   = closedSessions.reduce((s, x) => s + x.adults, 0);
+  const children = closedSessions.reduce((s, x) => s + x.children, 0);
+  let totalPots = 0, paidPots = 0;
+  for (const s of closedSessions) {
+    const total = s.potOrders.length;
+    totalPots += total;
+    paidPots += Math.max(0, total - freePotsAllowed(s.adults + s.children, settings.freePotRatio, settings.freePotRounding));
+  }
+
+  const totalExpenses = sum(expenses);
+  const cashExpenses  = sum(expenses.filter((e) => e.paymentSource === "CASH_DRAWER"));
+  const netCash       = cash - cashExpenses;
+
+  const presentCount = attendances.filter((a) => ["PRESENT", "OT"].includes(a.status)).length;
+  const absentCount  = attendances.filter((a) => a.status === "ABSENT").length;
+  const leaveCount   = attendances.filter((a) => a.status === "LEAVE").length;
+  const otCount      = attendances.filter((a) => a.status === "OT").length;
+
+  function fmtTime(d: Date) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+
+  return (
+    <div className="space-y-5">
+      {/* Key metrics */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label={t("stat_total_sales")} value={formatMoney(totalSales, c)} accent />
+        <Stat label={t("stat_bills_settled")} value={String(closedSessions.length)} />
+        <Stat label={t("stat_covers")} value={`${adults} / ${children}`} />
+        <Stat label={t("stat_pots")} value={`${paidPots} / ${totalPots}`} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Sales breakdown */}
+        <section className="rounded-xl bg-white p-4 shadow-sm">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_sales_by_method")}</h3>
+          <dl className="space-y-1 text-sm">
+            <Row label={t("row_cash")} value={formatMoney(cash, c)} />
+            <Row label={t("row_kbzpay")} value={formatMoney(kbz, c)} />
+            <Row label={t("row_other")} value={formatMoney(other, c)} />
+            <div className="flex justify-between border-t border-gray-200 pt-1 font-bold">
+              <span>{t("row_total")}</span>
+              <span className="tabular-nums">{formatMoney(totalSales, c)}</span>
+            </div>
+            <div className="flex justify-between border-t border-gray-100 pt-1 text-xs text-gray-500">
+              <span>{t("row_net_cash_movement")}</span>
+              <span className="tabular-nums">{formatMoney(netCash, c)}</span>
+            </div>
+          </dl>
+        </section>
+
+        {/* Expenses */}
+        <section className="rounded-xl bg-white p-4 shadow-sm">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">
+            {t("section_expenses")} ({expenses.length})
+          </h3>
+          {expenses.length === 0 ? (
+            <p className="text-sm text-gray-400">{t("empty_no_expenses")}</p>
+          ) : (
+            <>
+              <ul className="divide-y divide-gray-100 text-sm">
+                {expenses.map((e) => (
+                  <li key={e.id} className="flex items-center justify-between py-1.5">
+                    <span className="truncate text-gray-700 max-w-[60%]">{e.description}
+                      <span className="ml-1 text-xs text-gray-400">({e.category.name})</span>
+                    </span>
+                    <span className="tabular-nums font-medium">{formatMoney(e.amount, c)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-1.5 flex justify-between border-t border-gray-200 pt-1.5 text-sm font-bold">
+                <span>{t("row_total")}</span>
+                <span className="tabular-nums text-red-600">{formatMoney(totalExpenses, c)}</span>
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* Attendance */}
+        <section className="rounded-xl bg-white p-4 shadow-sm">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("tab_attendance")}</h3>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-lg bg-green-50 px-3 py-2 text-center">
+              <div className="text-xl font-bold text-green-700">{presentCount}</div>
+              <div className="text-xs text-green-600">Present</div>
+            </div>
+            <div className="rounded-lg bg-purple-50 px-3 py-2 text-center">
+              <div className="text-xl font-bold text-purple-700">{otCount}</div>
+              <div className="text-xs text-purple-600">OT</div>
+            </div>
+            <div className="rounded-lg bg-blue-50 px-3 py-2 text-center">
+              <div className="text-xl font-bold text-blue-700">{leaveCount}</div>
+              <div className="text-xs text-blue-600">Leave</div>
+            </div>
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-center">
+              <div className="text-xl font-bold text-red-600">{absentCount}</div>
+              <div className="text-xs text-red-500">Absent</div>
+            </div>
+          </div>
+          {attendances.filter((a) => ["PRESENT", "OT"].includes(a.status)).length > 0 && (
+            <ul className="mt-3 divide-y divide-gray-100 text-xs text-gray-600">
+              {attendances
+                .filter((a) => ["PRESENT", "OT"].includes(a.status))
+                .sort((a, b) => (a.employee.user.name > b.employee.user.name ? 1 : -1))
+                .map((a) => (
+                  <li key={a.id} className="flex justify-between py-1">
+                    <span>{a.employee.user.name}</span>
+                    <span className="text-gray-400">{fmtTime(a.clockInAt!)} – {a.clockOutAt ? fmtTime(a.clockOutAt) : "—"}</span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      {/* Manager daily reports */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-gray-700">
+          {t("heading_daily_report")} ({dailyReports.length})
+        </h3>
+        {dailyReports.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("empty_no_daily_reports")}</p>
+        ) : (
+          <div className="space-y-3">
+            {dailyReports.map((r) => (
+              <div key={r.id} className="rounded-xl border border-brand/20 bg-brand/5 px-4 py-3">
+                <div className="mb-1.5 flex items-center gap-2 text-xs text-gray-500">
+                  <span className="font-semibold text-gray-700">{r.createdBy.name}</span>
+                  <span>·</span>
+                  <span>{fmtTime(r.createdAt)}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">{r.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
