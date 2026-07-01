@@ -237,29 +237,20 @@ export default async function CategoryItemsPage({
               placeholder="Default unit in expense form (e.g. kg, box)"
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
             {category.isStock && (
-              <>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Inventory Unit</label>
-                  <select name="stockUnit" defaultValue={editing.stockUnit ?? "UNIT"}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                    {UNITS.map((u) => <option key={u} value={u}>{UNIT_LABEL[u]}</option>)}
-                  </select>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Min Stock</label>
+                  <input name="minStock" type="number" min="0" defaultValue={editing.minStock ?? ""}
+                    placeholder="—"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-500">Min Stock</label>
-                    <input name="minStock" type="number" min="0" defaultValue={editing.minStock ?? ""}
-                      placeholder="—"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-500">Optimal Stock</label>
-                    <input name="optimalStock" type="number" min="0" defaultValue={editing.optimalStock ?? ""}
-                      placeholder="—"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
-                  </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Optimal Stock</label>
+                  <input name="optimalStock" type="number" min="0" defaultValue={editing.optimalStock ?? ""}
+                    placeholder="—"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
                 </div>
-              </>
+              </div>
             )}
             <div className="flex gap-2">
               <SubmitButton className="flex-1 rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
@@ -357,27 +348,18 @@ export default async function CategoryItemsPage({
             placeholder="Default unit in expense form (e.g. kg, box)"
             className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           {category.isStock && (
-            <>
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">Inventory Unit</label>
-                <select name="stockUnit" defaultValue="UNIT"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                  {UNITS.map((u) => <option key={u} value={u}>{UNIT_LABEL[u]}</option>)}
-                </select>
+                <label className="mb-1 block text-xs font-medium text-gray-500">Min Stock (alert)</label>
+                <input name="minStock" type="number" min="0" placeholder="—"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Min Stock (alert)</label>
-                  <input name="minStock" type="number" min="0" placeholder="—"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Optimal Stock</label>
-                  <input name="optimalStock" type="number" min="0" placeholder="—"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
-                </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">Optimal Stock</label>
+                <input name="optimalStock" type="number" min="0" placeholder="—"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
               </div>
-            </>
+            </div>
           )}
           <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
             Add Item

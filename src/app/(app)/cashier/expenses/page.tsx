@@ -54,7 +54,7 @@ export default async function ExpensesPage() {
         <h1 className="text-xl font-bold">{t("heading_expenses")}</h1>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="rounded-xl bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_record_expense")}</h3>
           <ExpenseForm
@@ -64,7 +64,7 @@ export default async function ExpensesPage() {
           />
         </section>
 
-        <section className="lg:col-span-2">
+        <section>
           <div className="mb-3 grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-white p-4 shadow-sm">
               <div className="text-xs uppercase text-gray-400">{t("label_cash_drawer_today")}</div>

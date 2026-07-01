@@ -169,59 +169,50 @@ export default function ExpenseForm({
         </div>
 
         <div className="space-y-2">
-          {rows.map((row, i) => (
-            <div key={row.key} className="grid grid-cols-12 gap-1.5 items-end">
-              {/* Description */}
-              <div className={invoiceType === "STOCK" ? "col-span-5" : "col-span-5"}>
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Description *</div>}
-                {invoiceType === "STOCK" && categoryId ? (
-                  <select
-                    name="lineDesc"
-                    value={row.description}
-                    onChange={(e) => handleItemSelect(row.key, e.target.value)}
-                    required
-                    className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
-                  >
-                    <option value="">— Select item —</option>
-                    {items.map((item) => (
-                      <option key={item.id} value={item.name}>{item.name}</option>
-                    ))}
-                  </select>
-                ) : invoiceType === "STOCK" && !categoryId ? (
-                  <input
-                    name="lineDesc"
-                    value=""
-                    readOnly
-                    placeholder="Select category first"
-                    className="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-400"
-                  />
-                ) : (
-                  <input
-                    name="lineDesc"
-                    value={row.description}
-                    onChange={(e) => updateRow(row.key, "description", e.target.value)}
-                    placeholder="Item name"
-                    required
-                    className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
-                  />
-                )}
-              </div>
+          {rows.map((row) => (
+            <div key={row.key} className="rounded-lg border border-gray-200 bg-gray-50 p-2 space-y-1.5">
+              {/* Row 1: Description */}
+              {invoiceType === "STOCK" && categoryId ? (
+                <select
+                  name="lineDesc"
+                  value={row.description}
+                  onChange={(e) => handleItemSelect(row.key, e.target.value)}
+                  required
+                  className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
+                >
+                  <option value="">— Select item —</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.name}>{item.name}</option>
+                  ))}
+                </select>
+              ) : invoiceType === "STOCK" && !categoryId ? (
+                <input
+                  name="lineDesc"
+                  value=""
+                  readOnly
+                  placeholder="Select category first"
+                  className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-400"
+                />
+              ) : (
+                <input
+                  name="lineDesc"
+                  value={row.description}
+                  onChange={(e) => updateRow(row.key, "description", e.target.value)}
+                  placeholder="Description *"
+                  required
+                  className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
+                />
+              )}
 
-              {/* Unit */}
-              <div className="col-span-2">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Unit</div>}
+              {/* Row 2: Unit · Qty · Price · Remove */}
+              <div className="flex gap-1.5 items-center">
                 <input
                   name="lineUnit"
                   value={row.unit}
                   onChange={(e) => updateRow(row.key, "unit", e.target.value)}
-                  placeholder="kg/box"
-                  className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                  placeholder="Unit"
+                  className="w-20 rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
                 />
-              </div>
-
-              {/* Qty */}
-              <div className="col-span-2">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Measurement</div>}
                 <input
                   name="lineQty"
                   value={row.qty}
@@ -229,35 +220,25 @@ export default function ExpenseForm({
                   type="number"
                   min="0"
                   step="any"
-                  placeholder="1"
+                  placeholder="Qty"
                   required
-                  className="w-full rounded border border-gray-200 px-2 py-1.5 text-center text-sm"
+                  className="w-16 rounded border border-gray-200 bg-white px-2 py-1.5 text-center text-sm"
                 />
-              </div>
-
-              {/* Price (total for this line) */}
-              <div className="col-span-2">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Price ({currency})</div>}
                 <input
                   name="linePrice"
                   value={row.price}
                   onChange={(e) => updateRow(row.key, "price", e.target.value)}
                   type="number"
                   min="0"
-                  placeholder="0"
+                  placeholder={`Price (${currency})`}
                   required
-                  className="w-full rounded border border-gray-200 px-2 py-1.5 text-right text-sm"
+                  className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1.5 text-right text-sm"
                 />
-              </div>
-
-              {/* Remove */}
-              <div className="col-span-1 flex justify-center">
-                {i === 0 && <div className="mb-1 text-[10px] text-gray-400">&nbsp;</div>}
                 <button
                   type="button"
                   onClick={() => removeRow(row.key)}
                   disabled={rows.length === 1}
-                  className="pb-0.5 text-lg leading-none text-red-400 hover:text-red-600 disabled:text-gray-200"
+                  className="text-lg leading-none text-red-400 hover:text-red-600 disabled:text-gray-200"
                 >
                   ×
                 </button>
