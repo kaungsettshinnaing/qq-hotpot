@@ -198,7 +198,11 @@ export async function addExpense(formData: FormData): Promise<void> {
   const description = lines.map((l) => l.description).join(", ").slice(0, 300);
   const businessDate = new Date();
 
-  const shift = paymentSource === "CASH_DRAWER" ? await getOpenShift(user.id) : null;
+  let shiftId: string | null = null;
+  if (paymentSource === "CASH_DRAWER") {
+    const userShift = await getOpenShift(user.id);
+    shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
+  }
   const expense = await prisma.expense.create({
     data: {
       categoryId,
@@ -208,7 +212,7 @@ export async function addExpense(formData: FormData): Promise<void> {
       invoiceType,
       businessDate,
       enteredById: user.id,
-      shiftId: shift?.id ?? null,
+      shiftId,
       lines: { create: lines },
     },
   });
