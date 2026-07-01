@@ -333,6 +333,7 @@ model ExpenseCategoryItem {
   minStock     Int?            // low-stock alert threshold
   optimalStock Int?            // target stock level
   stockItemId  String?         @unique // auto-linked StockItem for delivery/movement FKs
+  imageUrl     String?         // optional verification photo (relative path under uploads/)
 
   @@index([categoryId])
 }

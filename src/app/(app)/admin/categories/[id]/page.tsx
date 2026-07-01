@@ -5,6 +5,26 @@ import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
 import SubmitButton from "@/components/SubmitButton";
 import type { StockUnit } from "@prisma/client";
+import { mkdirSync, writeFileSync, existsSync, unlinkSync } from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
+
+const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+const ALLOWED_IMG_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic"]);
+
+async function saveItemImage(file: File, existing?: string | null): Promise<string> {
+  const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const ext = ALLOWED_IMG_EXTS.has(rawExt) ? rawExt : "jpg";
+  const dir = path.join(UPLOAD_DIR, "stock-items");
+  mkdirSync(dir, { recursive: true });
+  const filename = `${randomUUID()}.${ext}`;
+  writeFileSync(path.join(dir, filename), Buffer.from(await file.arrayBuffer()));
+  if (existing) {
+    const old = path.join(UPLOAD_DIR, existing);
+    if (existsSync(old)) unlinkSync(old);
+  }
+  return `stock-items/${filename}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -82,8 +102,11 @@ async function addItem(fd: FormData) {
   const minStock  = category.isStock ? optInt(fd.get("minStock"))  : null;
   const optStock  = category.isStock ? optInt(fd.get("optimalStock")) : null;
 
+  const imageFile = fd.get("image") as File | null;
+  const imageUrl = imageFile && imageFile.size > 0 ? await saveItemImage(imageFile) : null;
+
   const item = await prisma.expenseCategoryItem.create({
-    data: { categoryId, name, defaultUnit, stockUnit, minStock, optimalStock: optStock },
+    data: { categoryId, name, defaultUnit, stockUnit, minStock, optimalStock: optStock, ...(imageUrl ? { imageUrl } : {}) },
   });
 
   if (category.isStock) {
@@ -118,9 +141,15 @@ async function updateItem(fd: FormData) {
   const minStock  = category.isStock ? optInt(fd.get("minStock"))  : null;
   const optStock  = category.isStock ? optInt(fd.get("optimalStock")) : null;
 
+  const imageFile = fd.get("image") as File | null;
+  const existing = await prisma.expenseCategoryItem.findUnique({ where: { id }, select: { imageUrl: true } });
+  const imageUrl = imageFile && imageFile.size > 0
+    ? await saveItemImage(imageFile, existing?.imageUrl)
+    : undefined;
+
   await prisma.expenseCategoryItem.update({
     where: { id },
-    data: { name, defaultUnit, stockUnit, minStock, optimalStock: optStock },
+    data: { name, defaultUnit, stockUnit, minStock, optimalStock: optStock, ...(imageUrl !== undefined ? { imageUrl } : {}) },
   });
 
   if (category.isStock) {
@@ -227,7 +256,7 @@ export default async function CategoryItemsPage({
       {editing && (
         <section className="rounded-xl bg-white p-4 shadow-sm border border-blue-100">
           <h3 className="mb-3 text-sm font-semibold text-gray-700">Edit: {editing.name}</h3>
-          <form action={updateItem} className="space-y-2 text-sm">
+          <form action={updateItem} className="space-y-2 text-sm" encType="multipart/form-data">
             <input type="hidden" name="id" value={editing.id} />
             <input type="hidden" name="categoryId" value={id} />
             <input name="name" required defaultValue={editing.name}
@@ -236,6 +265,15 @@ export default async function CategoryItemsPage({
             <input name="defaultUnit" defaultValue={editing.defaultUnit ?? ""}
               placeholder="Default unit in expense form (e.g. kg, box)"
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Item Image (optional)</label>
+              {editing.imageUrl && (
+                <img src={`/api/uploads/${editing.imageUrl}`} alt={editing.name}
+                  className="mb-1.5 h-20 w-20 rounded-lg border object-cover" />
+              )}
+              <input name="image" type="file" accept="image/*"
+                className="w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-brand" />
+            </div>
             {category.isStock && (
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -340,13 +378,18 @@ export default async function CategoryItemsPage({
       {/* Add new item */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-gray-700">Add Item</h3>
-        <form action={addItem} className="space-y-2 text-sm">
+        <form action={addItem} className="space-y-2 text-sm" encType="multipart/form-data">
           <input type="hidden" name="categoryId" value={id} />
           <input name="name" required placeholder="Item name (e.g. Pork Belly)"
             className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           <input name="defaultUnit"
             placeholder="Default unit in expense form (e.g. kg, box)"
             className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Item Image (optional)</label>
+            <input name="image" type="file" accept="image/*"
+              className="w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-brand" />
+          </div>
           {category.isStock && (
             <div className="grid grid-cols-2 gap-2">
               <div>

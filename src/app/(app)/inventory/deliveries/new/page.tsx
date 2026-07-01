@@ -13,19 +13,20 @@ export default async function NewDeliveryPage() {
       items: {
         where: { isActive: true, stockItemId: { not: null } },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        select: { id: true, name: true, defaultUnit: true, stockUnit: true, stockItemId: true },
+        select: { id: true, name: true, defaultUnit: true, stockUnit: true, stockItemId: true, imageUrl: true },
       },
     },
   });
 
   const items = stockCategories.flatMap((cat) =>
     cat.items.map((i) => ({
-      id: i.stockItemId!,  // inventory FK uses stockItemId
+      id: i.stockItemId!,
       name: i.name,
       unit: i.stockUnit ?? "UNIT",
       unitLabel: i.defaultUnit ?? null,
       categoryId: cat.id,
       categoryName: cat.name,
+      imageUrl: i.imageUrl ?? null,
     }))
   );
 

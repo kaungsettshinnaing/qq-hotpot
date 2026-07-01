@@ -11,6 +11,7 @@ interface StockItem {
   unitLabel: string | null; // free-text label for display (defaultUnit)
   categoryId: string;
   categoryName: string;
+  imageUrl: string | null;
 }
 
 interface Category {
@@ -97,6 +98,18 @@ export default function StockInForm({
                       className="text-xs text-red-400 hover:text-red-600">Remove</button>
                   )}
                 </div>
+
+                {/* Item image preview */}
+                {row.itemId && (() => {
+                  const img = items.find((it) => it.id === row.itemId)?.imageUrl;
+                  return img ? (
+                    <img
+                      src={`/api/uploads/${img}`}
+                      alt="stock item"
+                      className="h-28 w-full rounded-lg border object-contain bg-gray-100"
+                    />
+                  ) : null;
+                })()}
 
                 <div className="grid grid-cols-2 gap-2">
                   {/* Category */}
