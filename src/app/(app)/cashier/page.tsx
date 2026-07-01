@@ -23,6 +23,7 @@ export default async function CashierHome({
   const c = settings.currency;
   const t = await getT();
 
+  const isManager = user.roles.includes("MANAGER") || user.roles.includes("ADMIN");
   const shift = await getOpenShift(user.id);
   const totals = shift
     ? await computeShiftTotals(shift.id, shift.openingFloat, { openedAt: shift.openedAt, closedAt: null })
@@ -30,6 +31,9 @@ export default async function CashierHome({
   const anyOpen = shift ? null : await getAnyOpenShift();
   const otherShift = anyOpen?.cashierId !== user.id ? anyOpen : null;
   const standingFloat = (!shift && !otherShift) ? await getCashStanding() : null;
+  const otherTotals = (otherShift && isManager)
+    ? await computeShiftTotals(otherShift.id, otherShift.openingFloat, { openedAt: otherShift.openedAt, closedAt: null })
+    : null;
 
   const openSessions = await prisma.tableSession.findMany({
     where: { status: "OPEN" },
@@ -47,17 +51,35 @@ export default async function CashierHome({
       <LiveRefresh room="floor" events={["table:update"]} seconds={10} />
 
       {!shift && otherShift && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 space-y-1">
-          <p className="text-sm font-bold text-red-800">{t("shift_handover_title")}</p>
-          <p className="text-sm text-red-700">
-            {t("shift_handover_body", {
-              name: otherShift.cashier.name,
-              time: otherShift.openedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            })}
-          </p>
-          <p className="text-xs text-red-500">{t("shift_handover_hint")}</p>
-          {error === "shift-blocked" && (
-            <p className="mt-1 text-xs font-semibold text-red-700">{t("shift_blocked_error")}</p>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 space-y-1">
+            <p className="text-sm font-bold text-red-800">{t("shift_handover_title")}</p>
+            <p className="text-sm text-red-700">
+              {t("shift_handover_body", {
+                name: otherShift.cashier.name,
+                time: otherShift.openedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              })}
+            </p>
+            <p className="text-xs text-red-500">{t("shift_handover_hint")}</p>
+            {error === "shift-blocked" && (
+              <p className="mt-1 text-xs font-semibold text-red-700">{t("shift_blocked_error")}</p>
+            )}
+          </div>
+          {otherTotals && (
+            <section className="rounded-xl bg-white p-4 shadow-sm">
+              <h3 className="mb-3 text-sm font-semibold text-gray-700">
+                Cash Standing — {otherShift.cashier.name}&apos;s shift
+              </h3>
+              <div className="space-y-1.5 text-sm">
+                <CashRow label={t("row_start_balance")} value={formatMoney(otherShift.openingFloat, c)} />
+                <CashRow label={t("row_cash_sales")} value={formatMoney(otherTotals.cashSales, c)} positive />
+                <CashRow label={t("row_cash_expenses")} value={formatMoney(otherTotals.cashExpenses, c)} negative />
+                <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-bold">
+                  <span>{t("row_expected_in_drawer")}</span>
+                  <span className="tabular-nums text-brand">{formatMoney(otherTotals.expected, c)}</span>
+                </div>
+              </div>
+            </section>
           )}
         </div>
       )}

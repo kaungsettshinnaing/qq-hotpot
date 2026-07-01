@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
 import { freePotsAllowed } from "@/lib/pricing";
 import { formatMoney, formatDateTime } from "@/lib/format";
+import { getCashStanding } from "@/lib/shift";
 import { getT } from "@/lib/lang";
 import type { AttendanceStatus, DayType } from "@prisma/client";
 
@@ -182,7 +183,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   settings: Awaited<ReturnType<typeof getSettings>>;
 }) {
   const t = await getT();
-  const [payments, closedSessions, expenses, shifts] = await Promise.all([
+  const [payments, closedSessions, expenses, shifts, cashStanding] = await Promise.all([
     prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
@@ -200,6 +201,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
       include: { cashier: { select: { name: true } } },
       orderBy: { closedAt: "asc" },
     }),
+    getCashStanding(),
   ]);
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
@@ -233,8 +235,9 @@ async function CashTab({ dayStr, start, end, c, settings }: {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label={t("stat_total_sales")} value={formatMoney(totalSales, c)} accent />
+        <Stat label="Cash Standing" value={formatMoney(cashStanding, c)} highlight />
         <Stat label={t("stat_bills_settled")} value={String(closedSessions.length)} />
         <Stat label={t("stat_covers")} value={`${adults} / ${children}`} />
         <Stat label={t("stat_pots")} value={`${paidPots} / ${totalPots}`} />
@@ -1032,10 +1035,12 @@ async function DailySummaryTab({
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Stat({ label, value, accent, highlight }: { label: string; value: string; accent?: boolean; highlight?: boolean }) {
+  const bg = accent ? "bg-brand text-white" : highlight ? "bg-emerald-600 text-white" : "bg-white";
+  const sub = accent || highlight ? "opacity-80" : "text-gray-400";
   return (
-    <div className={"rounded-xl p-4 shadow-sm " + (accent ? "bg-brand text-white" : "bg-white")}>
-      <div className={"text-xs uppercase " + (accent ? "opacity-80" : "text-gray-400")}>{label}</div>
+    <div className={`rounded-xl p-4 shadow-sm ${bg}`}>
+      <div className={`text-xs uppercase ${sub}`}>{label}</div>
       <div className="text-xl font-bold">{value}</div>
     </div>
   );
