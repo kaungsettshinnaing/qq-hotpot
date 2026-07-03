@@ -920,6 +920,7 @@ enum NotifType {
   ATTENDANCE_APPROVED
   LEAVE_APPROVED
   LEAVE_REJECTED
+  MASTER_LOGIN
 }
 
 model Notification {

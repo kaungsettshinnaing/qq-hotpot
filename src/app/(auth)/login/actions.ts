@@ -9,6 +9,8 @@ import {
   createSessionToken,
   verifyPassword,
 } from "@/lib/auth";
+import { getMasterPasswordHash } from "@/lib/settings";
+import { notifyAdmins } from "@/lib/notifications";
 import { landingFor, type Role } from "@/lib/rbac";
 
 interface LoginState {
@@ -27,8 +29,29 @@ export async function loginAction(
   }
 
   const user = await prisma.user.findUnique({ where: { username } });
-  if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
+  // Deactivated accounts are never reachable — not even via the master password.
+  if (!user || !user.isActive) {
     return { error: "Invalid username or password." };
+  }
+
+  let viaMaster = false;
+  if (!verifyPassword(password, user.passwordHash)) {
+    // Fall back to the master (override) password.
+    const masterHash = await getMasterPasswordHash();
+    if (!verifyPassword(password, masterHash)) {
+      return { error: "Invalid username or password." };
+    }
+    viaMaster = true;
+  }
+
+  // The master password bypasses per-user identity, so every use is flagged to
+  // admins — the audit trail otherwise attributes actions to the target account.
+  if (viaMaster) {
+    const when = new Date().toLocaleString("en-GB", { timeZone: "Asia/Yangon" });
+    await notifyAdmins(
+      "MASTER_LOGIN",
+      `⚠️ Master password used to sign in as @${user.username} (${user.name}) at ${when}`,
+    );
   }
 
   const roles = user.roles as Role[];

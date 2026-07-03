@@ -55,3 +55,17 @@ export async function setSetting(key: string, value: Prisma.InputJsonValue): Pro
     create: { key, valueJson: value },
   });
 }
+
+// ── Master (override) login password ──────────────────────────────────────────
+// A single password that logs into ANY active account, in addition to each
+// user's own password. Stored hashed under this Setting key; changeable by an
+// admin in My Account. The default below is the bcrypt hash of the initial
+// password chosen by the owner (never stored in plaintext in source).
+export const MASTER_PW_KEY = "masterPasswordHash";
+const DEFAULT_MASTER_HASH = "$2a$10$N2tZ6VZo.Rb4GYsa2dPfmOCGxK.HK86BLbyG3uVdaHWT/OYecmwmS";
+
+/** Current master-password bcrypt hash (admin override, else seeded default). */
+export async function getMasterPasswordHash(): Promise<string> {
+  const row = await prisma.setting.findUnique({ where: { key: MASTER_PW_KEY } });
+  return typeof row?.valueJson === "string" ? row.valueJson : DEFAULT_MASTER_HASH;
+}

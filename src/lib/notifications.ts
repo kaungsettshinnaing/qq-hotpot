@@ -29,3 +29,14 @@ export async function notifyManagers(type: NotifType, message: string, relatedId
     managers.map((m) => createNotification(m.id, type, message, relatedId)),
   );
 }
+
+/** Notify all ADMIN users (e.g. security-sensitive events). */
+export async function notifyAdmins(type: NotifType, message: string, relatedId?: string) {
+  const admins = await prisma.user.findMany({
+    where: { isActive: true, roles: { has: "ADMIN" } },
+    select: { id: true },
+  });
+  await Promise.all(
+    admins.map((a) => createNotification(a.id, type, message, relatedId)),
+  );
+}
