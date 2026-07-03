@@ -844,10 +844,14 @@ async function DailySummaryTab({
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
       select: {
-        adults: true, children: true, billTotal: true,
+        id: true, adults: true, children: true, billTotal: true,
+        openedAt: true, closedAt: true,
+        table: { select: { label: true } },
+        mergedTables: { select: { table: { select: { label: true } } } },
         payments: { select: { method: true, amount: true } },
         potOrders: { where: { voidedAt: null }, select: { id: true } },
       },
+      orderBy: { openedAt: "asc" },
     }),
     prisma.expense.findMany({
       where: { businessDate: { gte: start, lt: end } },
@@ -1024,6 +1028,52 @@ async function DailySummaryTab({
           )}
         </section>
       </div>
+
+      {/* Movements — every table settled today */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">Movements ({closedSessions.length})</h3>
+        {closedSessions.length === 0 ? (
+          <p className="text-sm text-gray-400">No tables settled on this day.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-left text-xs uppercase text-gray-400">
+                <tr>
+                  <th className="px-2 py-1.5">Table</th>
+                  <th className="px-2 py-1.5 text-center">Diners (A / C)</th>
+                  <th className="px-2 py-1.5 text-right">Revenue</th>
+                  <th className="px-2 py-1.5 text-right">Start</th>
+                  <th className="px-2 py-1.5 text-right">End</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {closedSessions.map((s) => (
+                  <tr key={s.id}>
+                    <td className="px-2 py-1.5 font-medium">
+                      {[s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + ")}
+                    </td>
+                    <td className="px-2 py-1.5 text-center tabular-nums">{s.adults} / {s.children}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(s.billTotal ?? 0, c)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtTime(s.openedAt)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{s.closedAt ? fmtTime(s.closedAt) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t font-bold">
+                  <td className="px-2 py-1.5">Total</td>
+                  <td className="px-2 py-1.5 text-center tabular-nums">{adults} / {children}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {formatMoney(closedSessions.reduce((acc, x) => acc + (x.billTotal ?? 0), 0), c)}
+                  </td>
+                  <td className="px-2 py-1.5" />
+                  <td className="px-2 py-1.5" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* Discounts given */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
