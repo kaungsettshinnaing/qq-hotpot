@@ -9,6 +9,7 @@ import { getCashStanding } from "@/lib/shift";
 import { getSessionDetail } from "@/lib/orders";
 import { mmToday, mmDayRange, mmDateUTC } from "@/lib/business-day";
 import { confirmExpense } from "../manager/inventory/actions";
+import MovementsTable from "./MovementsTable";
 import { getT } from "@/lib/lang";
 import type { AttendanceStatus, DayType } from "@prisma/client";
 
@@ -839,15 +840,17 @@ async function DailySummaryTab({
 }) {
   const t = await getT();
 
-  const [payments, closedSessions, expenses, attendances, dailyReports, discountedSessions] = await Promise.all([
+  const [payments, closedSessions, expenses, attendances, dailyReports] = await Promise.all([
     prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
       select: {
         id: true, adults: true, children: true, billTotal: true,
         openedAt: true, closedAt: true,
+        discountType: true, discountValue: true, discountReason: true,
         table: { select: { label: true } },
         mergedTables: { select: { table: { select: { label: true } } } },
+        closedBy: { select: { name: true } },
         payments: { select: { method: true, amount: true } },
         potOrders: { where: { voidedAt: null }, select: { id: true } },
       },
@@ -871,25 +874,40 @@ async function DailySummaryTab({
       include: { createdBy: { select: { name: true } } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.tableSession.findMany({
-      where: { status: "CLOSED", closedAt: { gte: start, lt: end }, NOT: { discountType: null } },
-      select: {
-        id: true, closedAt: true, discountType: true, discountValue: true, discountReason: true,
-        table: { select: { label: true } },
-        closedBy: { select: { name: true } },
-      },
-      orderBy: { closedAt: "asc" },
-    }),
   ]);
 
-  // Recompute each discounted bill to get the discount in currency terms
-  const discountRows = await Promise.all(
-    discountedSessions.map(async (s) => {
-      const detail = await getSessionDetail(s.id);
-      return { ...s, discountAmount: detail?.bill.discount ?? 0 };
+  // Bill line items aren't stored — recompute each settled bill for the
+  // Movements breakdown, and reuse it for the discount figures below.
+  const movementRows = await Promise.all(
+    closedSessions.map(async (s) => {
+      const bill = (await getSessionDetail(s.id))?.bill ?? null;
+      return {
+        id: s.id,
+        tableLabel: [s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + "),
+        adults: s.adults,
+        children: s.children,
+        revenue: s.billTotal ?? bill?.total ?? 0,
+        start: fmtTime(s.openedAt),
+        end: s.closedAt ? fmtTime(s.closedAt) : "—",
+        lines: (bill?.lines ?? []).map((l) => ({
+          label: l.label, qty: l.qty, unitLabel: l.unitLabel, unitPrice: l.unitPrice, amount: l.amount,
+        })),
+        subtotal: bill?.subtotal ?? 0,
+        discount: bill?.discount ?? 0,
+        serviceCharge: bill?.serviceCharge ?? 0,
+        tax: bill?.tax ?? 0,
+        total: bill?.total ?? (s.billTotal ?? 0),
+        discountType: s.discountType,
+        discountValue: s.discountValue,
+        discountReason: s.discountReason,
+        closedByName: s.closedBy?.name ?? null,
+      };
     }),
   );
-  const totalDiscounts = discountRows.reduce((s, d) => s + d.discountAmount, 0);
+  const movementsRevenue = movementRows.reduce((acc, r) => acc + r.revenue, 0);
+
+  const discountRows = movementRows.filter((r) => r.discount > 0);
+  const totalDiscounts = discountRows.reduce((s, d) => s + d.discount, 0);
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
   const grossCash = sum(payments.filter((p) => p.method === "CASH"));
@@ -1029,50 +1047,19 @@ async function DailySummaryTab({
         </section>
       </div>
 
-      {/* Movements — every table settled today */}
+      {/* Movements — every table settled today (click a row for the bill breakdown) */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-sm font-semibold text-gray-700">Movements ({closedSessions.length})</h3>
-        {closedSessions.length === 0 ? (
-          <p className="text-sm text-gray-400">No tables settled on this day.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b text-left text-xs uppercase text-gray-400">
-                <tr>
-                  <th className="px-2 py-1.5">Table</th>
-                  <th className="px-2 py-1.5 text-center">Diners (A / C)</th>
-                  <th className="px-2 py-1.5 text-right">Revenue</th>
-                  <th className="px-2 py-1.5 text-right">Start</th>
-                  <th className="px-2 py-1.5 text-right">End</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {closedSessions.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-2 py-1.5 font-medium">
-                      {[s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + ")}
-                    </td>
-                    <td className="px-2 py-1.5 text-center tabular-nums">{s.adults} / {s.children}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(s.billTotal ?? 0, c)}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtTime(s.openedAt)}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{s.closedAt ? fmtTime(s.closedAt) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t font-bold">
-                  <td className="px-2 py-1.5">Total</td>
-                  <td className="px-2 py-1.5 text-center tabular-nums">{adults} / {children}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
-                    {formatMoney(closedSessions.reduce((acc, x) => acc + (x.billTotal ?? 0), 0), c)}
-                  </td>
-                  <td className="px-2 py-1.5" />
-                  <td className="px-2 py-1.5" />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-700">Movements ({movementRows.length})</h3>
+          <span className="text-xs text-gray-400">Tap a table for its bill breakdown</span>
+        </div>
+        <MovementsTable
+          rows={movementRows}
+          currency={c}
+          totalAdults={adults}
+          totalChildren={children}
+          totalRevenue={movementsRevenue}
+        />
       </section>
 
       {/* Discounts given */}
@@ -1086,16 +1073,16 @@ async function DailySummaryTab({
               {discountRows.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
                   <span className="min-w-0">
-                    <span className="font-medium">{d.table.label}</span>
+                    <span className="font-medium">{d.tableLabel}</span>
                     <span className="ml-2 text-xs text-gray-400">
-                      {d.closedAt ? fmtTime(d.closedAt) : "—"} · {d.closedBy?.name ?? "—"}
+                      {d.end} · {d.closedByName ?? "—"}
                     </span>
                     {d.discountReason && (
                       <span className="block truncate text-xs text-gray-500">&ldquo;{d.discountReason}&rdquo;</span>
                     )}
                   </span>
                   <span className="flex-shrink-0 text-right font-semibold tabular-nums text-red-600">
-                    −{formatMoney(d.discountAmount, c)}
+                    −{formatMoney(d.discount, c)}
                     {d.discountType === "PERCENT" && (
                       <span className="ml-1 text-xs font-normal text-gray-400">({d.discountValue}%)</span>
                     )}
