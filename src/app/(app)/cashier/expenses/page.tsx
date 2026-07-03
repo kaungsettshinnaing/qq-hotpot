@@ -3,6 +3,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/format";
+import { mmToday, mmDayRange } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 import ExpenseForm from "./ExpenseForm";
 import ExpenseList from "./ExpenseList";
@@ -14,8 +15,7 @@ export default async function ExpensesPage() {
   const settings = await getSettings();
   const t = await getT();
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDay = mmDayRange(mmToday()).start;
 
   const [allCategories, stockCategories, expenses] = await Promise.all([
     prisma.expenseCategory.findMany({

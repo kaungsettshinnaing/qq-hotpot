@@ -5,12 +5,11 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { emitHR } from "@/lib/realtime";
 import { notifyManagers } from "@/lib/notifications";
+import { mmTodayUTC } from "@/lib/business-day";
 
 /** Returns UTC midnight of the current date in Myanmar time (UTC+6:30). */
 function todayDate() {
-  const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
-  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
-  return new Date(Date.UTC(mmNow.getUTCFullYear(), mmNow.getUTCMonth(), mmNow.getUTCDate()));
+  return mmTodayUTC();
 }
 
 async function getOrCreateAttendance(employeeId: string) {

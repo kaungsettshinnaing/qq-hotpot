@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { computeAllStockLevels } from "@/lib/inventory";
+import { mmNow, mmDayRange } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,9 @@ export default async function InventoryReportsPage({
   const t = await getT();
 
   const lookbackMonths = Math.min(Math.max(parseInt(months ?? "3", 10), 1), 12);
-  const since = new Date();
-  since.setMonth(since.getMonth() - lookbackMonths);
-  since.setDate(1);
-  since.setHours(0, 0, 0, 0);
+  const nowMM = mmNow();
+  const firstOfMonth = new Date(Date.UTC(nowMM.getUTCFullYear(), nowMM.getUTCMonth() - lookbackMonths, 1));
+  const since = mmDayRange(firstOfMonth.toISOString().slice(0, 10)).start;
 
   const [suppliers, stockItems, stockMap] = await Promise.all([
     prisma.supplier.findMany({

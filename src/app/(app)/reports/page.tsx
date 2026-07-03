@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 import { freePotsAllowed } from "@/lib/pricing";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { getCashStanding } from "@/lib/shift";
+import { getSessionDetail } from "@/lib/orders";
+import { mmToday, mmDayRange, mmDateUTC } from "@/lib/business-day";
+import { confirmExpense } from "../manager/inventory/actions";
 import { getT } from "@/lib/lang";
 import type { AttendanceStatus, DayType } from "@prisma/client";
 
@@ -15,23 +18,11 @@ async function submitDailyReport(fd: FormData) {
   const content = (fd.get("content") as string ?? "").trim();
   if (!content) return;
   const dayStr = fd.get("date") as string;
-  const date = new Date(`${dayStr}T00:00:00`);
+  const date = mmDayRange(dayStr).start;
   await prisma.dailyReport.create({
     data: { date, content, createdById: session.id },
   });
   revalidatePath("/reports");
-}
-
-async function confirmExpense(fd: FormData) {
-  "use server";
-  const session = await requireAnyRole(["MANAGER", "ADMIN"]);
-  const id = fd.get("id") as string;
-  await prisma.expense.update({
-    where: { id },
-    data: { confirmedAt: new Date(), confirmedById: session.id },
-  });
-  revalidatePath("/reports");
-  revalidatePath("/accounting");
 }
 
 export const dynamic = "force-dynamic";
@@ -62,7 +53,7 @@ async function markAbsent(fd: FormData) {
   const session = await requireAnyRole(["MANAGER", "ADMIN"]);
   const employeeId = fd.get("employeeId") as string;
   const dateStr = fd.get("date") as string;
-  const date = new Date(`${dateStr}T00:00:00`);
+  const date = mmDateUTC(dateStr);
   await prisma.attendance.upsert({
     where: { employeeId_date: { employeeId, date } },
     update: { status: "ABSENT", isApproved: true, approvedById: session.id },
@@ -89,8 +80,6 @@ async function deleteClockIn(fd: FormData) {
   revalidatePath("/reports");
 }
 
-function pad(n: number) { return String(n).padStart(2, "0"); }
-function dayString(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function fmt(d: Date | null) {
   if (!d) return "—";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -120,10 +109,9 @@ export default async function ReportsPage({
   const t = await getT();
 
   const { tab = "cash", date } = await searchParams;
-  const today = dayString(new Date());
+  const today = mmToday();
   const dayStr = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : today;
-  const start = new Date(`${dayStr}T00:00:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const { start, end } = mmDayRange(dayStr);
 
   const tabs = [
     { key: "cash",          label: t("tab_cash_review") },
@@ -164,7 +152,6 @@ export default async function ReportsPage({
           deleteClockOut={deleteClockOut}
           deleteClockIn={deleteClockIn}
           dayStr={dayStr}
-          start={start}
           approveAttendance={approveAttendance}
           rejectAttendance={rejectAttendance}
           markAbsent={markAbsent}
@@ -183,6 +170,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   settings: Awaited<ReturnType<typeof getSettings>>;
 }) {
   const t = await getT();
+  const isToday = dayStr === mmToday();
   const [payments, closedSessions, expenses, shifts, cashStanding] = await Promise.all([
     prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
     prisma.tableSession.findMany({
@@ -201,7 +189,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
       include: { cashier: { select: { name: true } } },
       orderBy: { closedAt: "asc" },
     }),
-    getCashStanding(),
+    isToday ? getCashStanding() : Promise.resolve(null),
   ]);
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
@@ -235,9 +223,11 @@ async function CashTab({ dayStr, start, end, c, settings }: {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className={"grid grid-cols-2 gap-3 " + (cashStanding !== null ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
         <Stat label={t("stat_total_sales")} value={formatMoney(totalSales, c)} accent />
-        <Stat label="Cash Standing" value={formatMoney(cashStanding, c)} highlight />
+        {cashStanding !== null && (
+          <Stat label="Cash Standing" value={formatMoney(cashStanding, c)} highlight />
+        )}
         <Stat label={t("stat_bills_settled")} value={String(closedSessions.length)} />
         <Stat label={t("stat_covers")} value={`${adults} / ${children}`} />
         <Stat label={t("stat_pots")} value={`${paidPots} / ${totalPots}`} />
@@ -299,16 +289,21 @@ async function CashTab({ dayStr, start, end, c, settings }: {
         ) : (
           <ul className="divide-y divide-gray-100 text-sm">
             {shifts.map((s) => (
-              <li key={s.id} className="flex items-center justify-between py-1.5">
+              <li key={s.id} className="flex items-center justify-between gap-2 py-1.5">
                 <span>
                   {s.cashier.name}
                   <span className="ml-2 text-xs text-gray-400">
                     {formatDateTime(s.openedAt)} → {s.closedAt ? formatDateTime(s.closedAt) : "—"}
                   </span>
                 </span>
-                <span className={"font-semibold tabular-nums " +
-                  ((s.variance ?? 0) < 0 ? "text-red-600" : (s.variance ?? 0) > 0 ? "text-amber-600" : "text-emerald-600")}>
-                  {formatMoney(s.variance ?? 0, c)}
+                <span className="flex-shrink-0 text-right">
+                  <span className="block text-[11px] text-gray-400 tabular-nums">
+                    Counted {formatMoney(s.countedCash ?? 0, c)} · Expected {formatMoney(s.expectedCash ?? 0, c)}
+                  </span>
+                  <span className={"block text-xs font-semibold tabular-nums " +
+                    ((s.variance ?? 0) < 0 ? "text-red-600" : (s.variance ?? 0) > 0 ? "text-amber-600" : "text-emerald-600")}>
+                    Variance {(s.variance ?? 0) > 0 ? "+" : ""}{formatMoney(s.variance ?? 0, c)}
+                  </span>
                 </span>
               </li>
             ))}
@@ -319,8 +314,8 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   );
 }
 
-async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendance, markAbsent, deleteClockOut, deleteClockIn }: {
-  dayStr: string; start: Date;
+async function AttendanceTab({ dayStr, approveAttendance, rejectAttendance, markAbsent, deleteClockOut, deleteClockIn }: {
+  dayStr: string;
   approveAttendance: (fd: FormData) => Promise<void>;
   rejectAttendance: (fd: FormData) => Promise<void>;
   markAbsent: (fd: FormData) => Promise<void>;
@@ -330,12 +325,11 @@ async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendanc
   const t = await getT();
   // Filter by clockInAt within the Myanmar calendar day (UTC+6:30).
   // Falls back to the stored date field for records without a clock-in (ABSENT, LEAVE).
-  const startMM = new Date(`${dayStr}T00:00:00+06:30`);
-  const endMM = new Date(startMM.getTime() + 24 * 60 * 60 * 1000);
+  const { start: startMM, end: endMM } = mmDayRange(dayStr);
   const attWhere = {
     OR: [
       { clockInAt: { gte: startMM, lt: endMM } },
-      { clockInAt: null as null, date: start },
+      { clockInAt: null as null, date: mmDateUTC(dayStr) },
     ],
     status: { not: "REST_DAY" as const },
   };
@@ -358,13 +352,13 @@ async function AttendanceTab({ dayStr, start, approveAttendance, rejectAttendanc
     }),
   ]);
 
-  const dayOfWeek = start.getDay();
+  const dayOfWeek = mmDateUTC(dayStr).getUTCDay();
   const attendedIds = new Set(todayAttendances.map((a) => a.employeeId));
   const unapproved = allUnapproved;
   const approved = todayAttendances.filter((a) => a.isApproved);
   const unrecorded = allEmployees.filter((e) => !attendedIds.has(e.userId) && !e.restDays.includes(dayOfWeek));
   const onRestToday = allEmployees.filter((e) => !attendedIds.has(e.userId) && e.restDays.includes(dayOfWeek));
-  const isToday = dayStr === (() => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; })();
+  const isToday = dayStr === mmToday();
 
   return (
     <div className="space-y-5">
@@ -677,7 +671,7 @@ async function ExpensesTab({ confirmExpense }: {
                   )}
                 </div>
                 <form action={confirmExpense} className="flex-shrink-0">
-                  <input type="hidden" name="id" value={e.id} />
+                  <input type="hidden" name="expenseId" value={e.id} />
                   <button type="submit"
                     className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 active:scale-95 transition">
                     {t("btn_confirm")}
@@ -744,8 +738,7 @@ async function DailyReportTab({
   submitDailyReport: (fd: FormData) => Promise<void>;
 }) {
   const t = await getT();
-  const date = new Date(`${dayStr}T00:00:00`);
-  const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+  const { start: date, end: nextDay } = mmDayRange(dayStr);
 
   const [todayReports, pastReports] = await Promise.all([
     prisma.dailyReport.findMany({
@@ -845,13 +838,8 @@ async function DailySummaryTab({
   settings: Awaited<ReturnType<typeof getSettings>>;
 }) {
   const t = await getT();
-  const date = new Date(`${dayStr}T00:00:00`);
-  const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
 
-  const startMM = new Date(`${dayStr}T00:00:00+06:30`);
-  const endMM   = new Date(startMM.getTime() + 24 * 60 * 60 * 1000);
-
-  const [payments, closedSessions, expenses, attendances, dailyReports] = await Promise.all([
+  const [payments, closedSessions, expenses, attendances, dailyReports, discountedSessions] = await Promise.all([
     prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
@@ -868,18 +856,36 @@ async function DailySummaryTab({
     prisma.attendance.findMany({
       where: {
         OR: [
-          { clockInAt: { gte: startMM, lt: endMM } },
-          { clockInAt: null as null, date: start },
+          { clockInAt: { gte: start, lt: end } },
+          { clockInAt: null as null, date: mmDateUTC(dayStr) },
         ],
       },
       include: { employee: { include: { user: { select: { name: true } } } } },
     }),
     prisma.dailyReport.findMany({
-      where: { date: { gte: date, lt: nextDay } },
+      where: { date: { gte: start, lt: end } },
       include: { createdBy: { select: { name: true } } },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.tableSession.findMany({
+      where: { status: "CLOSED", closedAt: { gte: start, lt: end }, NOT: { discountType: null } },
+      select: {
+        id: true, closedAt: true, discountType: true, discountValue: true, discountReason: true,
+        table: { select: { label: true } },
+        closedBy: { select: { name: true } },
+      },
+      orderBy: { closedAt: "asc" },
+    }),
   ]);
+
+  // Recompute each discounted bill to get the discount in currency terms
+  const discountRows = await Promise.all(
+    discountedSessions.map(async (s) => {
+      const detail = await getSessionDetail(s.id);
+      return { ...s, discountAmount: detail?.bill.discount ?? 0 };
+    }),
+  );
+  const totalDiscounts = discountRows.reduce((s, d) => s + d.discountAmount, 0);
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
   const grossCash = sum(payments.filter((p) => p.method === "CASH"));
@@ -964,9 +970,19 @@ async function DailySummaryTab({
                   </li>
                 ))}
               </ul>
-              <div className="mt-1.5 flex justify-between border-t border-gray-200 pt-1.5 text-sm font-bold">
-                <span>{t("row_total")}</span>
-                <span className="tabular-nums text-red-600">{formatMoney(totalExpenses, c)}</span>
+              <div className="mt-1.5 space-y-0.5 border-t border-gray-200 pt-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{t("source_cash_drawer")}</span>
+                  <span className="tabular-nums font-medium text-red-600">{formatMoney(cashExpenses, c)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{t("source_bank_transfer")}</span>
+                  <span className="tabular-nums font-medium text-gray-600">{formatMoney(totalExpenses - cashExpenses, c)}</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span>{t("row_total")}</span>
+                  <span className="tabular-nums text-red-600">{formatMoney(totalExpenses, c)}</span>
+                </div>
               </div>
             </>
           )}
@@ -1008,6 +1024,42 @@ async function DailySummaryTab({
           )}
         </section>
       </div>
+
+      {/* Discounts given */}
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">Discounts given ({discountRows.length})</h3>
+        {discountRows.length === 0 ? (
+          <p className="text-sm text-gray-400">No discounts on this day.</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-gray-100 text-sm">
+              {discountRows.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="min-w-0">
+                    <span className="font-medium">{d.table.label}</span>
+                    <span className="ml-2 text-xs text-gray-400">
+                      {d.closedAt ? fmtTime(d.closedAt) : "—"} · {d.closedBy?.name ?? "—"}
+                    </span>
+                    {d.discountReason && (
+                      <span className="block truncate text-xs text-gray-500">&ldquo;{d.discountReason}&rdquo;</span>
+                    )}
+                  </span>
+                  <span className="flex-shrink-0 text-right font-semibold tabular-nums text-red-600">
+                    −{formatMoney(d.discountAmount, c)}
+                    {d.discountType === "PERCENT" && (
+                      <span className="ml-1 text-xs font-normal text-gray-400">({d.discountValue}%)</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-1.5 flex justify-between border-t border-gray-200 pt-1.5 text-sm font-bold">
+              <span>Total discounts</span>
+              <span className="tabular-nums text-red-600">−{formatMoney(totalDiscounts, c)}</span>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Manager daily reports */}
       <section className="rounded-xl bg-white p-4 shadow-sm">

@@ -3,6 +3,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { formatMoney, formatTime, formatDate } from "@/lib/format";
+import { mmToday, mmDayRange } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -18,23 +19,15 @@ export default async function CashierHistoryPage({
   const c = settings.currency;
   const t = await getT();
 
-  // Default to today in local time
-  const todayStr = (() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  })();
+  // Default to today (Myanmar calendar day)
+  const todayStr = mmToday();
   const selectedDate = date ?? todayStr;
-
-  const dayStart = new Date(`${selectedDate}T00:00:00`);
-  const dayEnd = new Date(`${selectedDate}T23:59:59.999`);
+  const { start: dayStart, end: dayEnd } = mmDayRange(selectedDate);
 
   const sessions = await prisma.tableSession.findMany({
     where: {
       status: "CLOSED",
-      closedAt: { gte: dayStart, lte: dayEnd },
+      closedAt: { gte: dayStart, lt: dayEnd },
     },
     include: {
       table: { select: { label: true } },

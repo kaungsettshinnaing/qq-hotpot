@@ -2,6 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { formatDate } from "@/lib/format";
+import { mmDayOf } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 async function reviewLeave(fd: FormData) {
@@ -18,10 +19,11 @@ async function reviewLeave(fd: FormData) {
   });
 
   if (status === "APPROVED") {
-    const start = new Date(req.startDate);
-    const end = new Date(req.endDate);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const date = new Date(d); date.setHours(0, 0, 0, 0);
+    // Attendance.date convention is UTC midnight of the Myanmar calendar day
+    const startDay = mmDayOf(req.startDate).getTime();
+    const endDay = mmDayOf(req.endDate).getTime();
+    for (let t = startDay; t <= endDay; t += 24 * 60 * 60 * 1000) {
+      const date = new Date(t);
       await prisma.attendance.upsert({
         where: { employeeId_date: { employeeId: req.employeeId, date } },
         update: { status: "LEAVE" },

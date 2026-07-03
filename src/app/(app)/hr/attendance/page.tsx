@@ -2,6 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { markAttendance, approveAttendance } from "./actions";
+import { mmNow, mmToday } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 const STATUSES = ["PRESENT", "ABSENT", "LEAVE", "REST_DAY", "OT"] as const;
@@ -20,12 +21,11 @@ export default async function HRAttendancePage({
 }) {
   await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
-  const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
-  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
-  const todayMM = mmNow.toISOString().slice(0, 10);
+  const nowMM = mmNow();
+  const todayMM = mmToday();
   const sp = await searchParams;
-  const month = parseInt(sp.month ?? String(mmNow.getUTCMonth() + 1));
-  const year = parseInt(sp.year ?? String(mmNow.getUTCFullYear()));
+  const month = parseInt(sp.month ?? String(nowMM.getUTCMonth() + 1));
+  const year = parseInt(sp.year ?? String(nowMM.getUTCFullYear()));
 
   const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 1));

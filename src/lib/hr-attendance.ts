@@ -1,23 +1,11 @@
 import { prisma } from "./db";
 import { workingDaysInMonth } from "./hr-payroll";
-
-const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000; // UTC+6:30
-
-/** UTC midnight of today's date in Myanmar time. Use this for DB DATE comparisons. */
-function myanmarToday(): Date {
-  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
-  return new Date(Date.UTC(mmNow.getUTCFullYear(), mmNow.getUTCMonth(), mmNow.getUTCDate()));
-}
-
-/** Returns current time shifted into Myanmar "virtual UTC" for hour/minute/day-of-week reads. */
-function myanmarNow() {
-  return new Date(Date.now() + MM_OFFSET_MS);
-}
+import { mmTodayUTC, mmNow } from "./business-day";
 
 /** All attendance rows for a month, keyed by employeeId+date string. */
 export async function getMonthAttendance(year: number, month: number) {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 1));
   return prisma.attendance.findMany({
     where: { date: { gte: start, lt: end } },
     include: { employee: { include: { user: { select: { id: true, name: true } } } } },
@@ -32,8 +20,8 @@ export async function getAttendanceSummary(
   month: number,
   restDays: number[],
 ) {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 1));
 
   const rows = await prisma.attendance.findMany({
     where: { employeeId, date: { gte: start, lt: end } },
@@ -60,18 +48,18 @@ export async function getAttendanceSummary(
 /** Today's attendance record for an employee, or null if none yet. */
 export async function getTodayAttendance(employeeId: string) {
   return prisma.attendance.findUnique({
-    where: { employeeId_date: { employeeId, date: myanmarToday() } },
+    where: { employeeId_date: { employeeId, date: mmTodayUTC() } },
   });
 }
 
 /** Live status of all active employees: current clock state today. */
 export async function getLiveAttendanceStatus() {
-  const today = myanmarToday();
-  const mmNow = myanmarNow();
+  const today = mmTodayUTC();
+  const nowMM = mmNow();
   const now = new Date();
-  const dayOfWeek = mmNow.getUTCDay(); // 0=Sun … 6=Sat (Myanmar weekday)
+  const dayOfWeek = nowMM.getUTCDay(); // 0=Sun … 6=Sat (Myanmar weekday)
   // After 11:30 PM Myanmar, treat unclocked employees as auto-clocked-out
-  const pastAutoClockOut = mmNow.getUTCHours() === 23 && mmNow.getUTCMinutes() >= 30;
+  const pastAutoClockOut = nowMM.getUTCHours() === 23 && nowMM.getUTCMinutes() >= 30;
 
   const employees = await prisma.employee.findMany({
     where: { isActive: true, isSystem: false },

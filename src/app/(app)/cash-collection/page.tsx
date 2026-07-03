@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { getCashStanding } from "@/lib/shift";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { revalidatePath } from "next/cache";
+import CollectionCard from "./CollectionCard";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,10 @@ export default async function CashCollectionPage() {
         <p className="mt-0.5 text-sm text-gray-500">
           Record cash taken from or added to the drawer. The cashier&apos;s opening float is auto-calculated from this ledger.
         </p>
+        <p className="mt-1 text-xs text-amber-600">
+          Only record money that physically moves right now. To leave a float for tomorrow, collect just the
+          excess — do not inject tomorrow&apos;s float in advance.
+        </p>
       </div>
 
       {/* Cash standing card */}
@@ -71,73 +76,8 @@ export default async function CashCollectionPage() {
           )}
         </div>
 
-        {/* Collect form */}
-        <div className="rounded-xl border-2 border-red-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-red-700">Collect cash from drawer</h3>
-          <form action={recordCollection} className="space-y-2">
-            <input type="hidden" name="type" value="COLLECT" />
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">Amount ({c})</span>
-              <input
-                name="amount"
-                type="number"
-                min={1}
-                required
-                placeholder="0"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-lg font-semibold"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">Note (optional)</span>
-              <input
-                name="note"
-                type="text"
-                placeholder="e.g. Daily banking run"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2"
-              />
-            </label>
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-red-600 py-2.5 font-semibold text-white hover:bg-red-700 active:scale-95 transition"
-            >
-              ↓ Collect — deduct from standing
-            </button>
-          </form>
-        </div>
-
-        {/* Inject form */}
-        <div className="rounded-xl border-2 border-green-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-green-700">Inject cash into drawer</h3>
-          <form action={recordCollection} className="space-y-2">
-            <input type="hidden" name="type" value="INJECT" />
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">Amount ({c})</span>
-              <input
-                name="amount"
-                type="number"
-                min={1}
-                required
-                placeholder="0"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-lg font-semibold"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">Note (optional)</span>
-              <input
-                name="note"
-                type="text"
-                placeholder="e.g. Float top-up"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2"
-              />
-            </label>
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-green-600 py-2.5 font-semibold text-white hover:bg-green-700 active:scale-95 transition"
-            >
-              ↑ Inject — add to standing
-            </button>
-          </form>
-        </div>
+        <CollectionCard type="COLLECT" standing={cashStanding} currency={c} action={recordCollection} />
+        <CollectionCard type="INJECT" standing={cashStanding} currency={c} action={recordCollection} />
       </div>
 
       {/* History */}

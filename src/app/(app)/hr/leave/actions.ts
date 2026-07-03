@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { mmDayOf } from "@/lib/business-day";
 
 export async function hrReviewLeave(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN"]);
@@ -16,10 +17,11 @@ export async function hrReviewLeave(fd: FormData) {
   });
 
   if (status === "APPROVED") {
-    const start = new Date(req.startDate);
-    const end = new Date(req.endDate);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const date = new Date(d); date.setHours(0, 0, 0, 0);
+    // Attendance.date convention is UTC midnight of the Myanmar calendar day
+    const startDay = mmDayOf(req.startDate).getTime();
+    const endDay = mmDayOf(req.endDate).getTime();
+    for (let t = startDay; t <= endDay; t += 24 * 60 * 60 * 1000) {
+      const date = new Date(t);
       await prisma.attendance.upsert({
         where: { employeeId_date: { employeeId: req.employeeId, date } },
         update: { status: "LEAVE" },
@@ -42,7 +44,7 @@ export async function hrReviewLeave(fd: FormData) {
 export async function hrMarkAbsence(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN"]);
   const employeeId = fd.get("employeeId") as string;
-  const date = new Date(fd.get("date") as string); date.setHours(0, 0, 0, 0);
+  const date = mmDayOf(new Date(fd.get("date") as string));
   const status = (fd.get("status") as string) as "ABSENT" | "LEAVE";
   const note = (fd.get("note") as string | null) ?? "";
 

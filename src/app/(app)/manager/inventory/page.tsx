@@ -3,15 +3,10 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { resolveDelivery } from "@/app/(app)/inventory/deliveries/[id]/actions";
 import { startSpotCheck, startWeeklyCount, submitStockCount, confirmExpense, approveStockIn } from "./actions";
+import { mmTodayUTC } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
-
-const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
-function myanmarToday(): Date {
-  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
-  return new Date(Date.UTC(mmNow.getUTCFullYear(), mmNow.getUTCMonth(), mmNow.getUTCDate()));
-}
 
 const UNIT_ABBR: Record<string, string> = {
   UNIT: "unit", GRAM: "g", KG: "kg", LITRE: "L", BOX: "box", BOTTLE: "btl", PACK: "pack",
@@ -328,7 +323,7 @@ async function DiscrepancyTab() {
 
 async function SpotCheckTab({ countId }: { countId?: string }) {
   const t = await getT();
-  const today = myanmarToday();
+  const today = mmTodayUTC();
 
   const activeCount = await prisma.stockCount.findFirst({
     where: { date: today, type: "SPOT", completedAt: null },
@@ -437,7 +432,7 @@ async function SpotCheckTab({ countId }: { countId?: string }) {
 
 async function WeeklyCountTab({ countId }: { countId?: string }) {
   const t = await getT();
-  const today = myanmarToday();
+  const today = mmTodayUTC();
 
   const activeCount = await prisma.stockCount.findFirst({
     where: { date: today, type: "WEEKLY", completedAt: null },

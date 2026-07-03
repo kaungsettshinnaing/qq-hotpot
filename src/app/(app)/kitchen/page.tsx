@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatTime } from "@/lib/format";
 import KitchenLive from "./KitchenLive";
 import { deliverPot } from "./actions";
+import { mmToday, mmDayRange } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +16,7 @@ export default async function KitchenPage() {
   await requireAnyRole(["KITCHEN", "MANAGER", "ADMIN"]);
   const t = await getT();
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDay = mmDayRange(mmToday()).start;
 
   const [pending, delivered] = await Promise.all([
     prisma.potOrder.findMany({

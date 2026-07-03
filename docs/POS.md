@@ -362,7 +362,15 @@ All amounts are **whole MMK** (Math.round applied to percent calculations).
   a **Change Due** banner is shown live in the checkout UI. The change amount is
   deducted from `cashSales_net` in shift reconciliation via the `billTotal` field.
 
-### 6.5 Shift reconciliation
+### 6.5 Payment void — INTENTIONALLY DISABLED after settlement
+
+**Do not add void/delete functionality for payments after a session is settled. This is by design to prevent staff fraud.**
+
+The `voidPayment` action exists in `cashier/actions.ts` but it is NOT exposed in the UI after `settleSession()` has been called. The cashier checkout page only shows payment controls while `balance > 0`. Once a session is closed (`status = CLOSED`), there is no route or button to remove or reverse a payment.
+
+If a payment error occurs after settlement, the correction must be logged as a cash adjustment by a manager — not a payment deletion.
+
+### 6.6 Shift reconciliation
 
 ```
 openingFloat  = lastShift.countedCash + injections − collections  (getCashStanding())
@@ -389,7 +397,7 @@ Source: [`src/lib/shift.ts`](../src/lib/shift.ts) — `computeShiftTotals(shiftI
 - Handover enforced: `openShift` redirects to error if any other cashier's shift
   is still open (`getAnyOpenShift()` check).
 
-### 6.6 Table reservation blocking
+### 6.7 Table reservation blocking
 
 A table is considered **reserved/unavailable** during the window:
 ```
@@ -400,7 +408,7 @@ A table is considered **reserved/unavailable** during the window:
 - `durationMin` default = **120** (stored per reservation).
 - Status `SEATED` or `CANCELLED` lifts the block.
 
-### 6.7 Discounts
+### 6.8 Discounts
 
 - Applied by **cashier freely** — no manager approval required.
 - Type: `PERCENT` (0–100%) or `FIXED` (capped at subtotal).
@@ -408,13 +416,13 @@ A table is considered **reserved/unavailable** during the window:
   programmatic use).
 - Discount is stored on `TableSession`, not on individual items.
 
-### 6.8 Wastage
+### 6.9 Wastage
 
 - Entered in **grams** by either waiter (`setWastage` in waiter actions) or
   cashier (`setWastage` in cashier actions) — last write wins.
 - Billed at `priceWastage MMK/gram` (MenuItem code = WASTAGE).
 
-### 6.9 Tax and service charge
+### 6.10 Tax and service charge
 
 Both are **off by default**. Configured via admin settings:
 - `taxEnabled` (bool) + `taxRatePct` (number)
@@ -423,7 +431,7 @@ Both are **off by default**. Configured via admin settings:
 Service is applied to `afterDiscount`; tax is applied to
 `afterDiscount + serviceCharge`.
 
-### 6.10 Table overdue
+### 6.11 Table overdue
 
 A table session is considered **overdue** when it has been open for ≥ **105 minutes**. This is displayed as an orange "OVERDUE" badge on:
 - The waiter table grid (`/waiter`)

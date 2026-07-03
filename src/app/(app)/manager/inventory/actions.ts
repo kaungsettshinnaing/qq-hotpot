@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession, requireAnyRole } from "@/lib/auth";
 import { computeAllStockLevels } from "@/lib/inventory";
+import { mmTodayUTC } from "@/lib/business-day";
 
 // ── Stock expense confirmation ──────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ export async function confirmExpense(formData: FormData): Promise<void> {
     data: { confirmedAt: new Date(), confirmedById: session.id },
   });
   revalidatePath("/manager/inventory");
+  revalidatePath("/reports");
+  revalidatePath("/accounting");
 }
 
 // ── Stock-in delivery approval ──────────────────────────────────────────────
@@ -71,12 +74,6 @@ export async function approveStockIn(formData: FormData): Promise<void> {
   revalidatePath("/inventory/deliveries");
 }
 
-const MM_OFFSET_MS = (6 * 60 + 30) * 60 * 1000;
-function myanmarToday(): Date {
-  const mmNow = new Date(Date.now() + MM_OFFSET_MS);
-  return new Date(Date.UTC(mmNow.getUTCFullYear(), mmNow.getUTCMonth(), mmNow.getUTCDate()));
-}
-
 function str(v: unknown, max = 500): string {
   return String(v ?? "").trim().slice(0, max);
 }
@@ -89,7 +86,7 @@ export async function startSpotCheck(): Promise<void> {
   const session = await requireSession();
   await requireAnyRole(["MANAGER", "ADMIN"]);
 
-  const today = myanmarToday();
+  const today = mmTodayUTC();
 
   // Don't create a second count if one already exists today
   const existing = await prisma.stockCount.findFirst({
@@ -137,7 +134,7 @@ export async function startWeeklyCount(): Promise<void> {
   const session = await requireSession();
   await requireAnyRole(["MANAGER", "ADMIN"]);
 
-  const today = myanmarToday();
+  const today = mmTodayUTC();
 
   const existing = await prisma.stockCount.findFirst({
     where: { date: today, type: "WEEKLY", completedAt: null },

@@ -2,6 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { formatMoney } from "@/lib/format";
+import { mmNow, mmDayRange } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -46,20 +47,20 @@ export default async function AccountingPage({
   const sp = await searchParams;
   const tab = sp.tab ?? "ar";
 
-  // Date range — default to current month
-  const now = new Date();
-  const cy = now.getFullYear();
-  const cm = String(now.getMonth() + 1).padStart(2, "0");
-  const lastDay = new Date(cy, now.getMonth() + 1, 0).getDate();
+  // Date range — default to current Myanmar month
+  const nowMM = mmNow();
+  const cy = nowMM.getUTCFullYear();
+  const cm = String(nowMM.getUTCMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(Date.UTC(cy, nowMM.getUTCMonth() + 1, 0)).getUTCDate();
   const defaultFrom = `${cy}-${cm}-01`;
   const defaultTo   = `${cy}-${cm}-${String(lastDay).padStart(2, "0")}`;
 
   const fromStr = sp.from ?? defaultFrom;
   const toStr   = sp.to   ?? defaultTo;
 
-  const rangeStart = new Date(fromStr + "T00:00:00.000Z");
-  const rangeEnd   = new Date(toStr + "T00:00:00.000Z");
-  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1); // exclusive end
+  // Myanmar calendar-day boundaries — same convention as /reports
+  const rangeStart = mmDayRange(fromStr).start;
+  const rangeEnd   = mmDayRange(toStr).end; // exclusive end
 
   // ── Summary card queries (always unfiltered — show current outstanding) ────
   const [pendingPayments, accrualExpenses, confirmedPendingExpenses] = await Promise.all([
@@ -81,7 +82,7 @@ export default async function AccountingPage({
   ]);
 
   // ── Date-filtered queries (history sections + P&L) ────────────────────────
-  const [reconciledPayments, paidExpenses, plPayments, plExpenses] = await Promise.all([
+  const [reconciledPayments, paidExpenses, plPayments, plExpenses, plSessions] = await Promise.all([
     prisma.payment.findMany({
       where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd } },
       include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
@@ -104,11 +105,25 @@ export default async function AccountingPage({
           include: { category: { select: { name: true } } },
         })
       : Promise.resolve([]),
+    tab === "pl"
+      ? prisma.tableSession.findMany({
+          where: { status: "CLOSED", closedAt: { gte: rangeStart, lt: rangeEnd } },
+          select: { billTotal: true, payments: { select: { method: true, amount: true } } },
+        })
+      : Promise.resolve([]),
   ]);
 
   // ── P&L aggregation ───────────────────────────────────────────────────────
+  // Deduct change (cash overpayment vs billTotal) so revenue is net, matching /reports
+  let plCashChange = 0;
+  for (const s of plSessions) {
+    if (s.payments.some((p) => p.method === "CASH")) {
+      const totalPaid = s.payments.reduce((acc, p) => acc + p.amount, 0);
+      plCashChange += Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+    }
+  }
   const revenue = {
-    cash:  plPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0),
+    cash:  plPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0) - plCashChange,
     kbz:   plPayments.filter((p) => p.method === "KBZPAY").reduce((s, p) => s + p.amount, 0),
     other: plPayments.filter((p) => p.method === "OTHER").reduce((s, p) => s + p.amount, 0),
   };
