@@ -115,8 +115,20 @@ export default async function CheckoutPage({
             </div>
 
             {isOpen && (
-              <form action={settleSession} className="mt-3">
+              <form action={settleSession} className="mt-3 space-y-2 no-print">
                 <input type="hidden" name="sessionId" value={session.id} />
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    {t("label_settlement_note")}
+                  </label>
+                  <textarea
+                    name="note"
+                    rows={2}
+                    maxLength={500}
+                    placeholder={t("placeholder_settlement_note")}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
                 <button
                   disabled={balance > 0}
                   className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -126,6 +138,11 @@ export default async function CheckoutPage({
                     : t("btn_settle_free_table")}
                 </button>
               </form>
+            )}
+            {!isOpen && session.note && (
+              <div className="mt-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">
+                <span className="font-semibold">{t("label_settlement_note")}:</span> {session.note}
+              </div>
             )}
           </section>
         </div>

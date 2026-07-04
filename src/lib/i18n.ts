@@ -183,6 +183,8 @@ const dict: Record<string, { en: string; my: string }> = {
   label_change:                 { en: "Change",                            my: "ငွေအမ်း" },
   btn_settle_free_table:        { en: "✓ Settle & free table",             my: "✓ ရှင်းပြီး စားပွဲလွတ်ရန်" },
   bill_closed_message:          { en: "This bill is closed.",              my: "ဤဘေလ် ပိတ်ပြီးပါပြီ" },
+  label_settlement_note:        { en: "Note",                              my: "မှတ်ချက်" },
+  placeholder_settlement_note:  { en: "Any comment about this bill (optional)", my: "ဤဘေလ်အတွက် မှတ်ချက် (ရှိလျှင်)" },
   section_discount:             { en: "Discount",                          my: "လျှော့ဈေး" },
   label_discount_type:          { en: "Type",                              my: "အမျိုးအစား" },
   option_fixed:                 { en: "Fixed",                             my: "ပုံသေပမာဏ" },

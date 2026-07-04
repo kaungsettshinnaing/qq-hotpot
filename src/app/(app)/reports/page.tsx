@@ -159,7 +159,7 @@ export default async function ReportsPage({
         />
       )}
       {tab === "inventory"    && <InventoryTab start={start} end={end} />}
-      {tab === "expenses"       && <ExpensesTab confirmExpense={confirmExpense} />}
+      {tab === "expenses"       && <ExpensesTab confirmExpense={confirmExpense} dayStr={dayStr} start={start} end={end} />}
       {tab === "daily-report"  && <DailyReportTab dayStr={dayStr} submitDailyReport={submitDailyReport} />}
       {tab === "daily-summary" && <DailySummaryTab dayStr={dayStr} start={start} end={end} c={c} settings={settings} />}
     </div>
@@ -604,28 +604,37 @@ async function InventoryTab({ start, end }: { start: Date; end: Date }) {
   );
 }
 
-async function ExpensesTab({ confirmExpense }: {
+async function ExpensesTab({ confirmExpense, dayStr, start, end }: {
   confirmExpense: (fd: FormData) => Promise<void>;
+  dayStr: string; start: Date; end: Date;
 }) {
   const t = await getT();
 
   function fmtDate(d: Date) { return d.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" }); }
   function fmtTime(d: Date) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  function sourceLabel(src: string) {
+    return src === "CASH_DRAWER" ? t("source_cash_drawer") : t("source_bank_transfer");
+  }
+  function sourceBadge(src: string) {
+    return "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
+      (src === "CASH_DRAWER" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700");
+  }
 
   const [unconfirmed, confirmed] = await Promise.all([
+    // Pending review — always shown regardless of date; these need action however old they are.
     prisma.expense.findMany({
       where: { confirmedAt: null },
       include: { category: { select: { name: true } }, enteredBy: { select: { name: true } }, attachments: true },
       orderBy: { createdAt: "asc" },
     }),
+    // Confirmed history — filtered to the day picked at the top of the Reports page.
     prisma.expense.findMany({
-      where: { confirmedAt: { not: null } },
+      where: { confirmedAt: { not: null }, businessDate: { gte: start, lt: end } },
       include: {
         category: { select: { name: true } }, enteredBy: { select: { name: true } },
         confirmedBy: { select: { name: true } }, attachments: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 50,
     }),
   ]);
 
@@ -646,10 +655,7 @@ async function ExpensesTab({ confirmExpense }: {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-lg font-bold tabular-nums">{formatMoney(e.amount)}</span>
-                    <span className={"rounded-full px-2 py-0.5 text-[11px] font-semibold " +
-                      (e.paymentSource === "CASH_DRAWER" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700")}>
-                      {e.paymentSource === "CASH_DRAWER" ? t("source_cash_drawer") : t("source_bank_transfer")}
-                    </span>
+                    <span className={sourceBadge(e.paymentSource)}>{sourceLabel(e.paymentSource)}</span>
                   </div>
                   <p className="mt-0.5 text-sm font-medium text-gray-800">{e.description}</p>
                   <p className="mt-0.5 text-xs text-gray-500">
@@ -684,11 +690,29 @@ async function ExpensesTab({ confirmExpense }: {
         )}
       </div>
 
-      {confirmed.length > 0 && (
-        <div className="space-y-2">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
-            {t("badge_expense_confirmed")} — {t("label_last_50")}
+            {t("badge_expense_confirmed")} — {fmtDate(start)}
           </h2>
+          <form method="GET" className="flex items-center gap-2">
+            <input type="hidden" name="tab" value="expenses" />
+            <input
+              type="date"
+              name="date"
+              defaultValue={dayStr}
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+            />
+            <button className="rounded-lg bg-gray-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-900">
+              {t("btn_view_report")}
+            </button>
+          </form>
+        </div>
+        {confirmed.length === 0 ? (
+          <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
+            No confirmed expenses on this day.
+          </p>
+        ) : (
           <div className="rounded-xl border bg-white divide-y overflow-hidden">
             {confirmed.map((e) => (
               <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -699,6 +723,7 @@ async function ExpensesTab({ confirmExpense }: {
                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
                       {t("badge_expense_confirmed")}
                     </span>
+                    <span className={sourceBadge(e.paymentSource)}>{sourceLabel(e.paymentSource)}</span>
                     {e.attachments.length > 0 && (
                       <span className="text-[11px] text-gray-400">
                         {e.attachments.length} receipt{e.attachments.length > 1 ? "s" : ""}
@@ -725,8 +750,8 @@ async function ExpensesTab({ confirmExpense }: {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

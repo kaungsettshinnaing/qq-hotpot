@@ -105,6 +105,7 @@ export async function voidPayment(formData: FormData): Promise<void> {
 export async function settleSession(formData: FormData): Promise<void> {
   const user = await requireAnyRole(CASHIER_ROLES);
   const sessionId = str(formData.get("sessionId"));
+  const note = str(formData.get("note"), 500) || null;
   const detail = await getSessionDetail(sessionId);
   if (!detail || detail.session.status !== "OPEN") redirect("/cashier");
   if (detail.balance > 0) redirect(`/cashier/checkout/${sessionId}`);
@@ -113,7 +114,7 @@ export async function settleSession(formData: FormData): Promise<void> {
     prisma.tableMerge.deleteMany({ where: { sessionId } }),
     prisma.tableSession.update({
       where: { id: sessionId },
-      data: { status: "CLOSED", closedById: user.id, closedAt: new Date(), billTotal: detail.bill.total },
+      data: { status: "CLOSED", closedById: user.id, closedAt: new Date(), billTotal: detail.bill.total, note },
     }),
   ]);
   emitFloor("table:update", { tableId: detail.session.tableId });

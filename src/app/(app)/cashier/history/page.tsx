@@ -121,6 +121,11 @@ export default async function CashierHistoryPage({
                   {r.kbz > 0 && <span>KBZPay: {formatMoney(r.kbz, c)}</span>}
                   {r.other > 0 && <span>{t("payment_method_other")}: {formatMoney(r.other, c)}</span>}
                 </div>
+                {r.session.note && (
+                  <div className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                    📝 {r.session.note}
+                  </div>
+                )}
               </Link>
             ))}
           </div>
@@ -139,6 +144,7 @@ export default async function CashierHistoryPage({
                   <th className="px-4 py-2 text-right">{t("payment_method_other")}</th>
                   <th className="px-4 py-2 text-right">{t("col_total")}</th>
                   <th className="px-4 py-2"></th>
+                  <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -154,6 +160,9 @@ export default async function CashierHistoryPage({
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.kbz > 0 ? formatMoney(r.kbz, c) : "—"}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.other > 0 ? formatMoney(r.other, c) : "—"}</td>
                     <td className="px-4 py-2.5 text-right font-bold tabular-nums text-brand">{formatMoney(r.total, c)}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      {r.session.note && <span title={r.session.note} className="cursor-help">📝</span>}
+                    </td>
                     <td className="px-4 py-2.5">
                       <Link
                         href={`/cashier/checkout/${r.session.id}`}
@@ -173,6 +182,7 @@ export default async function CashierHistoryPage({
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandKbz, c)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandOther, c)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-brand">{formatMoney(grandTotal, c)}</td>
+                  <td />
                   <td />
                 </tr>
               </tfoot>
