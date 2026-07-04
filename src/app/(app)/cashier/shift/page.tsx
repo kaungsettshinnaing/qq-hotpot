@@ -68,6 +68,12 @@ export default async function ShiftPage() {
               <Row label={t("row_start_balance")} value={formatMoney(shift.openingFloat, c)} />
               <Row label={t("row_cash_sales")} value={formatMoney(totals!.cashSales, c)} />
               <Row label={t("row_cash_expenses")} value={formatMoney(totals!.cashExpenses, c)} />
+              {totals!.cashInjected > 0 && (
+                <Row label={t("row_cash_injected")} value={formatMoney(totals!.cashInjected, c)} />
+              )}
+              {totals!.cashWithdrawn > 0 && (
+                <Row label={t("row_cash_withdrawn")} value={formatMoney(totals!.cashWithdrawn, c)} />
+              )}
               <div className="flex justify-between border-t border-gray-200 pt-2 font-bold">
                 <span>{t("row_expected_in_drawer")}</span>
                 <span className="tabular-nums text-brand">{formatMoney(totals!.expected, c)}</span>

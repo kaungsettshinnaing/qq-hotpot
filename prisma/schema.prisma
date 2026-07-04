@@ -25,16 +25,16 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  username     String   @unique
-  passwordHash String
-  pinHash      String? // manager approval PIN (e.g. void after send)
-  roles            Role[]
-  isActive         Boolean  @default(true)
-  isSystemAccount  Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  name            String
+  username        String   @unique
+  passwordHash    String
+  pinHash         String? // manager approval PIN (e.g. void after send)
+  roles           Role[]
+  isActive        Boolean  @default(true)
+  isSystemAccount Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   openedSessions TableSession[] @relation("openedBy")
   closedSessions TableSession[] @relation("closedBy")
@@ -47,18 +47,18 @@ model User {
   shifts         CashierShift[]
 
   // HR relations
-  employee          Employee?
-  uploadedDocuments EmployeeDocument[]  @relation("docUploadedBy")
-  approvedAttendances Attendance[]      @relation("attendanceApprovedBy")
-  reviewedLeaves    LeaveRequest[]      @relation("leaveReviewedBy")
-  createdAdvances   SalaryAdvance[]     @relation("advanceCreatedBy")
-  createdFines      EmployeeFine[]      @relation("fineCreatedBy")
-  createdBonuses    AdHocBonus[]        @relation("bonusCreatedBy")
-  lockedPayrolls    Payroll[]           @relation("payrollLockedBy")
-  notifications     Notification[]
+  employee            Employee?
+  uploadedDocuments   EmployeeDocument[] @relation("docUploadedBy")
+  approvedAttendances Attendance[]       @relation("attendanceApprovedBy")
+  reviewedLeaves      LeaveRequest[]     @relation("leaveReviewedBy")
+  createdAdvances     SalaryAdvance[]    @relation("advanceCreatedBy")
+  createdFines        EmployeeFine[]     @relation("fineCreatedBy")
+  createdBonuses      AdHocBonus[]       @relation("bonusCreatedBy")
+  lockedPayrolls      Payroll[]          @relation("payrollLockedBy")
+  notifications       Notification[]
 
-  cashCollections    CashCollection[]   @relation("CashCollectionRecorder")
-  confirmedExpenses  Expense[]          @relation("ExpenseConfirmer")
+  cashCollections   CashCollection[] @relation("CashCollectionRecorder")
+  confirmedExpenses Expense[]        @relation("ExpenseConfirmer")
 
   // Inventory relations
   deliveriesCreated  StockDelivery[]    @relation("DeliveryCreator")
@@ -113,9 +113,9 @@ model MenuItem {
   code     String   @unique
   name     String
   category String   @default("")
-  unit     MenuUnit     @default(UNIT)
-  price    Int          @default(0)
-  isActive Boolean      @default(true)
+  unit     MenuUnit @default(UNIT)
+  price    Int      @default(0)
+  isActive Boolean  @default(true)
 }
 
 // Flexible key/value settings (freePotRatio, tax/service toggles, etc.)
@@ -169,7 +169,7 @@ model TableSession {
   closedBy       User?         @relation("closedBy", fields: [closedById], references: [id])
   closedById     String?
   closedAt       DateTime?
-  billTotal      Int?          // stored at settlement; used to compute change given
+  billTotal      Int? // stored at settlement; used to compute change given
   discountType   DiscountType?
   discountValue  Int?
   discountReason String?
@@ -196,7 +196,7 @@ model OrderItem {
   id          String       @id @default(cuid())
   session     TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sessionId   String
-  itemCode    String       // BEER, SOFT_DRINK, etc.
+  itemCode    String // BEER, SOFT_DRINK, etc.
   qty         Int          @default(1)
   unitPrice   Int          @default(0) // price snapshot at time of order
   createdBy   User         @relation(fields: [createdById], references: [id])
@@ -270,7 +270,7 @@ model Payment {
   receivedBy   User          @relation(fields: [receivedById], references: [id])
   receivedById String
   receivedAt   DateTime      @default(now())
-  reconciledAt DateTime?     // set by admin when KBZPay/OTHER is confirmed received
+  reconciledAt DateTime? // set by admin when KBZPay/OTHER is confirmed received
 
   @@index([sessionId])
   @@index([shiftId])
@@ -311,10 +311,10 @@ model Reservation {
 // ---------------------------------------------------------------------------
 
 model ExpenseCategory {
-  id       String    @id @default(cuid())
-  name     String    @unique
-  isStock  Boolean   @default(false) // true = linked to stock deliveries
-  isActive Boolean   @default(true)
+  id       String                @id @default(cuid())
+  name     String                @unique
+  isStock  Boolean               @default(false) // true = linked to stock deliveries
+  isActive Boolean               @default(true)
   expenses Expense[]
   items    ExpenseCategoryItem[]
 }
@@ -324,16 +324,16 @@ model ExpenseCategoryItem {
   categoryId   String
   category     ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name         String
-  defaultUnit  String?         // free-text unit shown in expense form dropdown
+  defaultUnit  String? // free-text unit shown in expense form dropdown
   isActive     Boolean         @default(true)
   sortOrder    Int             @default(0)
   createdAt    DateTime        @default(now())
   // Inventory tracking (populated when category.isStock = true)
-  stockUnit    StockUnit?      // enum unit for inventory records
-  minStock     Int?            // low-stock alert threshold
-  optimalStock Int?            // target stock level
+  stockUnit    StockUnit? // enum unit for inventory records
+  minStock     Int? // low-stock alert threshold
+  optimalStock Int? // target stock level
   stockItemId  String?         @unique // auto-linked StockItem for delivery/movement FKs
-  imageUrl     String?         // optional verification photo (relative path under uploads/)
+  imageUrl     String? // optional verification photo (relative path under uploads/)
 
   @@index([categoryId])
 }
@@ -344,27 +344,27 @@ enum ExpenseSource {
 }
 
 model Expense {
-  id            String          @id @default(cuid())
+  id            String              @id @default(cuid())
   businessDate  DateTime
-  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  category      ExpenseCategory     @relation(fields: [categoryId], references: [id])
   categoryId    String
   amount        Int
   paymentSource ExpenseSource
   description   String
   vendor        String?
-  shift         CashierShift?   @relation(fields: [shiftId], references: [id])
+  shift         CashierShift?       @relation(fields: [shiftId], references: [id])
   shiftId       String?
-  enteredBy     User            @relation(fields: [enteredById], references: [id])
+  enteredBy     User                @relation(fields: [enteredById], references: [id])
   enteredById   String
   receiptUrl    String?
-  invoiceType   String?         // "STOCK" | "NON_STOCK" — null for legacy entries
-  paidAt        DateTime?       // set by admin when BANK_TRANSFER expense is confirmed paid
-  confirmedAt   DateTime?       // set by manager when expense receipt is verified
+  invoiceType   String? // "STOCK" | "NON_STOCK" — null for legacy entries
+  paidAt        DateTime? // set by admin when BANK_TRANSFER expense is confirmed paid
+  confirmedAt   DateTime? // set by manager when expense receipt is verified
   confirmedById String?
-  confirmedBy   User?           @relation("ExpenseConfirmer", fields: [confirmedById], references: [id])
+  confirmedBy   User?               @relation("ExpenseConfirmer", fields: [confirmedById], references: [id])
   attachments   ExpenseAttachment[]
   lines         ExpenseLine[]
-  createdAt     DateTime        @default(now())
+  createdAt     DateTime            @default(now())
 
   @@index([businessDate])
   @@index([shiftId])
@@ -372,14 +372,14 @@ model Expense {
 }
 
 model ExpenseLine {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   expenseId   String
-  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expense     Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   description String
   unit        String?
-  qty         Float    @default(1)
+  qty         Float   @default(1)
   price       Int
-  sortOrder   Int      @default(0)
+  sortOrder   Int     @default(0)
 
   @@index([expenseId])
 }
@@ -388,7 +388,7 @@ model ExpenseAttachment {
   id        String   @id @default(cuid())
   expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   expenseId String
-  filePath  String   // relative path under uploads dir, e.g. "receipts/abc.jpg"
+  filePath  String // relative path under uploads dir, e.g. "receipts/abc.jpg"
   createdAt DateTime @default(now())
 
   @@index([expenseId])
@@ -416,8 +416,9 @@ model CashierShift {
   status       ShiftStatus @default(OPEN)
   note         String?
 
-  payments Payment[]
-  expenses Expense[]
+  payments      Payment[]
+  expenses      Expense[]
+  cashMovements CashCollection[]
 
   @@index([cashierId, status])
 }
@@ -428,10 +429,10 @@ model CashierShift {
 
 // Custom job roles defined by admin (e.g. "Head Waiter", "Kitchen Lead")
 model StaffRole {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  permissions Role[]    // system permissions this role grants
-  isActive    Boolean   @default(true)
+  id          String     @id @default(cuid())
+  name        String     @unique
+  permissions Role[] // system permissions this role grants
+  isActive    Boolean    @default(true)
   employees   Employee[]
 }
 
@@ -450,7 +451,7 @@ model Employee {
   endDate          DateTime?
   basicSalary      Int        @default(0)
   attendanceBonus  Int        @default(0)
-  restDays         Int[]      // weekday numbers 0=Sun … 6=Sat
+  restDays         Int[] // weekday numbers 0=Sun … 6=Sat
   isActive         Boolean    @default(true)
   isSystem         Boolean    @default(false) // login-only; excluded from attendance & payroll
 
@@ -473,13 +474,13 @@ enum FieldType {
 }
 
 model EmployeeFieldDef {
-  id        String    @id @default(cuid())
-  label     String
-  fieldType FieldType @default(TEXT)
-  options   String[]  // only used for DROPDOWN
-  isRequired Boolean  @default(false)
-  sortOrder Int       @default(0)
-  isActive  Boolean   @default(true)
+  id         String    @id @default(cuid())
+  label      String
+  fieldType  FieldType @default(TEXT)
+  options    String[] // only used for DROPDOWN
+  isRequired Boolean   @default(false)
+  sortOrder  Int       @default(0)
+  isActive   Boolean   @default(true)
 
   values EmployeeFieldValue[]
 }
@@ -524,16 +525,16 @@ enum DayType {
 }
 
 model Attendance {
-  id           String           @id @default(cuid())
-  employee     Employee         @relation(fields: [employeeId], references: [userId])
+  id           String            @id @default(cuid())
+  employee     Employee          @relation(fields: [employeeId], references: [userId])
   employeeId   String
-  date         DateTime         @db.Date
-  status       AttendanceStatus @default(PRESENT)
-  dayType      DayType          @default(FULL)
+  date         DateTime          @db.Date
+  status       AttendanceStatus  @default(PRESENT)
+  dayType      DayType           @default(FULL)
   clockInAt    DateTime?
   clockOutAt   DateTime?
-  isApproved   Boolean          @default(false)
-  approvedBy   User?            @relation("attendanceApprovedBy", fields: [approvedById], references: [id])
+  isApproved   Boolean           @default(false)
+  approvedBy   User?             @relation("attendanceApprovedBy", fields: [approvedById], references: [id])
   approvedById String?
   note         String?
   breaks       AttendanceBreak[]
@@ -664,23 +665,23 @@ model Payroll {
 }
 
 model PayrollItem {
-  id                   String   @id @default(cuid())
-  payroll              Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
-  payrollId            String
-  employee             Employee @relation(fields: [employeeId], references: [userId])
-  employeeId           String
-  basicSalary          Int
-  workingDays          Int
-  absentDays           Int
-  otDays               Int
-  attendanceBonusAmt   Int
-  dailyRate            Int
-  absenceDeduction     Int
-  otPremium            Int
-  adHocBonuses         Int
-  advanceDeduction     Int
-  fineDeduction        Int
-  netPay               Int
+  id                 String   @id @default(cuid())
+  payroll            Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  payrollId          String
+  employee           Employee @relation(fields: [employeeId], references: [userId])
+  employeeId         String
+  basicSalary        Int
+  workingDays        Int
+  absentDays         Int
+  otDays             Int
+  attendanceBonusAmt Int
+  dailyRate          Int
+  absenceDeduction   Int
+  otPremium          Int
+  adHocBonuses       Int
+  advanceDeduction   Int
+  fineDeduction      Int
+  netPay             Int
 
   @@unique([payrollId, employeeId])
   @@index([payrollId])
@@ -702,24 +703,24 @@ enum StockUnit {
 }
 
 enum DeliveryStatus {
-  DRAFT          // created, no action yet
-  PREPAID        // paid upfront, goods still at vendor
-  OPEN           // goods arrived, awaiting cashier + counter input
+  DRAFT // created, no action yet
+  PREPAID // paid upfront, goods still at vendor
+  OPEN // goods arrived, awaiting cashier + counter input
   PENDING_REVIEW // both sides submitted, discrepancy flagged to manager
-  PARTIAL        // this batch reconciled, more expected
-  COMPLETE       // all items received and reconciled
+  PARTIAL // this batch reconciled, more expected
+  COMPLETE // all items received and reconciled
 }
 
 enum PaymentStatus {
-  UNPAID   // pay on delivery
-  PREPAID  // paid in advance, goods pending
-  PAID     // paid at time of delivery
+  UNPAID // pay on delivery
+  PREPAID // paid in advance, goods pending
+  PAID // paid at time of delivery
 }
 
 enum MovementType {
   DELIVERY_IN // stock received via delivery
-  USAGE_OUT   // stock consumed/used
-  ADJUSTMENT  // manual stock correction
+  USAGE_OUT // stock consumed/used
+  ADJUSTMENT // manual stock correction
 }
 
 enum InvoiceType {
@@ -728,8 +729,8 @@ enum InvoiceType {
 }
 
 enum StockCountType {
-  SPOT    // random daily check of ≥5% items
-  WEEKLY  // full weekly count
+  SPOT // random daily check of ≥5% items
+  WEEKLY // full weekly count
 }
 
 model Supplier {
@@ -753,30 +754,30 @@ model StockCategory {
 }
 
 model StockItem {
-  id           String              @id @default(cuid())
-  name         String
-  categoryId   String?
-  category     StockCategory?      @relation(fields: [categoryId], references: [id])
-  unit         StockUnit           @default(UNIT)
-  minStock     Int?                // below this → "Low Stock" red alert
-  optimalStock Int?                // target level; order qty = optimalStock − currentStock
-  isActive     Boolean             @default(true)
-  createdAt    DateTime            @default(now())
+  id            String              @id @default(cuid())
+  name          String
+  categoryId    String?
+  category      StockCategory?      @relation(fields: [categoryId], references: [id])
+  unit          StockUnit           @default(UNIT)
+  minStock      Int? // below this → "Low Stock" red alert
+  optimalStock  Int? // target level; order qty = optimalStock − currentStock
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
   deliveryItems StockDeliveryItem[]
-  movements    StockMovement[]
-  countItems   StockCountItem[]
+  movements     StockMovement[]
+  countItems    StockCountItem[]
 }
 
 model StockDelivery {
-  id             String         @id @default(cuid())
-  deliveryDate   DateTime
-  invoiceNo      String?
-  supplierId     String?
-  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
-  status         DeliveryStatus @default(DRAFT)
-  paymentStatus  PaymentStatus  @default(UNPAID)
-  invoiceType    InvoiceType    @default(STOCK)
-  prepaidAt      DateTime?
+  id            String         @id @default(cuid())
+  deliveryDate  DateTime
+  invoiceNo     String?
+  supplierId    String?
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  status        DeliveryStatus @default(DRAFT)
+  paymentStatus PaymentStatus  @default(UNPAID)
+  invoiceType   InvoiceType    @default(STOCK)
+  prepaidAt     DateTime?
 
   // Batch delivery link (optional — for partial orders)
   parentDeliveryId String?
@@ -784,27 +785,27 @@ model StockDelivery {
   batches          StockDelivery[] @relation("DeliveryBatches")
 
   // Cashier side (invoice data + payment)
-  cashierEnteredById  String?
-  cashierEnteredBy    User?         @relation("DeliveryCashier", fields: [cashierEnteredById], references: [id])
-  cashierSubmittedAt  DateTime?
-  totalCost           Int?          // Σ orderedQty × unitCost (expense amount)
-  paymentSource       ExpenseSource?
-  expenseId           String?       @unique // linked Expense created at payment time
+  cashierEnteredById String?
+  cashierEnteredBy   User?          @relation("DeliveryCashier", fields: [cashierEnteredById], references: [id])
+  cashierSubmittedAt DateTime?
+  totalCost          Int? // Σ orderedQty × unitCost (expense amount)
+  paymentSource      ExpenseSource?
+  expenseId          String?        @unique // linked Expense created at payment time
 
   // Counter side (physical count by waiter/kitchen)
-  counterEnteredById  String?
-  counterEnteredBy    User?         @relation("DeliveryCounter", fields: [counterEnteredById], references: [id])
-  counterSubmittedAt  DateTime?
+  counterEnteredById String?
+  counterEnteredBy   User?     @relation("DeliveryCounter", fields: [counterEnteredById], references: [id])
+  counterSubmittedAt DateTime?
 
   // Manager resolution
   resolvedById   String?
-  resolvedBy     User?             @relation("DeliveryResolver", fields: [resolvedById], references: [id])
+  resolvedBy     User?     @relation("DeliveryResolver", fields: [resolvedById], references: [id])
   resolvedAt     DateTime?
   resolutionNote String?
 
-  createdById  String
-  createdBy    User               @relation("DeliveryCreator", fields: [createdById], references: [id])
-  createdAt    DateTime           @default(now())
+  createdById String
+  createdBy   User     @relation("DeliveryCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
 
   items StockDeliveryItem[]
   logs  StockDeliveryLog[]
@@ -819,13 +820,13 @@ model StockDeliveryItem {
   delivery    StockDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   stockItemId String?
   stockItem   StockItem?    @relation(fields: [stockItemId], references: [id])
-  description String?       // for NON_STOCK invoice lines (free text)
-  unitLabel   String?       // free-text unit for NON_STOCK lines
-  orderedQty  Int?          // total qty on the purchase order (spans all batches)
-  cashierQty  Int?          // this batch — from invoice
-  counterQty  Int?          // this batch — from physical count
-  finalQty    Int?          // set on COMPLETE/PARTIAL for this batch
-  unitCost    Int?          // MMK per unit
+  description String? // for NON_STOCK invoice lines (free text)
+  unitLabel   String? // free-text unit for NON_STOCK lines
+  orderedQty  Int? // total qty on the purchase order (spans all batches)
+  cashierQty  Int? // this batch — from invoice
+  counterQty  Int? // this batch — from physical count
+  finalQty    Int? // set on COMPLETE/PARTIAL for this batch
+  unitCost    Int? // MMK per unit
 
   @@unique([deliveryId, stockItemId])
   @@index([deliveryId])
@@ -837,7 +838,7 @@ model StockDeliveryLog {
   delivery   StockDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   actorId    String
   actor      User          @relation("DeliveryLogActor", fields: [actorId], references: [id])
-  action     String        // CREATED | PREPAID | CASHIER_SUBMITTED | COUNTER_SUBMITTED | AUTO_COMPLETED | MANAGER_RESOLVED | MARKED_PARTIAL
+  action     String // CREATED | PREPAID | CASHIER_SUBMITTED | COUNTER_SUBMITTED | AUTO_COMPLETED | MANAGER_RESOLVED | MARKED_PARTIAL
   note       String?
   createdAt  DateTime      @default(now())
 
@@ -849,10 +850,10 @@ model StockMovement {
   stockItemId  String
   stockItem    StockItem    @relation(fields: [stockItemId], references: [id])
   type         MovementType
-  qty          Int          // positive = in, negative = out
-  previousQty  Int?         // stock level before this movement (for ADJUSTMENT)
+  qty          Int // positive = in, negative = out
+  previousQty  Int? // stock level before this movement (for ADJUSTMENT)
   note         String?
-  deliveryId   String?      // set for DELIVERY_IN movements
+  deliveryId   String? // set for DELIVERY_IN movements
   recordedById String
   recordedBy   User         @relation("MovementRecorder", fields: [recordedById], references: [id])
   createdAt    DateTime     @default(now())
@@ -896,7 +897,7 @@ model StockCountItem {
 
 enum CollectionType {
   COLLECT // admin takes money out of drawer
-  INJECT  // admin adds money into drawer
+  INJECT // admin adds money into drawer
 }
 
 model CashCollection {
@@ -906,9 +907,14 @@ model CashCollection {
   note         String?
   recordedById String
   recordedBy   User           @relation("CashCollectionRecorder", fields: [recordedById], references: [id])
+  // Set automatically to whichever shift was open at the moment this was recorded
+  // (null if no shift was open — those just adjust the standalone cash standing).
+  shiftId      String?
+  shift        CashierShift?  @relation(fields: [shiftId], references: [id])
   createdAt    DateTime       @default(now())
 
   @@index([createdAt])
+  @@index([shiftId])
 }
 
 // ---------------------------------------------------------------------------

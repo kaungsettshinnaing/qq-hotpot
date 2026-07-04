@@ -7,7 +7,8 @@ import { getSettings } from "@/lib/settings";
 import { formatMoney, formatTime } from "@/lib/format";
 import LiveRefresh from "@/components/LiveRefresh";
 import SubmitButton from "@/components/SubmitButton";
-import { openShift } from "./actions";
+import { openShift, recordCashMovement } from "./actions";
+import CollectionCard from "../cash-collection/CollectionCard";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -66,20 +67,58 @@ export default async function CashierHome({
             )}
           </div>
           {otherTotals && (
-            <section className="rounded-xl bg-white p-4 shadow-sm">
-              <h3 className="mb-3 text-sm font-semibold text-gray-700">
-                Cash Standing — {otherShift.cashier.name}&apos;s shift
-              </h3>
-              <div className="space-y-1.5 text-sm">
-                <CashRow label={t("row_start_balance")} value={formatMoney(otherShift.openingFloat, c)} />
-                <CashRow label={t("row_cash_sales")} value={formatMoney(otherTotals.cashSales, c)} positive />
-                <CashRow label={t("row_cash_expenses")} value={formatMoney(otherTotals.cashExpenses, c)} negative />
-                <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-bold">
-                  <span>{t("row_expected_in_drawer")}</span>
-                  <span className="tabular-nums text-brand">{formatMoney(otherTotals.expected, c)}</span>
+            <>
+              <section className="rounded-xl bg-white p-4 shadow-sm">
+                <h3 className="mb-3 text-sm font-semibold text-gray-700">
+                  Cash Standing — {otherShift.cashier.name}&apos;s shift
+                </h3>
+                <div className="space-y-1.5 text-sm">
+                  <CashRow label={t("row_start_balance")} value={formatMoney(otherShift.openingFloat, c)} />
+                  <CashRow label={t("row_cash_sales")} value={formatMoney(otherTotals.cashSales, c)} positive />
+                  <CashRow label={t("row_cash_expenses")} value={formatMoney(otherTotals.cashExpenses, c)} negative />
+                  {otherTotals.cashInjected > 0 && (
+                    <CashRow label={t("row_cash_injected")} value={formatMoney(otherTotals.cashInjected, c)} positive />
+                  )}
+                  {otherTotals.cashWithdrawn > 0 && (
+                    <CashRow label={t("row_cash_withdrawn")} value={formatMoney(otherTotals.cashWithdrawn, c)} negative />
+                  )}
+                  <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-bold">
+                    <span>{t("row_expected_in_drawer")}</span>
+                    <span className="tabular-nums text-brand">{formatMoney(otherTotals.expected, c)}</span>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+
+              <section className="rounded-xl bg-white p-4 shadow-sm">
+                <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_cash_movement")}</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <CollectionCard
+                    type="INJECT"
+                    standing={otherTotals.expected}
+                    currency={c}
+                    action={recordCashMovement}
+                    title={t("label_inject_title")}
+                    subtitle={t("label_inject_subtitle")}
+                    notePlaceholder={t("placeholder_inject_note")}
+                    submitLabel={t("btn_inject_submit")}
+                    standingLabel={t("label_expected_after")}
+                    overLabel={t("label_over_standing")}
+                  />
+                  <CollectionCard
+                    type="COLLECT"
+                    standing={otherTotals.expected}
+                    currency={c}
+                    action={recordCashMovement}
+                    title={t("label_collect_title")}
+                    subtitle={t("label_collect_subtitle")}
+                    notePlaceholder={t("placeholder_collect_note")}
+                    submitLabel={t("btn_collect_submit")}
+                    standingLabel={t("label_expected_after")}
+                    overLabel={t("label_over_standing")}
+                  />
+                </div>
+              </section>
+            </>
           )}
         </div>
       )}
@@ -148,10 +187,46 @@ export default async function CashierHome({
               <CashRow label={t("row_start_balance")} value={formatMoney(shift.openingFloat, c)} />
               <CashRow label={t("row_cash_sales")} value={formatMoney(totals?.cashSales ?? 0, c)} positive />
               <CashRow label={t("row_cash_expenses")} value={formatMoney(totals?.cashExpenses ?? 0, c)} negative />
+              {(totals?.cashInjected ?? 0) > 0 && (
+                <CashRow label={t("row_cash_injected")} value={formatMoney(totals?.cashInjected ?? 0, c)} positive />
+              )}
+              {(totals?.cashWithdrawn ?? 0) > 0 && (
+                <CashRow label={t("row_cash_withdrawn")} value={formatMoney(totals?.cashWithdrawn ?? 0, c)} negative />
+              )}
               <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-bold">
                 <span>{t("row_expected_in_drawer")}</span>
                 <span className="tabular-nums text-brand">{formatMoney(totals?.expected ?? 0, c)}</span>
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl bg-white p-5 shadow-sm">
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_cash_movement")}</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <CollectionCard
+                type="INJECT"
+                standing={totals?.expected ?? 0}
+                currency={c}
+                action={recordCashMovement}
+                title={t("label_inject_title")}
+                subtitle={t("label_inject_subtitle")}
+                notePlaceholder={t("placeholder_inject_note")}
+                submitLabel={t("btn_inject_submit")}
+                standingLabel={t("label_expected_after")}
+                overLabel={t("label_over_standing")}
+              />
+              <CollectionCard
+                type="COLLECT"
+                standing={totals?.expected ?? 0}
+                currency={c}
+                action={recordCashMovement}
+                title={t("label_collect_title")}
+                subtitle={t("label_collect_subtitle")}
+                notePlaceholder={t("placeholder_collect_note")}
+                submitLabel={t("btn_collect_submit")}
+                standingLabel={t("label_expected_after")}
+                overLabel={t("label_over_standing")}
+              />
             </div>
           </section>
         </>

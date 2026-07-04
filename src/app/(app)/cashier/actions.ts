@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { getSessionDetail } from "@/lib/orders";
-import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
+import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding, createCashMovement } from "@/lib/shift";
 import { emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
@@ -162,6 +162,21 @@ export async function closeShift(formData: FormData): Promise<void> {
   revalidatePath("/cashier/shift");
   revalidatePath("/cashier");
   redirect("/cashier/shift");
+}
+
+/** Mid-shift cash inject/withdraw — auto-tagged to whichever shift is open
+ *  (if any), so the drawer stays reconcilable against expected cash. */
+export async function recordCashMovement(formData: FormData): Promise<void> {
+  const user = await requireAnyRole(CASHIER_ROLES);
+  const type = formData.get("type") as "COLLECT" | "INJECT";
+  const amount = Math.round(Math.abs(Number(formData.get("amount")) || 0));
+  const note = str(formData.get("note"), 300) || null;
+  if (!amount || !["COLLECT", "INJECT"].includes(type)) return;
+  await createCashMovement(type, amount, note, user.id);
+  revalidatePath("/cashier");
+  revalidatePath("/cashier/shift");
+  revalidatePath("/cash-collection");
+  revalidatePath("/reports");
 }
 
 // --------------------------------------------------------------------------

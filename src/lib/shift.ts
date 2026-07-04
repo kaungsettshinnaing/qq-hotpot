@@ -21,6 +21,8 @@ export interface ShiftTotals {
   kbzSales: number;
   otherSales: number;
   cashExpenses: number;
+  cashInjected: number;
+  cashWithdrawn: number;
   expected: number;
 }
 
@@ -31,15 +33,19 @@ export async function computeShiftTotals(
   openingFloat: number,
   shiftWindow?: { openedAt: Date; closedAt: Date | null },
 ): Promise<ShiftTotals> {
-  const [cashAgg, kbzAgg, otherAgg, expAgg] = await Promise.all([
+  const [cashAgg, kbzAgg, otherAgg, expAgg, injectAgg, collectAgg] = await Promise.all([
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "CASH" } }),
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "KBZPAY" } }),
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "OTHER" } }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { shiftId, paymentSource: "CASH_DRAWER" } }),
+    prisma.cashCollection.aggregate({ _sum: { amount: true }, where: { shiftId, type: "INJECT" } }),
+    prisma.cashCollection.aggregate({ _sum: { amount: true }, where: { shiftId, type: "COLLECT" } }),
   ]);
   const kbzSales = kbzAgg._sum.amount ?? 0;
   const otherSales = otherAgg._sum.amount ?? 0;
   const cashExpenses = expAgg._sum.amount ?? 0;
+  const cashInjected = injectAgg._sum.amount ?? 0;
+  const cashWithdrawn = collectAgg._sum.amount ?? 0;
 
   // Gross CASH collected; reduced by change returned when customers overpay.
   // We attribute change to the shift that settled the session (closedAt in window).
@@ -60,7 +66,28 @@ export async function computeShiftTotals(
     }
   }
 
-  return { cashSales, kbzSales, otherSales, cashExpenses, expected: openingFloat + cashSales - cashExpenses };
+  return {
+    cashSales, kbzSales, otherSales, cashExpenses, cashInjected, cashWithdrawn,
+    expected: openingFloat + cashSales - cashExpenses + cashInjected - cashWithdrawn,
+  };
+}
+
+/**
+ * Records a manual cash-drawer movement (inject or withdraw), automatically
+ * tagging it to whichever shift is currently open (if any). Tagged movements
+ * count toward that shift's `expected` cash; untagged ones (no shift open)
+ * only affect the standalone cash standing (getCashStanding below).
+ */
+export async function createCashMovement(
+  type: "INJECT" | "COLLECT",
+  amount: number,
+  note: string | null,
+  recordedById: string,
+) {
+  const openShift = await getAnyOpenShift();
+  return prisma.cashCollection.create({
+    data: { type, amount, note, recordedById, shiftId: openShift?.id ?? null },
+  });
 }
 
 /**

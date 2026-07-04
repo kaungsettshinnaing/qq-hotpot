@@ -1,7 +1,7 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getCashStanding } from "@/lib/shift";
+import { getCashStanding, createCashMovement } from "@/lib/shift";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 import CollectionCard from "./CollectionCard";
@@ -15,11 +15,13 @@ async function recordCollection(fd: FormData) {
   const amount = Math.round(Math.abs(Number(fd.get("amount")) || 0));
   const note = (fd.get("note") as string | null)?.trim() || null;
   if (!amount || !["COLLECT", "INJECT"].includes(type)) return;
-  await prisma.cashCollection.create({
-    data: { type, amount, note, recordedById: user.id },
-  });
+  // Auto-tags whichever shift is open, so this stays consistent with that
+  // shift's expected-cash total instead of only affecting the standalone standing.
+  await createCashMovement(type, amount, note, user.id);
   revalidatePath("/cash-collection");
+  revalidatePath("/cashier");
   revalidatePath("/cashier/shift");
+  revalidatePath("/reports");
 }
 
 function fmtDate(d: Date) {
