@@ -165,9 +165,11 @@ export async function closeShift(formData: FormData): Promise<void> {
 }
 
 /** Mid-shift cash inject/withdraw — auto-tagged to whichever shift is open
- *  (if any), so the drawer stays reconcilable against expected cash. */
+ *  (if any), so the drawer stays reconcilable against expected cash.
+ *  Manager/admin only — a plain cashier moving cash out of their own drawer
+ *  unsupervised would defeat the reconciliation this feature exists for. */
 export async function recordCashMovement(formData: FormData): Promise<void> {
-  const user = await requireAnyRole(CASHIER_ROLES);
+  const user = await requireAnyRole(["MANAGER", "ADMIN"]);
   const type = formData.get("type") as "COLLECT" | "INJECT";
   const amount = Math.round(Math.abs(Number(formData.get("amount")) || 0));
   const note = str(formData.get("note"), 300) || null;

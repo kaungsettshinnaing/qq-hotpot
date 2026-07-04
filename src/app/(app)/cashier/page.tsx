@@ -200,35 +200,37 @@ export default async function CashierHome({
             </div>
           </section>
 
-          <section className="rounded-xl bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_cash_movement")}</h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <CollectionCard
-                type="INJECT"
-                standing={totals?.expected ?? 0}
-                currency={c}
-                action={recordCashMovement}
-                title={t("label_inject_title")}
-                subtitle={t("label_inject_subtitle")}
-                notePlaceholder={t("placeholder_inject_note")}
-                submitLabel={t("btn_inject_submit")}
-                standingLabel={t("label_expected_after")}
-                overLabel={t("label_over_standing")}
-              />
-              <CollectionCard
-                type="COLLECT"
-                standing={totals?.expected ?? 0}
-                currency={c}
-                action={recordCashMovement}
-                title={t("label_collect_title")}
-                subtitle={t("label_collect_subtitle")}
-                notePlaceholder={t("placeholder_collect_note")}
-                submitLabel={t("btn_collect_submit")}
-                standingLabel={t("label_expected_after")}
-                overLabel={t("label_over_standing")}
-              />
-            </div>
-          </section>
+          {isManager && (
+            <section className="rounded-xl bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_cash_movement")}</h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <CollectionCard
+                  type="INJECT"
+                  standing={totals?.expected ?? 0}
+                  currency={c}
+                  action={recordCashMovement}
+                  title={t("label_inject_title")}
+                  subtitle={t("label_inject_subtitle")}
+                  notePlaceholder={t("placeholder_inject_note")}
+                  submitLabel={t("btn_inject_submit")}
+                  standingLabel={t("label_expected_after")}
+                  overLabel={t("label_over_standing")}
+                />
+                <CollectionCard
+                  type="COLLECT"
+                  standing={totals?.expected ?? 0}
+                  currency={c}
+                  action={recordCashMovement}
+                  title={t("label_collect_title")}
+                  subtitle={t("label_collect_subtitle")}
+                  notePlaceholder={t("placeholder_collect_note")}
+                  submitLabel={t("btn_collect_submit")}
+                  standingLabel={t("label_expected_after")}
+                  overLabel={t("label_over_standing")}
+                />
+              </div>
+            </section>
+          )}
         </>
       )}
 
