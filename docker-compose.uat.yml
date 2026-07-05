@@ -33,6 +33,8 @@ services:
       retries: 12
 
   app:
+    # VPS pulls the CI-built UAT image (APP_IMAGE set in .env.uat); local dev falls back to build.
+    image: ${APP_IMAGE:-ghcr.io/kaungsettshinnaing/qq-hotpot:uat}
     build: .
     restart: unless-stopped
     environment:

@@ -21,6 +21,8 @@ services:
       retries: 12
 
   app:
+    # VPS pulls the CI-built image (APP_IMAGE set in .env); local dev falls back to build.
+    image: ${APP_IMAGE:-ghcr.io/kaungsettshinnaing/qq-hotpot:prod}
     build: .
     restart: unless-stopped
     environment:

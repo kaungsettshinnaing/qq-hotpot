@@ -43,8 +43,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          # Environment-specific tags so UAT and prod never share a moving tag.
+          #   main -> :prod   uat -> :uat   (plus an immutable :sha-xxxxxxx for both)
           tags: |
-            type=raw,value=latest
+            type=raw,value=prod,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=uat,enable=${{ github.ref == 'refs/heads/uat' }}
             type=sha,format=short
 
       - name: Build & push image
@@ -57,12 +60,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  # main -> production (app.qqhotpotbbq.com)
+  deploy-prod:
     needs: build
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
     steps:
-      - name: Deploy over SSH
+      - name: Deploy to production over SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -70,9 +74,35 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd "${{ secrets.VPS_APP_DIR }}"
+            cd /opt/qq-hotpot
             git pull --ff-only || true
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             docker compose pull
             docker compose up -d
+            # Safe by default: fails loudly if a schema change would drop data.
+            # For an intentional destructive change, run once by hand with --accept-data-loss.
+            docker compose exec -T app npx prisma db push
+            docker image prune -f
+
+  # uat -> UAT (uat.qqhotpotbbq.com)
+  deploy-uat:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/uat' && vars.DEPLOY_ENABLED == 'true' }}
+    steps:
+      - name: Deploy to UAT over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/qq-hotpot-uat
+            git pull --ff-only || true
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            dc="docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat"
+            $dc pull
+            $dc up -d
+            $dc exec -T app npx prisma db push
             docker image prune -f

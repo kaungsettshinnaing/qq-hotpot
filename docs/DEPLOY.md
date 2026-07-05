@@ -51,7 +51,7 @@ Networks:
 | Compose file | docker-compose.uat.yml |
 | Env file | .env.uat |
 | DB volume | pgdata_uat |
-| Deploy trigger | Manual — push to `uat` branch triggers CI build, then SSH to VPS to rebuild |
+| Deploy trigger | Push to `uat` branch → GitHub Actions auto-deploys |
 
 Both compose files set `NODE_OPTIONS: "--max-old-space-size=512"` on the app service to prevent OOM-driven 503s under RSC background polling.
 
@@ -61,23 +61,23 @@ Both compose files set `NODE_OPTIONS: "--max-old-space-size=512"` on the app ser
 
 | Branch | CI action | Deploys to |
 |---|---|---|
-| `main` | tsc + lint + Docker image build → push GHCR → **auto SSH deploy** to prod | Production |
-| `uat` | tsc + lint + Docker image build → push GHCR → **no auto-deploy** | UAT (manual rebuild) |
+| `main` | tsc + lint + Docker image build → push GHCR `:prod` → **auto SSH deploy** to prod | Production |
+| `uat` | tsc + lint + Docker image build → push GHCR `:uat` → **auto SSH deploy** to UAT | UAT |
 
-The CI build runs on both branches. Auto-deploy to production only happens from `main` (controlled by `DEPLOY_ENABLED` repo variable).
+The CI build runs on both branches. Each branch publishes its own image tag (`:prod` / `:uat`) so the two environments never share a moving tag, and each deploy job pulls the image named by `APP_IMAGE` in that environment's env file. Both auto-deploys are gated by the `DEPLOY_ENABLED` repo variable — set it to `false` to pause all automatic deploys.
 
 ### Typical workflow
 
 ```
 Develop locally → git push origin uat (from local machine)
-               → SSH into VPS → git pull + docker rebuild + prisma db push
+               → CI auto-deploys UAT
                → test on UAT
                → git checkout main && git merge uat && git push origin main
-               → CI auto-deploys prod → SSH into VPS → prisma db push
+               → CI auto-deploys prod
 ```
 
 > **`git push` always runs on your LOCAL machine, never on the VPS.**  
-> The VPS only ever runs `git pull`. GitHub no longer accepts password auth — the local machine uses your configured SSH key or PAT.
+> CI SSHes into the VPS to deploy; you never do it by hand. GitHub no longer accepts password auth — the local machine uses your configured SSH key or PAT.
 
 ---
 
@@ -145,20 +145,14 @@ docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.u
 
 ## Routine operations
 
-### Deploy UAT (manual)
+### Deploy UAT (automatic)
 
 **On your local machine:**
 ```bash
 git push origin uat
 ```
 
-Wait for GitHub Actions CI build to go green, then **on the VPS:**
-```bash
-cd /opt/qq-hotpot-uat
-git pull --ff-only
-docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat up -d --build
-docker image prune -f
-```
+GitHub Actions builds the `:uat` image and SSH-deploys it to `/opt/qq-hotpot-uat`. No VPS step needed — schema changes are applied automatically via `prisma db push` (non-destructive; see note below).
 
 ### Deploy production (automatic)
 
@@ -169,7 +163,7 @@ git merge uat --ff-only
 git push origin main
 ```
 
-GitHub Actions handles the build + deploy. Once the Actions tab shows green, schema changes still need a manual push:
+GitHub Actions builds the `:prod` image and SSH-deploys it to `/opt/qq-hotpot`, then runs `prisma db push`. A schema change that would drop data fails the deploy instead of applying — run it once by hand in that case:
 ```bash
 cd /opt/qq-hotpot
 docker compose exec app npx prisma db push --accept-data-loss
@@ -211,10 +205,13 @@ Workflow: `.github/workflows/deploy.yml`
 2. `npx prisma generate`
 3. `tsc --noEmit`
 4. `npm run lint`
-5. Build + push Docker image to `ghcr.io/kaungsettshinnaing/qq-hotpot:latest` + short SHA tag
+5. Build + push Docker image to GHCR — `:prod` on `main`, `:uat` on `uat`, plus a short-SHA tag on both
 
-**On push to `main` only** (deploy job, requires `DEPLOY_ENABLED = true`):
-6. SSH into VPS → `git pull`, `docker compose pull`, `docker compose up -d`, `docker image prune -f`
+**Deploy job (requires `DEPLOY_ENABLED = true`):**
+6. `main` → SSH into `/opt/qq-hotpot` → `docker compose pull && up -d`, `prisma db push`, prune
+7. `uat` → SSH into `/opt/qq-hotpot-uat` → `docker compose … pull && up -d`, `prisma db push`, prune
+
+> `prisma db push` runs **without** `--accept-data-loss`, so a schema change that would drop data fails the deploy loudly instead of destroying it. Apply an intentionally destructive change once by hand (see "After a schema change" below).
 
 ### Required GitHub Secrets
 
@@ -223,8 +220,8 @@ Workflow: `.github/workflows/deploy.yml`
 | `VPS_HOST` | `187.127.106.81` |
 | `VPS_USER` | `root` |
 | `VPS_SSH_KEY` | Private SSH key (ed25519) |
-| `VPS_APP_DIR` | `/opt/qq-hotpot` |
-| `GHCR_PAT` | GitHub PAT with `read:packages` scope |
+| `VPS_APP_DIR` | `/opt/qq-hotpot` (prod dir; UAT dir `/opt/qq-hotpot-uat` is hard-coded in the workflow) |
+| `GHCR_PAT` | GitHub PAT with `read:packages` scope (VPS pulls private images) |
 
 ### Required GitHub Variables
 
