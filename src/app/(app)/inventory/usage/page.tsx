@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/rbac";
 import SubmitButton from "@/components/SubmitButton";
+import CategoryItemSelect from "@/components/CategoryItemSelect";
 import { formatDateTime } from "@/lib/format";
 import { recordAdjustment } from "./actions";
 import { computeAllStockLevels } from "@/lib/inventory";
@@ -25,7 +26,7 @@ export default async function UsagePage() {
     UNIT: "Unit", GRAM: "Gram", KG: "KG", LITRE: "Litre", BOX: "Box", BOTTLE: "Bottle", PACK: "Pack",
   };
 
-  const [movements, stockItems, stockMap] = await Promise.all([
+  const [movements, categories, uncategorized, stockMap] = await Promise.all([
     prisma.stockMovement.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -34,9 +35,33 @@ export default async function UsagePage() {
         recordedBy: { select: { name: true } },
       },
     }),
-    prisma.stockItem.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.stockCategory.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      include: { items: { where: { isActive: true }, orderBy: { name: "asc" } } },
+    }),
+    prisma.stockItem.findMany({
+      where: { isActive: true, categoryId: null },
+      orderBy: { name: "asc" },
+    }),
     computeAllStockLevels(),
   ]);
+
+  const itemMeta = (item: { id: string; unit: string }) =>
+    `${t("col_current")}: ${stockMap.get(item.id) ?? 0} ${UNIT_LABEL[item.unit]}`;
+
+  const pickerCategories = [
+    ...categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      items: c.items.map((i) => ({ id: i.id, name: i.name, meta: itemMeta(i) })),
+    })),
+    ...(uncategorized.length > 0 ? [{
+      id: "__uncategorized__",
+      name: t("label_uncategorized"),
+      items: uncategorized.map((i) => ({ id: i.id, name: i.name, meta: itemMeta(i) })),
+    }] : []),
+  ];
 
   return (
     <div className="space-y-5">
@@ -52,17 +77,18 @@ export default async function UsagePage() {
         <section className="rounded-xl bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_manual_adjustment")}</h3>
           <p className="mb-3 text-xs text-gray-500">{t("hint_manual_adjustment")}</p>
-          <form action={recordAdjustment} className="flex flex-wrap gap-3 text-sm">
-            <select name="stockItemId" required
+          <form action={recordAdjustment} className="flex flex-wrap items-start gap-3 text-sm">
+            <CategoryItemSelect
+              categories={pickerCategories}
+              categoryPlaceholder={`— ${t("label_category")} —`}
+              itemPlaceholder={`— ${t("label_item")} —`}
+            />
+            <select name="direction" required
               className="rounded-lg border border-gray-300 px-3 py-2">
-              <option value="">— {t("label_select_placeholder")} —</option>
-              {stockItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} ({t("col_current")}: {stockMap.get(item.id) ?? 0} {UNIT_LABEL[item.unit]})
-                </option>
-              ))}
+              <option value="ADD">{t("option_add_stock")}</option>
+              <option value="REMOVE">{t("option_remove_stock")}</option>
             </select>
-            <input name="newQty" type="number" min="0" required placeholder={t("placeholder_new_qty")}
+            <input name="qty" type="number" min="1" required placeholder={t("placeholder_adjustment_qty")}
               className="w-28 rounded-lg border border-gray-300 px-3 py-2" />
             <input name="note" placeholder={t("placeholder_adj_reason")}
               className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2" />

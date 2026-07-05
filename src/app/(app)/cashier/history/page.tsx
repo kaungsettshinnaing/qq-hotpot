@@ -56,7 +56,8 @@ export default async function CashierHistoryPage({
   const grandKbz = rows.reduce((sum, r) => sum + r.kbz, 0);
   const grandOther = rows.reduce((sum, r) => sum + r.other, 0);
   const grandTotal = grandCash + grandKbz + grandOther;
-  const totalPax = sessions.reduce((sum, s) => sum + s.adults + s.children, 0);
+  const totalAdults = sessions.reduce((sum, s) => sum + s.adults, 0);
+  const totalChildren = sessions.reduce((sum, s) => sum + s.children, 0);
 
   return (
     <div className="space-y-5">
@@ -86,7 +87,7 @@ export default async function CashierHistoryPage({
       {rows.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard label={t("stat_sessions")} value={String(rows.length)} />
-          <SummaryCard label={t("stat_total_pax")} value={String(totalPax)} />
+          <SummaryCard label={t("stat_covers")} value={`${totalAdults} / ${totalChildren}`} />
           <SummaryCard label={t("payment_method_cash")} value={formatMoney(grandCash, c)} />
           <SummaryCard label={t("label_total_shift_takings")} value={formatMoney(grandTotal, c)} highlight />
         </div>
@@ -112,7 +113,7 @@ export default async function CashierHistoryPage({
                   <span className="text-lg font-extrabold text-brand tabular-nums">{formatMoney(r.total, c)}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
-                  <span>{r.session.adults + r.session.children} pax</span>
+                  <span>{r.session.adults} {t("label_adult_short")} · {r.session.children} {t("label_child_short")}</span>
                   <span>·</span>
                   <span>{formatTime(r.session.openedAt)} → {r.session.closedAt ? formatTime(r.session.closedAt) : "—"}</span>
                 </div>
@@ -138,7 +139,7 @@ export default async function CashierHistoryPage({
                   <th className="px-4 py-2">{t("col_table")}</th>
                   <th className="px-4 py-2">{t("col_opened")}</th>
                   <th className="px-4 py-2">{t("col_closed")}</th>
-                  <th className="px-4 py-2 text-right">Pax</th>
+                  <th className="px-4 py-2 text-right">{t("stat_covers")}</th>
                   <th className="px-4 py-2 text-right">{t("payment_method_cash")}</th>
                   <th className="px-4 py-2 text-right">KBZPay</th>
                   <th className="px-4 py-2 text-right">{t("payment_method_other")}</th>
@@ -155,7 +156,7 @@ export default async function CashierHistoryPage({
                     <td className="px-4 py-2.5 text-gray-500 tabular-nums">
                       {r.session.closedAt ? formatTime(r.session.closedAt) : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.session.adults + r.session.children}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{r.session.adults} / {r.session.children}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.cash > 0 ? formatMoney(r.cash, c) : "—"}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.kbz > 0 ? formatMoney(r.kbz, c) : "—"}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.other > 0 ? formatMoney(r.other, c) : "—"}</td>
@@ -177,7 +178,7 @@ export default async function CashierHistoryPage({
               <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
                 <tr>
                   <td className="px-4 py-2.5" colSpan={3}>{t("label_daily_total")} ({rows.length} {t("stat_sessions")})</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{totalPax}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{totalAdults} / {totalChildren}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandCash, c)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandKbz, c)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandOther, c)}</td>

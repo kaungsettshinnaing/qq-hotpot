@@ -915,7 +915,7 @@ async function DailySummaryTab({
         start: fmtTime(s.openedAt),
         end: s.closedAt ? fmtTime(s.closedAt) : "—",
         lines: (bill?.lines ?? []).map((l) => ({
-          label: l.label, qty: l.qty, unitLabel: l.unitLabel, unitPrice: l.unitPrice, amount: l.amount,
+          code: l.code, label: l.label, qty: l.qty, unitLabel: l.unitLabel, unitPrice: l.unitPrice, amount: l.amount,
         })),
         subtotal: bill?.subtotal ?? 0,
         discount: bill?.discount ?? 0,
@@ -933,6 +933,13 @@ async function DailySummaryTab({
 
   const discountRows = movementRows.filter((r) => r.discount > 0);
   const totalDiscounts = discountRows.reduce((s, d) => s + d.discount, 0);
+
+  const wastageGrams = movementRows.reduce(
+    (sum, r) => sum + r.lines.filter((l) => l.code === "WASTAGE").reduce((s, l) => s + l.qty, 0), 0,
+  );
+  const wastageRevenue = movementRows.reduce(
+    (sum, r) => sum + r.lines.filter((l) => l.code === "WASTAGE").reduce((s, l) => s + l.amount, 0), 0,
+  );
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
   const grossCash = sum(payments.filter((p) => p.method === "CASH"));
@@ -995,6 +1002,12 @@ async function DailySummaryTab({
               <span>{t("row_net_cash_movement")}</span>
               <span className="tabular-nums">{formatMoney(netCash, c)}</span>
             </div>
+            {wastageGrams > 0 && (
+              <div className="flex justify-between border-t border-gray-100 pt-1 text-xs text-gray-500">
+                <span>Wastage revenue ({wastageGrams.toLocaleString()} g)</span>
+                <span className="tabular-nums">{formatMoney(wastageRevenue, c)}</span>
+              </div>
+            )}
           </dl>
         </section>
 
@@ -1096,14 +1109,16 @@ async function DailySummaryTab({
           <>
             <ul className="divide-y divide-gray-100 text-sm">
               {discountRows.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
+                <li key={d.id} className="flex items-start justify-between gap-2 py-1.5">
                   <span className="min-w-0">
                     <span className="font-medium">{d.tableLabel}</span>
                     <span className="ml-2 text-xs text-gray-400">
                       {d.end} · {d.closedByName ?? "—"}
                     </span>
-                    {d.discountReason && (
-                      <span className="block truncate text-xs text-gray-500">&ldquo;{d.discountReason}&rdquo;</span>
+                    {d.discountReason ? (
+                      <span className="block whitespace-pre-wrap break-words text-xs text-gray-500">&ldquo;{d.discountReason}&rdquo;</span>
+                    ) : (
+                      <span className="block text-xs italic text-gray-300">No note given</span>
                     )}
                   </span>
                   <span className="flex-shrink-0 text-right font-semibold tabular-nums text-red-600">

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/rbac";
 import { formatDate } from "@/lib/format";
-import { resolveDelivery } from "./actions";
+import { resolveDelivery, settlePrepaidDelivery } from "./actions";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +56,7 @@ export default async function DeliveryDetailPage({
   const isCashier = session && hasAnyRole(session.roles, ["CASHIER", "MANAGER", "ADMIN"]);
   const isCounter = session && hasAnyRole(session.roles, ["WAITER", "KITCHEN", "MANAGER", "ADMIN"]);
   const isManager = session && hasAnyRole(session.roles, ["MANAGER", "ADMIN"]);
+  const isAdmin = session && hasAnyRole(session.roles, ["ADMIN"]);
 
   const badge = statusBadge[delivery.status] ?? statusBadge.DRAFT;
 
@@ -137,6 +138,10 @@ export default async function DeliveryDetailPage({
                 ))}
               </tbody>
             </table>
+          ) : delivery.paymentStatus === "PREPAID" ? (
+            <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2 text-sm text-yellow-800">
+              {t("hint_prepaid_invoice_at_expenses")}
+            </div>
           ) : isCashier ? (
             <Link href={`/inventory/deliveries/${id}/cashier`}
               className="block rounded-lg bg-brand px-4 py-2 text-center text-sm font-semibold text-white hover:bg-brand-dark">
@@ -157,16 +162,6 @@ export default async function DeliveryDetailPage({
                 </span>
               )}
             </div>
-          )}
-
-          {delivery.status === "DRAFT" && !delivery.cashierSubmittedAt && !delivery.expenseId && isCashier && (
-            <p className="mt-2 text-xs text-gray-500">
-              {t("goods_arriving_later")}{" "}
-              <Link href={`/inventory/deliveries/${id}/cashier?mode=prepay`}
-                className="text-yellow-600 underline">
-                {t("link_record_prepayment")}
-              </Link>
-            </p>
           )}
         </div>
 
@@ -221,18 +216,15 @@ export default async function DeliveryDetailPage({
                 })}
               </tbody>
             </table>
-          ) : isCounter ? (
-            <div>
-              {delivery.status === "PREPAID" && (
-                <div className="mb-3 rounded bg-yellow-50 border border-yellow-200 px-3 py-2 text-xs text-yellow-700">
-                  {t("hint_prepaid_count_notice")}
-                </div>
-              )}
-              <Link href={`/inventory/deliveries/${id}/counter`}
-                className="block rounded-lg bg-orange-500 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-orange-600">
-                {t("link_count_items")}
-              </Link>
+          ) : !delivery.cashierSubmittedAt ? (
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-gray-500">
+              {t("waiting_for_invoice")}
             </div>
+          ) : isCounter ? (
+            <Link href={`/inventory/deliveries/${id}/counter`}
+              className="block rounded-lg bg-orange-500 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-orange-600">
+              {t("link_count_items")}
+            </Link>
           ) : (
             <p className="text-sm text-gray-400">{t("waiting_counter")}</p>
           )}
@@ -305,28 +297,54 @@ export default async function DeliveryDetailPage({
         </div>
       )}
 
-      {/* Follow-up batch link */}
-      {(delivery.status === "PARTIAL" || delivery.status === "COMPLETE") && (
-        <div className="flex items-center gap-3">
-          {delivery.batches.length > 0 && (
-            <div className="rounded-lg bg-purple-50 px-3 py-2 text-sm text-purple-700">
-              {t("label_batch_deliveries")}{" "}
-              {delivery.batches.map((b, i) => (
-                <span key={b.id}>
-                  {i > 0 && ", "}
-                  <Link href={`/inventory/deliveries/${b.id}`} className="underline">
-                    {b.invoiceNo ?? b.id.slice(-6)} ({statusBadge[b.status]?.label ?? b.status})
-                  </Link>
-                </span>
-              ))}
-            </div>
-          )}
-          {delivery.status === "PARTIAL" && (
-            <Link href={`/inventory/deliveries/new?parentId=${id}`}
-              className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700">
-              {t("btn_add_next_batch")}
-            </Link>
-          )}
+      {/* Admin: settle a pre-payment once the invoice/goods are reconciled */}
+      {delivery.paymentStatus === "PREPAID" && isManager && (
+        (delivery.status === "COMPLETE" || delivery.status === "PARTIAL") && isAdmin ? (
+          <section className="rounded-xl border-2 border-yellow-300 bg-yellow-50 p-4 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold text-yellow-800">{t("heading_settle_prepayment")}</h3>
+            <p className="mb-3 text-xs text-yellow-700">{t("hint_settle_prepayment")}</p>
+            <form action={settlePrepaidDelivery} className="space-y-3 text-sm">
+              <input type="hidden" name="deliveryId" value={id} />
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  {t("label_final_invoice_total")}
+                </label>
+                <input name="finalAmount" type="number" min="0"
+                  defaultValue={delivery.totalCost ?? undefined}
+                  className="w-40 rounded-lg border border-gray-300 px-3 py-2" />
+              </div>
+              <textarea name="settleNote" placeholder={t("placeholder_settle_note")}
+                required rows={2}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+              <button type="submit"
+                className="rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-700">
+                {t("btn_settle_prepayment")}
+              </button>
+            </form>
+          </section>
+        ) : (
+          <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
+            <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">
+              {t("badge_prepaid_unsettled")}
+            </span>
+            {" "}
+            {isAdmin ? t("hint_prepaid_awaiting_count") : t("hint_prepaid_admin_only")}
+          </div>
+        )
+      )}
+
+      {/* Batch deliveries */}
+      {(delivery.status === "PARTIAL" || delivery.status === "COMPLETE") && delivery.batches.length > 0 && (
+        <div className="rounded-lg bg-purple-50 px-3 py-2 text-sm text-purple-700">
+          {t("label_batch_deliveries")}{" "}
+          {delivery.batches.map((b, i) => (
+            <span key={b.id}>
+              {i > 0 && ", "}
+              <Link href={`/inventory/deliveries/${b.id}`} className="underline">
+                {b.invoiceNo ?? b.id.slice(-6)} ({statusBadge[b.status]?.label ?? b.status})
+              </Link>
+            </span>
+          ))}
         </div>
       )}
 

@@ -49,6 +49,17 @@ export default async function ManagerInventoryPage({
 
 async function DiscrepancyTab() {
   const t = await getT();
+  // Expenses linked to a delivery are verified by blind count, so they are
+  // excluded from manual confirmation. Only legacy (pre-flow) stock invoices
+  // with no delivery remain in the confirmation list until they drain.
+  const linkedExpenses = await prisma.stockDelivery.findMany({
+    where: { expenseId: { not: null } },
+    select: { expenseId: true },
+  });
+  const linkedExpenseIds = linkedExpenses
+    .map((d) => d.expenseId)
+    .filter((id): id is string => id != null);
+
   const [discrepancies, prepaid, stockExpenses, pendingStockIns] = await Promise.all([
     prisma.stockDelivery.findMany({
       where: { status: "PENDING_REVIEW" },
@@ -69,9 +80,9 @@ async function DiscrepancyTab() {
       orderBy: { prepaidAt: "asc" },
       include: { supplier: { select: { name: true } } },
     }),
-    // Unconfirmed stock invoices entered by cashier
+    // Legacy unconfirmed stock invoices with no linked delivery (drain-only)
     prisma.expense.findMany({
-      where: { invoiceType: "STOCK", confirmedAt: null },
+      where: { invoiceType: "STOCK", confirmedAt: null, id: { notIn: linkedExpenseIds } },
       orderBy: { createdAt: "asc" },
       include: {
         category: { select: { name: true } },

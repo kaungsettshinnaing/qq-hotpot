@@ -4,6 +4,8 @@
 
 The inventory module tracks stock purchases (deliveries from suppliers), reconciles physical counts against invoices using a **blind-count** system to catch pilferage or delivery errors, records stock consumption, and provides supplier spend reports. It integrates with the cashier expense system — every stock purchase auto-creates an `Expense` record.
 
+**The stock invoice *is* the delivery.** A cashier enters a stock invoice at **Cashier → Expenses** (Stock Invoice mode): picking stock items, quantities and unit costs. Submitting creates the `StockDelivery` (status `OPEN`, awaiting physical count) *and* its linked `Expense` in one step. The physical count then happens against that invoice — counter staff see the invoice's items but not the quantities (blind). A matching count auto-completes the delivery and auto-confirms the expense; a mismatch is flagged to the manager. There is no separate "create delivery" step and no separate manual expense-confirmation step for new stock invoices — the blind count is the verification.
+
 ---
 
 ## Role access map
@@ -12,9 +14,11 @@ The inventory module tracks stock purchases (deliveries from suppliers), reconci
 |---|---|
 | `/admin/stock-items` | ADMIN |
 | `/admin/suppliers` | ADMIN |
+| `/cashier/expenses` (stock invoice + pre-payment entry) | CASHIER, MANAGER, ADMIN |
 | `/inventory` (all sub-routes) | CASHIER, WAITER, KITCHEN, MANAGER, ADMIN |
-| `/inventory/deliveries/[id]/cashier` | CASHIER, MANAGER, ADMIN |
+| `/inventory/deliveries/[id]/cashier` (legacy in-flight only) | CASHIER, MANAGER, ADMIN |
 | `/inventory/deliveries/[id]/counter` | WAITER, KITCHEN, MANAGER, ADMIN |
+| Settle pre-payment (`settlePrepaidDelivery`) | ADMIN only |
 | `/manager/inventory` | MANAGER, ADMIN |
 
 KITCHEN role was extended to include `/inventory` (allows kitchen staff to count stock and record usage, in addition to the kitchen display).
@@ -81,7 +85,7 @@ Immutable audit trail for every state transition.
 ```
 id, deliveryId, actorId, action (string), note?, createdAt
 ```
-Actions: `CREATED`, `PREPAID`, `CASHIER_SUBMITTED`, `COUNTER_SUBMITTED`, `DISCREPANCY_FLAGGED`, `AUTO_COMPLETED`, `MANAGER_RESOLVED`, `MARKED_PARTIAL`
+Actions: `CREATED`, `PREPAID`, `CASHIER_SUBMITTED`, `COUNTER_SUBMITTED`, `DISCREPANCY_FLAGGED`, `AUTO_COMPLETED`, `MANAGER_RESOLVED`, `MANAGER_APPROVED`, `MARKED_PARTIAL`, `PREPAY_MISMATCH`, `PREPAY_SETTLED`
 
 ### `StockMovement`
 All stock-in and stock-out events. Current stock level is always computed from movements (no cached field).
@@ -107,15 +111,24 @@ MovementType:   DELIVERY_IN | USAGE_OUT | ADJUSTMENT
 
 ### DeliveryStatus flow
 
+New flow — the stock invoice creates the delivery:
+
 ```
-DRAFT
-  ├─ someone records pre-payment → PREPAID
-  │     └─ goods arrive, both sides submit → OPEN → compare → COMPLETE / PENDING_REVIEW
-  └─ cashier or counter submits first → OPEN
-        ├─ second side submits, all match → COMPLETE
-        ├─ second side submits, mismatch → PENDING_REVIEW → manager resolves → COMPLETE or PARTIAL
-        └─ manager marks partial → PARTIAL → new batch delivery created → repeat
+Cashier enters stock invoice (Cashier → Expenses)
+  → StockDelivery created directly as OPEN (cashier side already submitted) + Expense created
+  → counter enters blind physical count
+        ├─ all match → COMPLETE (StockMovement DELIVERY_IN created, linked Expense auto-confirmed)
+        └─ mismatch → PENDING_REVIEW → manager resolves → COMPLETE or PARTIAL (Expense confirmed on resolve)
+
+Pre-payment (Cashier → Expenses, Pre-payment mode)
+  → StockDelivery created as PREPAID + Expense created immediately
+  → when the invoice arrives, cashier enters a stock invoice TAGGED to this delivery
+        → fills the delivery items, status → OPEN (no second Expense — already paid)
+        → counter counts → COMPLETE (paymentStatus stays PREPAID)
+        → ADMIN settles (settlePrepaidDelivery) → paymentStatus PAID
 ```
+
+`DRAFT` is legacy: only pre-existing deliveries created before this flow can be in `DRAFT`/`OPEN`-without-invoice. The legacy `/inventory/deliveries/[id]/cashier` entry page still serves those.
 
 ---
 
@@ -139,60 +152,57 @@ computeAllStockLevels()         // returns Map<stockItemId, level> via groupBy
 
 ## Delivery reconciliation logic
 
-Located in `src/app/(app)/inventory/deliveries/[id]/actions.ts`.
+Invoice entry lives in `src/app/(app)/cashier/actions.ts`; count + resolution + settlement live in `src/app/(app)/inventory/deliveries/[id]/actions.ts`. The comparison/confirmation helpers are shared in `src/lib/deliveries.ts`.
 
-### `createDelivery(formData)`
-Creates the delivery header. Either party can call this. Logs `CREATED`. Redirects to detail page.
+### `addStockInvoice(formData)` — `src/app/(app)/cashier/actions.ts`
+CASHIER/MANAGER/ADMIN. The core action: a stock invoice becomes the delivery.
+- **New invoice** (no tag): in one transaction, creates the `Expense` (invoiceType `STOCK`, with `ExpenseLine` children and `shiftId` so it hits drawer reconciliation) and the `StockDelivery` (status `OPEN`, `cashierSubmittedAt` set, items carrying `cashierQty` + `unitCost`). Logs `CREATED` + `CASHIER_SUBMITTED`.
+- **Tagged to a PREPAID delivery**: fills that delivery's items and flips it to `OPEN`; creates **no** new expense (already paid). Records `PREPAY_MISMATCH` if the invoice total differs from the prepaid amount.
+- **Tagged to a PARTIAL delivery**: creates a child delivery (`parentDeliveryId`), its own expense unless the parent was prepaid.
 
-### `recordPrepayment(formData)`
-CASHIER/MANAGER/ADMIN only. Called when paying upfront before goods arrive.
-- Creates `Expense` record immediately (cash flow captured at payment time)
-- Sets `paymentStatus = PREPAID`, `status = PREPAID`
-- Logs `PREPAID`
+### `recordStockPrepayment(formData)` — `src/app/(app)/cashier/actions.ts`
+CASHIER/MANAGER/ADMIN. Records a payment before goods arrive: creates `Expense` (invoiceType `STOCK`, with `shiftId`) + `StockDelivery` (`status = PREPAID`, `paymentStatus = PREPAID`, `prepaidAt`). Logs `CREATED` + `PREPAID`.
 
-### `submitCashierSide(formData)`
-CASHIER/MANAGER/ADMIN only. Invoice quantities + costs.
-- Upserts `StockDeliveryItem` rows with `cashierQty`, `orderedQty`, `unitCost`
-- If not pre-paid: creates `Expense` record now
-- Sets `paymentStatus = PAID`
-- If counter already submitted → calls `runComparison()`
-
-### `submitCounterSide(formData)`
+### `submitCounterSide(formData)` — deliveries actions
 WAITER/KITCHEN/MANAGER/ADMIN. Blind physical count.
-- Upserts `StockDeliveryItem` rows with `counterQty` (cannot see cashier's qty)
-- If cashier already submitted → calls `runComparison()`
+- Rejected if the invoice has not been entered yet (`cashierSubmittedAt` null) — invoice-first, always.
+- Upserts `StockDeliveryItem` rows with `counterQty` (cannot see cashier's qty), then calls `runComparison()`.
 
-### `runComparison(deliveryId, actorId)` (internal)
-- All `cashierQty === counterQty` → auto-COMPLETE, creates `StockMovement` DELIVERY_IN per item, logs `AUTO_COMPLETED`
-- Any mismatch → PENDING_REVIEW, logs `DISCREPANCY_FLAGGED`
+### `runComparison(deliveryId, actorId)` — `src/lib/deliveries.ts`
+- All `cashierQty === counterQty` → auto-COMPLETE, creates `StockMovement` DELIVERY_IN per item, logs `AUTO_COMPLETED`, and calls `confirmLinkedExpense()`.
+- Any mismatch → PENDING_REVIEW, logs `DISCREPANCY_FLAGGED`.
 
-### `resolveDelivery(formData)`
-MANAGER/ADMIN only. Sets `final_${itemId}` per item, creates `StockMovement` records, logs `MANAGER_RESOLVED` or `MARKED_PARTIAL`.
-- `isPartial = "on"` → status = `PARTIAL` (link to original shown on delivery page, "+ Add next batch" button available)
+### `confirmLinkedExpense(deliveryId, actorId)` — `src/lib/deliveries.ts`
+Sets `confirmedAt`/`confirmedById` on the delivery's linked `Expense` if still unconfirmed. Called on auto-complete, `resolveDelivery`, and `approveStockIn` — the blind count replaces manual manager confirmation.
+
+### `resolveDelivery(formData)` — deliveries actions
+MANAGER/ADMIN only. Sets `final_${itemId}` per item, creates `StockMovement` records, calls `confirmLinkedExpense()`, logs `MANAGER_RESOLVED` or `MARKED_PARTIAL`.
+
+### `settlePrepaidDelivery(formData)` — deliveries actions
+**ADMIN only.** For a `PREPAID` delivery, optionally adjusts the linked `Expense.amount` to the final invoice total (mandatory note), sets `paymentStatus = PAID`, logs `PREPAY_SETTLED`.
+
+### Legacy actions (retained, drain-only)
+`submitCashierSide` / `submitNonStockCashierSide` and the `/inventory/deliveries/[id]/cashier` page still serve deliveries created before this flow. `approveStockIn` (manager) still approves legacy simplified stock-ins.
 
 ---
 
 ## Pre-payment flow
 
-1. Create delivery (either party)
-2. Cashier clicks "Record pre-payment" on the detail page or navigates to `/inventory/deliveries/[id]/cashier?mode=prepay`
-3. Cashier enters total amount + category + payment method
-4. `recordPrepayment()` creates expense + sets `status = PREPAID`
-5. Goods stay at vendor — delivery is visible in Manager Inventory as "Pre-paid awaiting delivery"
-6. When goods arrive: counter goes to delivery, clicks "Count received items"
-7. Cashier still enters the invoice items/quantities via the cashier panel
-8. Normal comparison runs, delivery completes
+1. Cashier → Expenses → **Pre-payment** mode: enter supplier + category + amount + payment method → `recordStockPrepayment()` creates the expense and a `PREPAID` delivery.
+2. Goods stay at vendor — delivery is visible in Manager Inventory as "Pre-paid awaiting delivery".
+3. When the invoice/goods arrive: cashier enters a **Stock Invoice** and picks this delivery in the "Tag to outstanding delivery" dropdown. Submitting fills the items and flips it to `OPEN`; no second payment is recorded.
+4. Counter enters the blind count → normal comparison → COMPLETE (`paymentStatus` stays `PREPAID`).
+5. **Admin** opens the delivery and settles it (`settlePrepaidDelivery`): confirms the final amount → `paymentStatus = PAID`.
 
 ---
 
 ## Partial delivery flow
 
-1. Delivery reaches `PENDING_REVIEW` or both sides submit
-2. Manager ticks "Partial delivery — more items expected" in the resolution form
-3. `resolveDelivery()` sets `status = PARTIAL`, creates movements for `finalQty` received so far
-4. On the delivery detail page, "+ Add next batch" button appears → links to `/inventory/deliveries/new?parentId=[id]`
-5. New batch delivery has `parentDeliveryId` set; it goes through its own cashier+counter flow independently
-6. Each batch's `finalQty` is added to stock when it completes
+1. Delivery reaches `PENDING_REVIEW` after the count.
+2. Manager ticks "Partial delivery — more items expected" in the resolution form.
+3. `resolveDelivery()` sets `status = PARTIAL`, creates movements for `finalQty` received so far.
+4. The next batch is entered as a **Stock Invoice** tagged to the partial delivery (dropdown at Cashier → Expenses); the child delivery gets `parentDeliveryId` set and runs its own count.
+5. Each batch's `finalQty` is added to stock when it completes.
 
 ---
 
@@ -217,18 +227,25 @@ src/app/(app)/admin/
     page.tsx                      # list with total spend, edit in-place
     actions.ts                    # createSupplier, updateSupplier, toggleSupplier
 
+src/lib/deliveries.ts             # runComparison(), confirmLinkedExpense() — shared
+src/app/(app)/cashier/
+  actions.ts                      # addStockInvoice (invoice = delivery), recordStockPrepayment,
+                                  # addExpense (NON_STOCK only), saveReceipts helper
+  expenses/
+    page.tsx                      # stock invoice + pre-payment entry (suppliers, tag list)
+    ExpenseForm.tsx               # NON_STOCK / STOCK / PREPAYMENT modes
+
 src/app/(app)/inventory/
   layout.tsx                      # tab nav: Stock Levels | Deliveries | Usage | Reports
   page.tsx                        # dashboard: low-stock alerts, stock table, pre-paid count
   deliveries/
-    page.tsx                      # delivery list
-    new/page.tsx                  # create delivery header (also accepts parentId for batches)
+    page.tsx                      # delivery list (no create button; invoices come from cashier)
     [id]/
-      page.tsx                    # detail: cashier panel + counter panel + audit log
-      cashier/page.tsx            # invoice entry form (also ?mode=prepay for pre-payment)
-      counter/page.tsx            # blind count form
-      actions.ts                  # createDelivery, recordPrepayment, submitCashierSide,
-                                  # submitCounterSide, runComparison (internal), resolveDelivery
+      page.tsx                    # detail: cashier panel + counter panel + admin settle + audit log
+      cashier/page.tsx            # LEGACY invoice entry (in-flight deliveries only)
+      counter/page.tsx            # blind count form (waits for invoice if not entered)
+      actions.ts                  # submitCounterSide, resolveDelivery, settlePrepaidDelivery (ADMIN),
+                                  # submitCashierSide/submitNonStockCashierSide (legacy)
   usage/
     page.tsx                      # movement log + manager adjustment form
     new/page.tsx                  # record usage (USAGE_OUT)
@@ -246,12 +263,14 @@ src/app/(app)/manager/
 
 ## Business rules (key invariants)
 
-1. **Expense at payment time**: `Expense` is created when `recordPrepayment` or `submitCashierSide` runs — not when goods are received or counted.
+1. **Expense at payment time**: `Expense` is created when `recordStockPrepayment` or `addStockInvoice` runs — not when goods are received or counted. The stock-invoice `Expense` carries `shiftId`, so a cash-drawer stock purchase reduces `expectedCash` in shift reconciliation exactly like any other cashier expense.
 2. **StockMovement only on COMPLETE or PARTIAL resolution** — never on OPEN or PENDING_REVIEW. This prevents phantom stock from unresolved discrepancies.
 3. **Counter cannot see cashier quantities** — the counter page fetches only `stockItem.name` and `stockItem.unit`, never `cashierQty`.
-4. **First submitter defines items** — if cashier goes first, counter sees exactly those items. If counter goes first (before cashier), counter sees all active stock items.
-5. **Partial batch link** — when a delivery is marked PARTIAL, `StockMovement` is created for `finalQty` (what was received in this batch). The remaining expected qty is tracked via `orderedQty` on the parent delivery's items.
-6. **`optimalStock` is informational only** — it does not trigger automatic orders. It shows on the dashboard as "order X to reach optimal".
+4. **The invoice defines the items** — invoice-first, always. The physical count is always against the entered invoice's items; there is no count-first path. If the invoice has not been entered, the counter page shows a "waiting for invoice" notice.
+5. **Blind count replaces manual confirmation** — a completed delivery auto-confirms its linked `Expense` (`confirmLinkedExpense`). The manager's "Legacy Stock Expenses — Awaiting Confirmation" list only shows old stock invoices that have no delivery.
+6. **Pre-payment settlement is ADMIN-only** — `settlePrepaidDelivery` is the only path from `paymentStatus = PREPAID` to `PAID`; a tagged invoice never creates a second payment.
+7. **Partial batch link** — when a delivery is marked PARTIAL, `StockMovement` is created for `finalQty` (what was received in this batch). The next batch is a stock invoice tagged to the partial delivery.
+8. **`optimalStock` is informational only** — it does not trigger automatic orders. It shows on the dashboard as "order X to reach optimal".
 
 ---
 

@@ -17,7 +17,7 @@ export default async function ExpensesPage() {
 
   const startOfDay = mmDayRange(mmToday()).start;
 
-  const [allCategories, stockCategories, expenses] = await Promise.all([
+  const [allCategories, stockCategories, expenses, suppliers, outstandingDeliveries] = await Promise.all([
     prisma.expenseCategory.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -28,9 +28,10 @@ export default async function ExpensesPage() {
       orderBy: { name: "asc" },
       include: {
         items: {
-          where: { isActive: true },
+          // Only items linked to a tracked StockItem can create delivery lines
+          where: { isActive: true, stockItemId: { not: null } },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-          select: { id: true, name: true, defaultUnit: true },
+          select: { id: true, name: true, defaultUnit: true, stockItemId: true },
         },
       },
     }),
@@ -42,6 +43,30 @@ export default async function ExpensesPage() {
         lines: { orderBy: { sortOrder: "asc" } },
       },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.supplier.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    // Outstanding deliveries an incoming invoice can be tagged to
+    prisma.stockDelivery.findMany({
+      where: {
+        OR: [
+          { status: "PREPAID", cashierSubmittedAt: null },
+          { status: "PARTIAL" },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        status: true,
+        paymentStatus: true,
+        invoiceNo: true,
+        totalCost: true,
+        prepaidAt: true,
+        supplier: { select: { id: true, name: true } },
+      },
     }),
   ]);
 
@@ -75,7 +100,34 @@ export default async function ExpensesPage() {
           <ExpenseForm
             allCategories={allCategories}
             stockCategories={stockCategories}
+            suppliers={suppliers}
+            outstandingDeliveries={outstandingDeliveries.map((d) => ({
+              id: d.id,
+              status: d.status,
+              paymentStatus: d.paymentStatus,
+              label: `${d.supplier?.name ?? t("label_no_supplier")}`
+                + (d.invoiceNo ? ` · #${d.invoiceNo}` : "")
+                + (d.totalCost != null ? ` · ${d.totalCost.toLocaleString()} ${settings.currency}` : ""),
+              supplierId: d.supplier?.id ?? "",
+            }))}
             currency={settings.currency}
+            labels={{
+              supplier: t("label_supplier"),
+              noSupplier: t("label_no_supplier"),
+              invoiceNo: t("label_invoice_no"),
+              tagDelivery: t("label_tag_outstanding_delivery"),
+              tagNone: t("label_tag_none"),
+              taggedNoPayment: t("hint_tagged_no_payment"),
+              unitCost: t("label_unit_cost_short"),
+              submitStockInvoice: t("btn_submit_stock_invoice"),
+              stockInvoiceHint: t("hint_stock_invoice_creates_delivery"),
+              prepaymentHeading: t("heading_record_stock_prepayment"),
+              prepaymentToggle: t("btn_record_prepayment_short"),
+              prepaymentHint: t("hint_prepayment_notice"),
+              amount: t("label_amount"),
+              record: t("btn_record_prepayment"),
+              cancel: t("btn_cancel"),
+            }}
           />
         </section>
 

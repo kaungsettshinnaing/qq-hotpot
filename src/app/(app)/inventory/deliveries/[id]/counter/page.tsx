@@ -31,16 +31,12 @@ export default async function CounterEntryPage({
     redirect(`/inventory/deliveries/${id}`);
   }
 
-  const showAllItems = delivery.items.length === 0 || !delivery.cashierSubmittedAt;
-  const stockItems = showAllItems
-    ? await prisma.stockItem.findMany({ where: { isActive: true }, orderBy: { name: "asc" } })
-    : [];
+  // Invoice-first: the physical count is always against the entered invoice.
+  const invoiceEntered = !!delivery.cashierSubmittedAt;
 
-  const items = delivery.cashierSubmittedAt
-    ? delivery.items
-        .filter((di) => di.stockItemId != null && di.stockItem != null)
-        .map((di) => ({ id: di.stockItemId!, name: di.stockItem!.name, unit: di.stockItem!.unit }))
-    : stockItems.map((si) => ({ id: si.id, name: si.name, unit: si.unit }));
+  const items = delivery.items
+    .filter((di) => di.stockItemId != null && di.stockItem != null)
+    .map((di) => ({ id: di.stockItemId!, name: di.stockItem!.name, unit: di.stockItem!.unit }));
 
   const UNIT_LABEL: Record<string, string> = {
     UNIT: "Unit", GRAM: "Gram", KG: "KG", LITRE: "Litre", BOX: "Box", BOTTLE: "Bottle", PACK: "Pack",
@@ -53,6 +49,12 @@ export default async function CounterEntryPage({
         <a href={`/inventory/deliveries/${id}`} className="text-sm text-blue-600 hover:underline">{t("btn_cancel")}</a>
       </div>
 
+      {!invoiceEntered ? (
+        <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+          {t("waiting_for_invoice")}
+        </div>
+      ) : (
+      <>
       <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
         <strong>{t("blind_count_notice")}</strong>
         {delivery.supplier && <> {t("col_supplier")}: <strong>{delivery.supplier.name}</strong>.</>}
@@ -97,6 +99,8 @@ export default async function CounterEntryPage({
           )}
         </form>
       </section>
+      </>
+      )}
     </div>
   );
 }

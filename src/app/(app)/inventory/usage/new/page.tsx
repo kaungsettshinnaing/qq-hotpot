@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import SubmitButton from "@/components/SubmitButton";
+import CategoryItemSelect from "@/components/CategoryItemSelect";
 import { recordUsage } from "../actions";
 import { getT } from "@/lib/lang";
 
@@ -14,10 +15,30 @@ export default async function NewUsagePage() {
   await requireAnyRole(["WAITER", "KITCHEN", "MANAGER", "ADMIN"]);
   const t = await getT();
 
-  const stockItems = await prisma.stockItem.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-  });
+  const [categories, uncategorized] = await Promise.all([
+    prisma.stockCategory.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      include: { items: { where: { isActive: true }, orderBy: { name: "asc" } } },
+    }),
+    prisma.stockItem.findMany({
+      where: { isActive: true, categoryId: null },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  const pickerCategories = [
+    ...categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      items: c.items.map((i) => ({ id: i.id, name: i.name, meta: UNIT_LABEL[i.unit] })),
+    })),
+    ...(uncategorized.length > 0 ? [{
+      id: "__uncategorized__",
+      name: t("label_uncategorized"),
+      items: uncategorized.map((i) => ({ id: i.id, name: i.name, meta: UNIT_LABEL[i.unit] })),
+    }] : []),
+  ];
 
   return (
     <div className="mx-auto max-w-md space-y-5">
@@ -30,15 +51,13 @@ export default async function NewUsagePage() {
         <form action={recordUsage} className="space-y-4 text-sm">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_item")}</label>
-            <select name="stockItemId" required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2">
-              <option value="">— {t("label_select_placeholder")} —</option>
-              {stockItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} ({UNIT_LABEL[item.unit]})
-                </option>
-              ))}
-            </select>
+            <CategoryItemSelect
+              categories={pickerCategories}
+              categoryPlaceholder={`— ${t("label_category")} —`}
+              itemPlaceholder={`— ${t("label_item")} —`}
+              selectClassName="w-full rounded-lg border border-gray-300 px-3 py-2"
+              className="flex-col"
+            />
           </div>
 
           <div>

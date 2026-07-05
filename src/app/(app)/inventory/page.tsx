@@ -88,9 +88,9 @@ export default async function InventoryDashboard() {
       <section className="rounded-xl bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
           <h3 className="text-sm font-semibold text-gray-700">{t("section_all_stock")}</h3>
-          <Link href="/inventory/deliveries/new"
+          <Link href="/inventory/deliveries"
             className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark">
-            {t("btn_new_delivery")}
+            {t("btn_view_deliveries")}
           </Link>
         </div>
         <table className="w-full text-sm">

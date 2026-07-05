@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, requireAnyRole } from "@/lib/auth";
 import { computeAllStockLevels } from "@/lib/inventory";
 import { mmTodayUTC } from "@/lib/business-day";
+import { confirmLinkedExpense } from "@/lib/deliveries";
 
 // ── Stock expense confirmation ──────────────────────────────────────────────
 
@@ -68,6 +69,8 @@ export async function approveStockIn(formData: FormData): Promise<void> {
       note: `Approved by manager — stock credited for ${delivery.items.length} item(s)`,
     },
   });
+
+  await confirmLinkedExpense(deliveryId, session.id);
 
   revalidatePath("/manager/inventory");
   revalidatePath("/inventory");

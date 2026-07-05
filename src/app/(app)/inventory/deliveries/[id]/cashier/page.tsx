@@ -1,25 +1,22 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
-import { recordPrepayment } from "../actions";
-import SubmitButton from "@/components/SubmitButton";
 import StockInvoiceForm from "./StockInvoiceForm";
 import NonStockInvoiceForm from "./NonStockInvoiceForm";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 
+// Legacy entry page — kept for in-flight deliveries created before the
+// invoice-as-delivery flow. New stock invoices are entered at Cashier →
+// Expenses (see addStockInvoice).
 export default async function CashierEntryPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mode?: string }>;
 }) {
   await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
   const { id } = await params;
-  const { mode } = await searchParams;
-  const isPrepay = mode === "prepay";
   const t = await getT();
 
   const delivery = await prisma.stockDelivery.findUniqueOrThrow({
@@ -37,7 +34,7 @@ export default async function CashierEntryPage({
     },
   });
 
-  if (delivery.cashierSubmittedAt && !isPrepay) {
+  if (delivery.cashierSubmittedAt) {
     redirect(`/inventory/deliveries/${id}`);
   }
 
@@ -52,54 +49,14 @@ export default async function CashierEntryPage({
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">
-          {isPrepay ? t("heading_record_prepayment") : t("heading_enter_invoice")} — {title}
+          {t("heading_enter_invoice")} — {title}
         </h2>
         <a href={`/inventory/deliveries/${id}`} className="text-sm text-blue-600 hover:underline">
           {t("btn_cancel")}
         </a>
       </div>
 
-      {isPrepay ? (
-        <section className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
-            {t("hint_prepayment_notice")}
-          </div>
-          <form action={recordPrepayment} className="space-y-4 text-sm">
-            <input type="hidden" name="id" value={id} />
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_total_paid")}</label>
-              <input name="totalCost" type="number" min="1" required placeholder="0"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_expense_category")}</label>
-              <select name="categoryId" required className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                <option value="">— {t("label_select_placeholder")} —</option>
-                {expenseCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_payment_method")}</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> {t("label_cash_drawer")}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> {t("label_bank_transfer")}
-                </label>
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_description")}</label>
-              <input name="description" placeholder="e.g. Advance payment for beer order" maxLength={300}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2" />
-            </div>
-            <SubmitButton className="w-full rounded-lg bg-yellow-500 py-2 font-semibold text-white hover:bg-yellow-600 disabled:opacity-60">
-              {t("btn_record_prepayment")}
-            </SubmitButton>
-          </form>
-        </section>
-      ) : delivery.invoiceType === "NON_STOCK" ? (
+      {delivery.invoiceType === "NON_STOCK" ? (
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <div className="mb-4">
             <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { getSessionDetail } from "@/lib/orders";
 import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding, createCashMovement } from "@/lib/shift";
+import { runComparison } from "@/lib/deliveries";
 import { emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
@@ -190,7 +191,9 @@ export async function addExpense(formData: FormData): Promise<void> {
   const categoryId = str(formData.get("categoryId"));
   const paymentSource =
     str(formData.get("paymentSource")) === "BANK_TRANSFER" ? "BANK_TRANSFER" : "CASH_DRAWER";
-  const invoiceType = str(formData.get("invoiceType")) === "STOCK" ? "STOCK" : "NON_STOCK";
+  // Stock invoices go through addStockInvoice (invoice = delivery); this
+  // path only records non-stock expenses.
+  const invoiceType = "NON_STOCK";
 
   // Line items
   const lineDescs  = formData.getAll("lineDesc").map(String);
@@ -235,26 +238,352 @@ export async function addExpense(formData: FormData): Promise<void> {
     },
   });
 
-  // Save attached receipt images
-  const files = formData.getAll("receipts") as File[];
-  if (files.length > 0) {
-    const receiptsDir = path.join(UPLOAD_DIR, "receipts");
-    mkdirSync(receiptsDir, { recursive: true });
-    for (const file of files) {
-      if (!(file instanceof File) || file.size === 0) continue;
-      const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-      const ext = ALLOWED_EXTS.has(rawExt) ? rawExt : "jpg";
-      const filename = `${randomUUID()}.${ext}`;
-      const buffer = Buffer.from(await file.arrayBuffer());
-      writeFileSync(path.join(receiptsDir, filename), buffer);
-      await prisma.expenseAttachment.create({
-        data: { expenseId: expense.id, filePath: `receipts/${filename}` },
-      });
+  await saveReceipts(expense.id, formData.getAll("receipts") as File[]);
+
+  revalidatePath("/cashier/expenses");
+  revalidatePath("/cashier/shift");
+  redirect("/cashier/expenses");
+}
+
+async function saveReceipts(expenseId: string, files: File[]): Promise<void> {
+  if (files.length === 0) return;
+  const receiptsDir = path.join(UPLOAD_DIR, "receipts");
+  mkdirSync(receiptsDir, { recursive: true });
+  for (const file of files) {
+    if (!(file instanceof File) || file.size === 0) continue;
+    const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+    const ext = ALLOWED_EXTS.has(rawExt) ? rawExt : "jpg";
+    const filename = `${randomUUID()}.${ext}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    writeFileSync(path.join(receiptsDir, filename), buffer);
+    await prisma.expenseAttachment.create({
+      data: { expenseId, filePath: `receipts/${filename}` },
+    });
+  }
+}
+
+// --------------------------------------------------------------------------
+// Stock invoice = delivery (invoice entry creates the delivery awaiting count)
+// --------------------------------------------------------------------------
+
+function posFloat(v: unknown): number {
+  const n = parseFloat(String(v ?? ""));
+  return Number.isNaN(n) || n < 0 ? 0 : n;
+}
+function posIntOf(v: unknown): number {
+  const n = parseInt(String(v ?? ""), 10);
+  return Number.isNaN(n) || n < 0 ? 0 : n;
+}
+
+export async function addStockInvoice(formData: FormData): Promise<void> {
+  const user = await requireAnyRole(CASHIER_ROLES);
+  const categoryId = str(formData.get("categoryId"));
+  const paymentSource =
+    str(formData.get("paymentSource")) === "BANK_TRANSFER" ? "BANK_TRANSFER" : "CASH_DRAWER";
+  const supplierId = str(formData.get("supplierId")) || null;
+  const invoiceNo = str(formData.get("invoiceNo"), 100) || null;
+  const taggedDeliveryId = str(formData.get("taggedDeliveryId")) || null;
+
+  // Line rows (stock items only)
+  const stockItemIds = formData.getAll("stockItemId").map(String);
+  const lineUnits = formData.getAll("lineUnit").map(String);
+  const lineQtys = formData.getAll("lineQty").map((v) => posFloat(v));
+  const lineUnitCosts = formData.getAll("lineUnitCost").map((v) => posIntOf(v));
+
+  const rows = stockItemIds
+    .map((stockItemId, i) => ({
+      stockItemId,
+      unit: lineUnits[i]?.trim() || null,
+      qty: lineQtys[i],
+      unitCost: lineUnitCosts[i],
+      lineTotal: Math.round(lineQtys[i] * lineUnitCosts[i]),
+    }))
+    .filter((r) => r.stockItemId && r.qty > 0);
+
+  if (!categoryId || rows.length === 0) {
+    redirect("/cashier/expenses?error=missing");
+  }
+
+  // Item names from DB (form only posts ids)
+  const stockItems = await prisma.stockItem.findMany({
+    where: { id: { in: rows.map((r) => r.stockItemId) } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(stockItems.map((s) => [s.id, s.name]));
+  if (rows.some((r) => !nameById.has(r.stockItemId))) {
+    redirect("/cashier/expenses?error=missing");
+  }
+
+  // Merge duplicate items for delivery rows (unique per delivery+stockItem)
+  const merged = new Map<string, { qty: number; unitCost: number }>();
+  for (const r of rows) {
+    const prev = merged.get(r.stockItemId);
+    merged.set(r.stockItemId, {
+      qty: (prev?.qty ?? 0) + r.qty,
+      unitCost: prev?.unitCost || r.unitCost,
+    });
+  }
+
+  const total = rows.reduce((sum, r) => sum + r.lineTotal, 0);
+  const description = rows.map((r) => nameById.get(r.stockItemId)).join(", ").slice(0, 300);
+  const now = new Date();
+
+  const supplier = supplierId
+    ? await prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } })
+    : null;
+
+  if (taggedDeliveryId) {
+    // Invoice for an existing outstanding delivery (prepaid or next batch)
+    const tagged = await prisma.stockDelivery.findUnique({ where: { id: taggedDeliveryId } });
+    if (!tagged) redirect("/cashier/expenses?error=bad_delivery");
+
+    if (tagged.status === "PREPAID") {
+      // Payment was already captured at prepay time — fill the delivery, no new expense
+      const counterAlreadySubmitted = !!tagged.counterSubmittedAt;
+      await prisma.$transaction(async (tx) => {
+        const claimed = await tx.stockDelivery.updateMany({
+          where: { id: taggedDeliveryId, status: "PREPAID", cashierSubmittedAt: null },
+          data: {
+            status: "OPEN",
+            cashierEnteredById: user.id,
+            cashierSubmittedAt: now,
+            ...(supplierId ? { supplierId } : {}),
+            ...(invoiceNo ? { invoiceNo } : {}),
+          },
+        });
+        if (claimed.count !== 1) throw new Error("already_submitted");
+
+        for (const [stockItemId, m] of merged) {
+          await tx.stockDeliveryItem.upsert({
+            where: { deliveryId_stockItemId: { deliveryId: taggedDeliveryId, stockItemId } },
+            update: { cashierQty: Math.round(m.qty), unitCost: m.unitCost || null },
+            create: {
+              deliveryId: taggedDeliveryId,
+              stockItemId,
+              cashierQty: Math.round(m.qty),
+              unitCost: m.unitCost || null,
+            },
+          });
+        }
+        await tx.stockDeliveryLog.create({
+          data: { deliveryId: taggedDeliveryId, actorId: user.id, action: "CASHIER_SUBMITTED",
+            note: `Invoice for prepaid order: ${rows.length} item(s), ${total.toLocaleString()} MMK` },
+        });
+        if (tagged.totalCost != null && tagged.totalCost !== total) {
+          await tx.stockDeliveryLog.create({
+            data: { deliveryId: taggedDeliveryId, actorId: user.id, action: "PREPAY_MISMATCH",
+              note: `Prepaid ${tagged.totalCost.toLocaleString()} MMK vs invoice ${total.toLocaleString()} MMK — admin settlement required` },
+          });
+        }
+      }).catch(() => redirect(`/cashier/expenses?error=already_submitted`));
+
+      // Legacy prepaid deliveries may already have a count (count-first era)
+      if (counterAlreadySubmitted) {
+        await runComparison(taggedDeliveryId, user.id);
+      }
+
+      revalidatePath("/cashier/expenses");
+      revalidatePath("/inventory");
+      revalidatePath("/inventory/deliveries");
+      revalidatePath("/manager/inventory");
+      redirect("/cashier/expenses");
     }
+
+    if (tagged.status !== "PARTIAL") redirect("/cashier/expenses?error=bad_delivery");
+    // Next batch of a partial delivery — falls through to creation below,
+    // linked via parentDeliveryId. The parent being PREPAID means the whole
+    // order was paid up front, so no new expense for the batch either.
+    const parentPrepaid = tagged.paymentStatus === "PREPAID";
+    await createInvoiceDelivery({
+      userId: user.id, categoryId, paymentSource, supplierId: supplierId ?? tagged.supplierId,
+      invoiceNo, rows, merged, total, description, now,
+      vendor: supplier?.name ?? null,
+      parentDeliveryId: taggedDeliveryId,
+      skipExpense: parentPrepaid,
+      receipts: formData.getAll("receipts") as File[],
+    });
+  } else {
+    await createInvoiceDelivery({
+      userId: user.id, categoryId, paymentSource, supplierId, invoiceNo,
+      rows, merged, total, description, now,
+      vendor: supplier?.name ?? null,
+      parentDeliveryId: null,
+      skipExpense: false,
+      receipts: formData.getAll("receipts") as File[],
+    });
   }
 
   revalidatePath("/cashier/expenses");
   revalidatePath("/cashier/shift");
+  revalidatePath("/inventory");
+  revalidatePath("/inventory/deliveries");
+  revalidatePath("/manager/inventory");
+  redirect("/cashier/expenses");
+}
+
+async function createInvoiceDelivery(args: {
+  userId: string;
+  categoryId: string;
+  paymentSource: "CASH_DRAWER" | "BANK_TRANSFER";
+  supplierId: string | null;
+  invoiceNo: string | null;
+  rows: { stockItemId: string; unit: string | null; qty: number; unitCost: number; lineTotal: number }[];
+  merged: Map<string, { qty: number; unitCost: number }>;
+  total: number;
+  description: string;
+  now: Date;
+  vendor: string | null;
+  parentDeliveryId: string | null;
+  skipExpense: boolean;
+  receipts: File[];
+}): Promise<void> {
+  const { userId, categoryId, paymentSource, supplierId, invoiceNo, rows, merged,
+    total, description, now, vendor, parentDeliveryId, skipExpense, receipts } = args;
+
+  let shiftId: string | null = null;
+  if (!skipExpense && paymentSource === "CASH_DRAWER") {
+    const userShift = await getOpenShift(userId);
+    shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
+  }
+
+  // Item names for the expense lines
+  const stockItems = await prisma.stockItem.findMany({
+    where: { id: { in: rows.map((r) => r.stockItemId) } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(stockItems.map((s) => [s.id, s.name]));
+
+  const expenseId = await prisma.$transaction(async (tx) => {
+    let createdExpenseId: string | null = null;
+    if (!skipExpense) {
+      const expense = await tx.expense.create({
+        data: {
+          businessDate: now,
+          categoryId,
+          amount: total,
+          paymentSource,
+          description,
+          vendor,
+          invoiceType: "STOCK",
+          shiftId,
+          enteredById: userId,
+          lines: {
+            create: rows.map((r, i) => ({
+              description: nameById.get(r.stockItemId) ?? "—",
+              unit: r.unit,
+              qty: r.qty,
+              price: r.lineTotal,
+              sortOrder: i,
+            })),
+          },
+        },
+      });
+      createdExpenseId = expense.id;
+    }
+
+    const delivery = await tx.stockDelivery.create({
+      data: {
+        deliveryDate: now,
+        invoiceNo,
+        supplierId,
+        parentDeliveryId,
+        invoiceType: "STOCK",
+        status: "OPEN",
+        paymentStatus: skipExpense ? "PREPAID" : "PAID",
+        paymentSource,
+        totalCost: total,
+        expenseId: createdExpenseId,
+        createdById: userId,
+        cashierEnteredById: userId,
+        cashierSubmittedAt: now,
+        items: {
+          create: [...merged].map(([stockItemId, m]) => ({
+            stockItemId,
+            cashierQty: Math.round(m.qty),
+            unitCost: m.unitCost || null,
+          })),
+        },
+      },
+    });
+    await tx.stockDeliveryLog.create({
+      data: { deliveryId: delivery.id, actorId: userId, action: "CREATED",
+        note: "Stock invoice entered at cashier expenses" },
+    });
+    await tx.stockDeliveryLog.create({
+      data: { deliveryId: delivery.id, actorId: userId, action: "CASHIER_SUBMITTED",
+        note: `${merged.size} item(s), ${total.toLocaleString()} MMK` },
+    });
+    return createdExpenseId;
+  });
+
+  if (expenseId) await saveReceipts(expenseId, receipts);
+}
+
+export async function recordStockPrepayment(formData: FormData): Promise<void> {
+  const user = await requireAnyRole(CASHIER_ROLES);
+  const categoryId = str(formData.get("categoryId"));
+  const paymentSource =
+    str(formData.get("paymentSource")) === "BANK_TRANSFER" ? "BANK_TRANSFER" : "CASH_DRAWER";
+  const supplierId = str(formData.get("supplierId")) || null;
+  const amount = posIntOf(formData.get("amount"));
+  const description = str(formData.get("description"), 300) || "Stock pre-payment";
+
+  if (!categoryId || amount <= 0) redirect("/cashier/expenses?error=missing");
+
+  let shiftId: string | null = null;
+  if (paymentSource === "CASH_DRAWER") {
+    const userShift = await getOpenShift(user.id);
+    shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
+  }
+
+  const supplier = supplierId
+    ? await prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } })
+    : null;
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const expense = await tx.expense.create({
+      data: {
+        businessDate: now,
+        categoryId,
+        amount,
+        paymentSource,
+        description,
+        vendor: supplier?.name ?? null,
+        invoiceType: "STOCK",
+        shiftId,
+        enteredById: user.id,
+      },
+    });
+    const delivery = await tx.stockDelivery.create({
+      data: {
+        deliveryDate: now,
+        supplierId,
+        invoiceType: "STOCK",
+        status: "PREPAID",
+        paymentStatus: "PREPAID",
+        paymentSource,
+        totalCost: amount,
+        expenseId: expense.id,
+        prepaidAt: now,
+        createdById: user.id,
+        cashierEnteredById: user.id,
+      },
+    });
+    await tx.stockDeliveryLog.create({
+      data: { deliveryId: delivery.id, actorId: user.id, action: "CREATED",
+        note: "Pre-payment recorded at cashier expenses" },
+    });
+    await tx.stockDeliveryLog.create({
+      data: { deliveryId: delivery.id, actorId: user.id, action: "PREPAID",
+        note: `${amount.toLocaleString()} MMK via ${paymentSource}` },
+    });
+  });
+
+  revalidatePath("/cashier/expenses");
+  revalidatePath("/cashier/shift");
+  revalidatePath("/inventory/deliveries");
+  revalidatePath("/manager/inventory");
   redirect("/cashier/expenses");
 }
 

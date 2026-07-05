@@ -32,10 +32,7 @@ export default async function DeliveriesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">{t("heading_deliveries")}</h2>
-        <Link href="/inventory/deliveries/new"
-          className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark">
-          {t("btn_new_delivery")}
-        </Link>
+        <p className="text-xs text-gray-400">{t("hint_invoices_from_expenses")}</p>
       </div>
 
       <section className="rounded-xl bg-white shadow-sm">
