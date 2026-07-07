@@ -92,17 +92,21 @@ export async function createCashMovement(
 
 /**
  * Current cash standing in the physical drawer.
- * = last closed shift's countedCash (or 0) + injections − collections since then.
+ * = last closed shift's expectedCash (or 0) + injections − collections since then.
  */
 export async function getCashStanding(): Promise<number> {
   const lastShift = await prisma.cashierShift.findFirst({
     where: { status: "CLOSED" },
     orderBy: { closedAt: "desc" },
-    select: { closedAt: true, countedCash: true },
+    select: { closedAt: true, expectedCash: true },
   });
 
   const sinceDate = lastShift?.closedAt ?? new Date(0);
-  const baseline = lastShift?.countedCash ?? 0;
+  // Carry forward the auto-calculated expected cash, not the manually counted
+  // figure — a mistyped/miscommunicated count must never silently become the
+  // baseline for every subsequent day. countedCash is only ever a discrepancy
+  // check against expectedCash, never a source of truth for standing.
+  const baseline = lastShift?.expectedCash ?? 0;
 
   const [injectAgg, collectAgg] = await Promise.all([
     prisma.cashCollection.aggregate({
