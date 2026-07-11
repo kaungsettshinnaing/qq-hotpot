@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { formatMoney, formatTime, formatDate } from "@/lib/format";
 import { mmToday, mmDayRange } from "@/lib/business-day";
+import { getSessionDetail } from "@/lib/orders";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -39,23 +40,28 @@ export default async function CashierHistoryPage({
     orderBy: { closedAt: "asc" },
   });
 
-  // Compute per-session payment breakdown, deducting change from cash to show net revenue
-  const rows = sessions.map((s) => {
-    const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
-    const kbz = s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
-    const other = s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
-    const totalPaid = cashPaid + kbz + other;
-    const cashChange = cashPaid > 0 ? Math.max(0, totalPaid - (s.billTotal ?? totalPaid)) : 0;
-    const cash = cashPaid - cashChange;
-    const total = cash + kbz + other;
-    const tableLabel = [s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + ");
-    return { session: s, cash, kbz, other, total, tableLabel };
-  });
+  // Compute per-session payment breakdown, deducting change from cash to show net revenue.
+  // Bill line items aren't stored, so re-derive the discount amount for sessions that had one.
+  const rows = await Promise.all(
+    sessions.map(async (s) => {
+      const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
+      const kbz = s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
+      const other = s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
+      const totalPaid = cashPaid + kbz + other;
+      const cashChange = cashPaid > 0 ? Math.max(0, totalPaid - (s.billTotal ?? totalPaid)) : 0;
+      const cash = cashPaid - cashChange;
+      const total = cash + kbz + other;
+      const tableLabel = [s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + ");
+      const discount = s.discountType ? (await getSessionDetail(s.id))?.bill.discount ?? 0 : 0;
+      return { session: s, cash, kbz, other, total, tableLabel, discount };
+    }),
+  );
 
   const grandCash = rows.reduce((sum, r) => sum + r.cash, 0);
   const grandKbz = rows.reduce((sum, r) => sum + r.kbz, 0);
   const grandOther = rows.reduce((sum, r) => sum + r.other, 0);
   const grandTotal = grandCash + grandKbz + grandOther;
+  const grandDiscount = rows.reduce((sum, r) => sum + r.discount, 0);
   const totalAdults = sessions.reduce((sum, s) => sum + s.adults, 0);
   const totalChildren = sessions.reduce((sum, s) => sum + s.children, 0);
 
@@ -85,10 +91,13 @@ export default async function CashierHistoryPage({
 
       {/* Summary bar */}
       {rows.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <SummaryCard label={t("stat_sessions")} value={String(rows.length)} />
           <SummaryCard label={t("stat_covers")} value={`${totalAdults} / ${totalChildren}`} />
           <SummaryCard label={t("payment_method_cash")} value={formatMoney(grandCash, c)} />
+          {grandDiscount > 0 && (
+            <SummaryCard label={t("stat_discounts_today")} value={`−${formatMoney(grandDiscount, c)}`} />
+          )}
           <SummaryCard label={t("label_total_shift_takings")} value={formatMoney(grandTotal, c)} highlight />
         </div>
       )}
@@ -117,10 +126,15 @@ export default async function CashierHistoryPage({
                   <span>·</span>
                   <span>{formatTime(r.session.openedAt)} → {r.session.closedAt ? formatTime(r.session.closedAt) : "—"}</span>
                 </div>
-                <div className="mt-1.5 flex gap-3 text-xs text-gray-500">
+                <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-500">
                   {r.cash > 0 && <span>{t("payment_method_cash")}: {formatMoney(r.cash, c)}</span>}
                   {r.kbz > 0 && <span>KBZPay: {formatMoney(r.kbz, c)}</span>}
                   {r.other > 0 && <span>{t("payment_method_other")}: {formatMoney(r.other, c)}</span>}
+                  {r.discount > 0 && (
+                    <span className="font-medium text-red-500">
+                      {t("col_discount")}: −{formatMoney(r.discount, c)}
+                    </span>
+                  )}
                 </div>
                 {r.session.note && (
                   <div className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
@@ -143,6 +157,7 @@ export default async function CashierHistoryPage({
                   <th className="px-4 py-2 text-right">{t("payment_method_cash")}</th>
                   <th className="px-4 py-2 text-right">KBZPay</th>
                   <th className="px-4 py-2 text-right">{t("payment_method_other")}</th>
+                  <th className="px-4 py-2 text-right">{t("col_discount")}</th>
                   <th className="px-4 py-2 text-right">{t("col_total")}</th>
                   <th className="px-4 py-2"></th>
                   <th className="px-4 py-2"></th>
@@ -160,6 +175,7 @@ export default async function CashierHistoryPage({
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.cash > 0 ? formatMoney(r.cash, c) : "—"}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.kbz > 0 ? formatMoney(r.kbz, c) : "—"}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{r.other > 0 ? formatMoney(r.other, c) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{r.discount > 0 ? `−${formatMoney(r.discount, c)}` : "—"}</td>
                     <td className="px-4 py-2.5 text-right font-bold tabular-nums text-brand">{formatMoney(r.total, c)}</td>
                     <td className="px-4 py-2.5 text-center">
                       {r.session.note && <span title={r.session.note} className="cursor-help">📝</span>}
@@ -182,6 +198,7 @@ export default async function CashierHistoryPage({
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandCash, c)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandKbz, c)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(grandOther, c)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{grandDiscount > 0 ? `−${formatMoney(grandDiscount, c)}` : "—"}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-brand">{formatMoney(grandTotal, c)}</td>
                   <td />
                   <td />

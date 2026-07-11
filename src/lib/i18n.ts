@@ -1001,6 +1001,7 @@ const dict: Record<string, { en: string; my: string }> = {
   label_daily_total:           { en: "Daily Total",                       my: "နေ့စဉ်စုစုပေါင်း" },
   col_table:                   { en: "Table",                             my: "စားပွဲ" },
   col_total:                   { en: "Total",                             my: "စုစုပေါင်း" },
+  col_discount:                { en: "Discount",                          my: "လျှော့စျေး" },
   label_change_due:            { en: "Change Due",                        my: "အမ်းငွေ" },
 
   // ── Stock categories (admin) ──────────────────────────────────────────────
