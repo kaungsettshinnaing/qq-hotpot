@@ -804,6 +804,11 @@ const dict: Record<string, { en: string; my: string }> = {
   label_last_50:                { en: "last 50",                             my: "နောက်ဆုံး ၅၀" },
   msg_no_receipt:               { en: "No receipt attached",                my: "ဘောင်ချာ မပူးတွဲရသေးပါ" },
   card_unconfirmed_expenses:    { en: "Unconfirmed expenses",               my: "အတည်မပြုသောကုန်ကျစရိတ်များ" },
+  btn_reject_confirm:           { en: "Confirm reject",                     my: "ပယ်ချမှု အတည်ပြုရန်" },
+  placeholder_rejection_reason: { en: "Reason (e.g. not authorized, wrong amount, duplicate)", my: "အကြောင်းရင်း (ဥပမာ - ခွင့်ပြုချက်မရှိ၊ ပမာဏမှား၊ ထပ်နေ)" },
+  badge_expense_rejected:       { en: "Rejected",                           my: "ပယ်ချထားသည်" },
+  msg_no_rejected_expenses:     { en: "No rejected expenses on this day.",  my: "ဤနေ့တွင် ပယ်ချထားသောကုန်ကျစရိတ် မရှိပါ" },
+  label_rejected_by:            { en: "rejected by",                        my: "ပယ်ချသူ" },
 
   // ── Cashier — Expenses (receipt upload, NEW) ──────────────────────────────
   label_attach_receipts:        { en: "Receipts (photos / PDF)",            my: "ဘောင်ချာ (ဓာတ်ပုံ / PDF)" },

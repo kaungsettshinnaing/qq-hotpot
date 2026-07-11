@@ -70,8 +70,9 @@ export default async function ExpensesPage() {
     }),
   ]);
 
-  const cashTotal = expenses.filter((e) => e.paymentSource === "CASH_DRAWER").reduce((s, e) => s + e.amount, 0);
-  const bankTotal = expenses.filter((e) => e.paymentSource === "BANK_TRANSFER").reduce((s, e) => s + e.amount, 0);
+  const active = expenses.filter((e) => !e.rejectedAt);
+  const cashTotal = active.filter((e) => e.paymentSource === "CASH_DRAWER").reduce((s, e) => s + e.amount, 0);
+  const bankTotal = active.filter((e) => e.paymentSource === "BANK_TRANSFER").reduce((s, e) => s + e.amount, 0);
 
   const serializedExpenses = expenses.map((e) => ({
     id: e.id,
@@ -80,6 +81,8 @@ export default async function ExpensesPage() {
     paymentSource: e.paymentSource,
     invoiceType: e.invoiceType,
     confirmedAt: e.confirmedAt?.toISOString() ?? null,
+    rejectedAt: e.rejectedAt?.toISOString() ?? null,
+    rejectionReason: e.rejectionReason,
     createdAt: e.createdAt.toISOString(),
     vendor: e.vendor,
     category: { name: e.category.name },

@@ -8,8 +8,9 @@ import { formatMoney, formatDateTime } from "@/lib/format";
 import { getCashStanding } from "@/lib/shift";
 import { getSessionDetail } from "@/lib/orders";
 import { mmToday, mmDayRange, mmDateUTC } from "@/lib/business-day";
-import { confirmExpense } from "../manager/inventory/actions";
+import { confirmExpense, rejectExpense } from "../manager/inventory/actions";
 import MovementsTable from "./MovementsTable";
+import ExpenseRejectButton from "./ExpenseRejectButton";
 import { getT } from "@/lib/lang";
 import type { AttendanceStatus, DayType } from "@prisma/client";
 
@@ -159,7 +160,7 @@ export default async function ReportsPage({
         />
       )}
       {tab === "inventory"    && <InventoryTab start={start} end={end} />}
-      {tab === "expenses"       && <ExpensesTab confirmExpense={confirmExpense} dayStr={dayStr} start={start} end={end} />}
+      {tab === "expenses"       && <ExpensesTab confirmExpense={confirmExpense} rejectExpense={rejectExpense} dayStr={dayStr} start={start} end={end} />}
       {tab === "daily-report"  && <DailyReportTab dayStr={dayStr} submitDailyReport={submitDailyReport} />}
       {tab === "daily-summary" && <DailySummaryTab dayStr={dayStr} start={start} end={end} c={c} settings={settings} />}
     </div>
@@ -184,7 +185,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
         potOrders: { where: { voidedAt: null }, select: { id: true } },
       },
     }),
-    prisma.expense.findMany({ where: { businessDate: { gte: start, lt: end } }, include: { category: true } }),
+    prisma.expense.findMany({ where: { businessDate: { gte: start, lt: end }, rejectedAt: null }, include: { category: true } }),
     prisma.cashierShift.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
       include: { cashier: { select: { name: true } } },
@@ -604,8 +605,9 @@ async function InventoryTab({ start, end }: { start: Date; end: Date }) {
   );
 }
 
-async function ExpensesTab({ confirmExpense, dayStr, start, end }: {
+async function ExpensesTab({ confirmExpense, rejectExpense, dayStr, start, end }: {
   confirmExpense: (fd: FormData) => Promise<void>;
+  rejectExpense: (fd: FormData) => Promise<void>;
   dayStr: string; start: Date; end: Date;
 }) {
   const t = await getT();
@@ -620,10 +622,10 @@ async function ExpensesTab({ confirmExpense, dayStr, start, end }: {
       (src === "CASH_DRAWER" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700");
   }
 
-  const [unconfirmed, confirmed] = await Promise.all([
+  const [unconfirmed, confirmed, rejected] = await Promise.all([
     // Pending review — always shown regardless of date; these need action however old they are.
     prisma.expense.findMany({
-      where: { confirmedAt: null },
+      where: { confirmedAt: null, rejectedAt: null },
       include: { category: { select: { name: true } }, enteredBy: { select: { name: true } }, attachments: true },
       orderBy: { createdAt: "asc" },
     }),
@@ -635,6 +637,15 @@ async function ExpensesTab({ confirmExpense, dayStr, start, end }: {
         confirmedBy: { select: { name: true } }, attachments: true,
       },
       orderBy: { createdAt: "desc" },
+    }),
+    // Rejected history — filtered to the day picked at the top of the Reports page.
+    prisma.expense.findMany({
+      where: { rejectedAt: { not: null }, businessDate: { gte: start, lt: end } },
+      include: {
+        category: { select: { name: true } }, enteredBy: { select: { name: true } },
+        rejectedBy: { select: { name: true } }, attachments: true,
+      },
+      orderBy: { rejectedAt: "desc" },
     }),
   ]);
 
@@ -677,13 +688,23 @@ async function ExpensesTab({ confirmExpense, dayStr, start, end }: {
                     <p className="mt-1.5 text-[11px] italic text-gray-400">{t("label_no_receipt")}</p>
                   )}
                 </div>
-                <form action={confirmExpense} className="flex-shrink-0">
-                  <input type="hidden" name="expenseId" value={e.id} />
-                  <button type="submit"
-                    className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 active:scale-95 transition">
-                    {t("btn_confirm")}
-                  </button>
-                </form>
+                <div className="flex flex-shrink-0 flex-wrap items-start gap-2">
+                  <form action={confirmExpense}>
+                    <input type="hidden" name="expenseId" value={e.id} />
+                    <button type="submit"
+                      className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 active:scale-95 transition">
+                      {t("btn_confirm")}
+                    </button>
+                  </form>
+                  <ExpenseRejectButton
+                    expenseId={e.id}
+                    action={rejectExpense}
+                    label={t("btn_reject")}
+                    reasonPlaceholder={t("placeholder_rejection_reason")}
+                    cancelLabel={t("btn_cancel")}
+                    confirmLabel={t("btn_reject_confirm")}
+                  />
+                </div>
               </div>
             </div>
           ))
@@ -747,6 +768,44 @@ async function ExpensesTab({ confirmExpense, dayStr, start, end }: {
                     ))}
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+          {t("badge_expense_rejected")} — {fmtDate(start)}
+        </h2>
+        {rejected.length === 0 ? (
+          <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
+            {t("msg_no_rejected_expenses")}
+          </p>
+        ) : (
+          <div className="rounded-xl border bg-white divide-y overflow-hidden">
+            {rejected.map((e) => (
+              <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium line-through decoration-red-300">{formatMoney(e.amount)}</span>
+                    <span className="text-sm text-gray-700">{e.description}</span>
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                      {t("badge_expense_rejected")}
+                    </span>
+                    <span className={sourceBadge(e.paymentSource)}>{sourceLabel(e.paymentSource)}</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {e.category.name}
+                    {e.vendor && <> · {e.vendor}</>}
+                    {" · "}{fmtDate(e.businessDate)}
+                    {" · "}{t("label_entered_by")} {e.enteredBy.name}
+                    {" · "}{t("label_rejected_by")} {e.rejectedBy?.name}
+                  </p>
+                  {e.rejectionReason && (
+                    <p className="mt-0.5 text-xs font-medium text-red-600">{e.rejectionReason}</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -882,7 +941,7 @@ async function DailySummaryTab({
       orderBy: { openedAt: "asc" },
     }),
     prisma.expense.findMany({
-      where: { businessDate: { gte: start, lt: end } },
+      where: { businessDate: { gte: start, lt: end }, rejectedAt: null },
       include: { category: { select: { name: true } } },
     }),
     prisma.attendance.findMany({

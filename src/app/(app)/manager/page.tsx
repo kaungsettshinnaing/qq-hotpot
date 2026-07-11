@@ -17,7 +17,7 @@ export default async function ManagerDashboard() {
     getLiveAttendanceStatus(),
     prisma.leaveRequest.count({ where: { status: "PENDING" } }),
     prisma.attendance.count({ where: { isApproved: false, status: { not: "REST_DAY" } } }),
-    prisma.expense.count({ where: { confirmedAt: null } }),
+    prisma.expense.count({ where: { confirmedAt: null, rejectedAt: null } }),
   ]);
 
   const workingList    = statuses.filter((s) => s.status === "working");

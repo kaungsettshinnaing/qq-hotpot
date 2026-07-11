@@ -59,6 +59,7 @@ model User {
 
   cashCollections   CashCollection[] @relation("CashCollectionRecorder")
   confirmedExpenses Expense[]        @relation("ExpenseConfirmer")
+  rejectedExpenses  Expense[]        @relation("ExpenseRejecter")
 
   // Inventory relations
   deliveriesCreated  StockDelivery[]    @relation("DeliveryCreator")
@@ -344,31 +345,36 @@ enum ExpenseSource {
 }
 
 model Expense {
-  id            String              @id @default(cuid())
-  businessDate  DateTime
-  category      ExpenseCategory     @relation(fields: [categoryId], references: [id])
-  categoryId    String
-  amount        Int
-  paymentSource ExpenseSource
-  description   String
-  vendor        String?
-  shift         CashierShift?       @relation(fields: [shiftId], references: [id])
-  shiftId       String?
-  enteredBy     User                @relation(fields: [enteredById], references: [id])
-  enteredById   String
-  receiptUrl    String?
-  invoiceType   String? // "STOCK" | "NON_STOCK" — null for legacy entries
-  paidAt        DateTime? // set by admin when BANK_TRANSFER expense is confirmed paid
-  confirmedAt   DateTime? // set by manager when expense receipt is verified
-  confirmedById String?
-  confirmedBy   User?               @relation("ExpenseConfirmer", fields: [confirmedById], references: [id])
-  attachments   ExpenseAttachment[]
-  lines         ExpenseLine[]
-  createdAt     DateTime            @default(now())
+  id              String              @id @default(cuid())
+  businessDate    DateTime
+  category        ExpenseCategory     @relation(fields: [categoryId], references: [id])
+  categoryId      String
+  amount          Int
+  paymentSource   ExpenseSource
+  description     String
+  vendor          String?
+  shift           CashierShift?       @relation(fields: [shiftId], references: [id])
+  shiftId         String?
+  enteredBy       User                @relation(fields: [enteredById], references: [id])
+  enteredById     String
+  receiptUrl      String?
+  invoiceType     String? // "STOCK" | "NON_STOCK" — null for legacy entries
+  paidAt          DateTime? // set by admin when BANK_TRANSFER expense is confirmed paid
+  confirmedAt     DateTime? // set by manager when expense receipt is verified
+  confirmedById   String?
+  confirmedBy     User?               @relation("ExpenseConfirmer", fields: [confirmedById], references: [id])
+  rejectedAt      DateTime? // set by manager/admin when the entry is unauthorized or wrong — excluded from all cash/P&L totals
+  rejectedById    String?
+  rejectedBy      User?               @relation("ExpenseRejecter", fields: [rejectedById], references: [id])
+  rejectionReason String?
+  attachments     ExpenseAttachment[]
+  lines           ExpenseLine[]
+  createdAt       DateTime            @default(now())
 
   @@index([businessDate])
   @@index([shiftId])
   @@index([confirmedAt])
+  @@index([rejectedAt])
 }
 
 model ExpenseLine {

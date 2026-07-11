@@ -2,9 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { resolveDelivery } from "@/app/(app)/inventory/deliveries/[id]/actions";
-import { startSpotCheck, startWeeklyCount, submitStockCount, confirmExpense, approveStockIn } from "./actions";
+import { startSpotCheck, startWeeklyCount, submitStockCount, confirmExpense, rejectExpense, approveStockIn } from "./actions";
 import { mmTodayUTC } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
+import ExpenseRejectButton from "../../reports/ExpenseRejectButton";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,7 @@ async function DiscrepancyTab() {
     }),
     // Legacy unconfirmed stock invoices with no linked delivery (drain-only)
     prisma.expense.findMany({
-      where: { invoiceType: "STOCK", confirmedAt: null, id: { notIn: linkedExpenseIds } },
+      where: { invoiceType: "STOCK", confirmedAt: null, rejectedAt: null, id: { notIn: linkedExpenseIds } },
       orderBy: { createdAt: "asc" },
       include: {
         category: { select: { name: true } },
@@ -130,13 +131,23 @@ async function DiscrepancyTab() {
                       <span className="font-medium">{exp.amount.toLocaleString()} MMK</span>
                     </p>
                   </div>
-                  <form action={confirmExpense}>
-                    <input type="hidden" name="expenseId" value={exp.id} />
-                    <button type="submit"
-                      className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
-                      {t("btn_confirm_expense")}
-                    </button>
-                  </form>
+                  <div className="flex flex-wrap items-start gap-2">
+                    <form action={confirmExpense}>
+                      <input type="hidden" name="expenseId" value={exp.id} />
+                      <button type="submit"
+                        className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
+                        {t("btn_confirm_expense")}
+                      </button>
+                    </form>
+                    <ExpenseRejectButton
+                      expenseId={exp.id}
+                      action={rejectExpense}
+                      label={t("btn_reject")}
+                      reasonPlaceholder={t("placeholder_rejection_reason")}
+                      cancelLabel={t("btn_cancel")}
+                      confirmLabel={t("btn_reject_confirm")}
+                    />
+                  </div>
                 </div>
                 {exp.lines.length > 0 && (
                   <ul className="px-3 py-2 space-y-0.5">

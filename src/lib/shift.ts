@@ -37,13 +37,13 @@ export async function computeShiftTotals(
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "CASH" } }),
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "KBZPAY" } }),
     prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "OTHER" } }),
-    prisma.expense.aggregate({ _sum: { amount: true }, where: { shiftId, paymentSource: "CASH_DRAWER" } }),
+    prisma.expense.aggregate({ _sum: { amount: true }, where: { shiftId, paymentSource: "CASH_DRAWER", rejectedAt: null } }),
     prisma.cashCollection.aggregate({ _sum: { amount: true }, where: { shiftId, type: "INJECT" } }),
     prisma.cashCollection.aggregate({ _sum: { amount: true }, where: { shiftId, type: "COLLECT" } }),
   ]);
   const kbzSales = kbzAgg._sum.amount ?? 0;
   const otherSales = otherAgg._sum.amount ?? 0;
-  const cashExpenses = expAgg._sum.amount ?? 0;
+  const cashExpenses = expAgg._sum?.amount ?? 0;
   const cashInjected = injectAgg._sum.amount ?? 0;
   const cashWithdrawn = collectAgg._sum.amount ?? 0;
 

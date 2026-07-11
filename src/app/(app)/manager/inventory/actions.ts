@@ -24,6 +24,25 @@ export async function confirmExpense(formData: FormData): Promise<void> {
   revalidatePath("/accounting");
 }
 
+/** Rejects an unauthorized or wrongly-entered expense — excludes it from all
+ *  cash reconciliation and P&L totals (as if it were never entered). */
+export async function rejectExpense(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  await requireAnyRole(["MANAGER", "ADMIN"]);
+  const expenseId = String(formData.get("expenseId") ?? "").trim();
+  if (!expenseId) return;
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 300) || null;
+  await prisma.expense.update({
+    where: { id: expenseId },
+    data: { rejectedAt: new Date(), rejectedById: session.id, rejectionReason: reason },
+  });
+  revalidatePath("/manager/inventory");
+  revalidatePath("/reports");
+  revalidatePath("/accounting");
+  revalidatePath("/cashier/expenses");
+  revalidatePath("/cashier/shift");
+}
+
 // ── Stock-in delivery approval ──────────────────────────────────────────────
 
 export async function approveStockIn(formData: FormData): Promise<void> {

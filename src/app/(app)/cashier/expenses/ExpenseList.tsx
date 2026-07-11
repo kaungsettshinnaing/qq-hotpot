@@ -23,6 +23,8 @@ interface Expense {
   paymentSource: string;
   invoiceType: string | null;
   confirmedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   vendor: string | null;
   category: { name: string };
@@ -100,7 +102,11 @@ export default function ExpenseList({
                       {e.invoiceType === "STOCK" ? "Stock" : "Non-stock"}
                     </span>
                   )}
-                  {e.confirmedAt ? (
+                  {e.rejectedAt ? (
+                    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                      Rejected
+                    </span>
+                  ) : e.confirmedAt ? (
                     <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
                       Confirmed
                     </span>
@@ -114,6 +120,11 @@ export default function ExpenseList({
                   {e.paymentSource === "CASH_DRAWER" ? "Cash drawer" : "Bank transfer"}
                   {e.vendor ? ` · ${e.vendor}` : ""} · {formatTime(new Date(e.createdAt))}
                 </div>
+                {e.rejectedAt && (
+                  <div className="mt-0.5 text-xs font-medium text-red-600">
+                    {e.rejectionReason ? `Rejected: ${e.rejectionReason}` : "Rejected by manager"}
+                  </div>
+                )}
 
                 {e.lines.length > 0 && (
                   <div className="mt-1.5 space-y-0.5">

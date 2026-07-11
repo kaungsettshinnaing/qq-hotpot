@@ -70,12 +70,12 @@ export default async function AccountingPage({
       orderBy: { receivedAt: "asc" },
     }),
     prisma.expense.findMany({
-      where: { paymentSource: "BANK_TRANSFER", confirmedAt: null },
+      where: { paymentSource: "BANK_TRANSFER", confirmedAt: null, rejectedAt: null },
       include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.expense.findMany({
-      where: { paymentSource: "BANK_TRANSFER", confirmedAt: { not: null }, paidAt: null },
+      where: { paymentSource: "BANK_TRANSFER", confirmedAt: { not: null }, paidAt: null, rejectedAt: null },
       include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
       orderBy: { businessDate: "asc" },
     }),
@@ -101,7 +101,7 @@ export default async function AccountingPage({
       : Promise.resolve([]),
     tab === "pl"
       ? prisma.expense.findMany({
-          where: { businessDate: { gte: rangeStart, lt: rangeEnd } },
+          where: { businessDate: { gte: rangeStart, lt: rangeEnd }, rejectedAt: null },
           include: { category: { select: { name: true } } },
         })
       : Promise.resolve([]),
