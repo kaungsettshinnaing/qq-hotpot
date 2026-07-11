@@ -146,6 +146,8 @@ const dict: Record<string, { en: string; my: string }> = {
   label_opened:                 { en: "opened",                            my: "ဖွင့်သည်" },
   label_paid:                   { en: "paid",                              my: "ပေးပြီး" },
   stat_today_sales:             { en: "Today's sales",                     my: "ယနေ့ ရောင်းချမှု" },
+  stat_discounts_today:         { en: "Discounts given today",             my: "ယနေ့ ပေးထားသောလျှော့စျေး" },
+  btn_view_breakdown:           { en: "View breakdown",                    my: "အသေးစိတ်ကြည့်ရန်" },
   section_cash_in_drawer:       { en: "Cash in drawer",                    my: "ဘောက်ချာတွင် ငွေသား" },
   row_start_balance:            { en: "Start balance",                     my: "အဖွင့်ငွေ" },
   label_shift_since:            { en: "shift since",                       my: "Shift စတင်သည်မှ" },

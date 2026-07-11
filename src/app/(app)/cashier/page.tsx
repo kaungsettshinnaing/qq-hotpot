@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
 import { getSessionDetail, type SessionDetail } from "@/lib/orders";
 import { getSettings } from "@/lib/settings";
+import { mmToday, mmDayRange } from "@/lib/business-day";
 import { formatMoney, formatTime } from "@/lib/format";
 import LiveRefresh from "@/components/LiveRefresh";
 import SubmitButton from "@/components/SubmitButton";
@@ -47,9 +48,71 @@ export default async function CashierHome({
 
   const toCollect = details.reduce((s, d) => s + Math.max(0, d.balance), 0);
 
+  // Day-scoped sales & discount summary (whole business day, not just this shift)
+  const { start: dayStart, end: dayEnd } = mmDayRange(mmToday());
+  const closedToday = await prisma.tableSession.findMany({
+    where: { status: "CLOSED", closedAt: { gte: dayStart, lt: dayEnd } },
+    select: {
+      id: true, billTotal: true, discountType: true,
+      payments: { select: { method: true, amount: true } },
+    },
+  });
+  let dayCash = 0, dayKbz = 0, dayOther = 0;
+  for (const s of closedToday) {
+    const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
+    const kbz = s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
+    const other = s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = cashPaid + kbz + other;
+    const cashChange = cashPaid > 0 ? Math.max(0, totalPaid - (s.billTotal ?? totalPaid)) : 0;
+    dayCash += cashPaid - cashChange;
+    dayKbz += kbz;
+    dayOther += other;
+  }
+  const daySales = dayCash + dayKbz + dayOther;
+  // Bill line items aren't stored — recompute discount for sessions that had one.
+  const dayDiscounts = (
+    await Promise.all(
+      closedToday
+        .filter((s) => s.discountType !== null)
+        .map(async (s) => (await getSessionDetail(s.id))?.bill.discount ?? 0),
+    )
+  ).reduce((s, d) => s + d, 0);
+
   return (
     <div className="space-y-5">
       <LiveRefresh room="floor" events={["table:update"]} seconds={10} />
+
+      <section className="rounded-xl bg-brand p-5 text-white shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-wide opacity-70">{t("stat_today_sales")}</div>
+            <div className="mt-0.5 text-3xl font-extrabold tabular-nums">{formatMoney(daySales, c)}</div>
+          </div>
+          <Link href="/cashier/history" className="text-xs font-medium text-white/80 underline hover:text-white">
+            {t("btn_view_breakdown")} →
+          </Link>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-white/10 px-3 py-2">
+            <div className="text-[10px] uppercase opacity-70">{t("payment_method_cash")}</div>
+            <div className="text-base font-bold tabular-nums">{formatMoney(dayCash, c)}</div>
+          </div>
+          <div className="rounded-lg bg-white/10 px-3 py-2">
+            <div className="text-[10px] uppercase opacity-70">KBZPay</div>
+            <div className="text-base font-bold tabular-nums">{formatMoney(dayKbz, c)}</div>
+          </div>
+          <div className="rounded-lg bg-white/10 px-3 py-2">
+            <div className="text-[10px] uppercase opacity-70">{t("payment_method_other")}</div>
+            <div className="text-base font-bold tabular-nums">{formatMoney(dayOther, c)}</div>
+          </div>
+        </div>
+        {dayDiscounts > 0 && (
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-3 py-2 text-sm">
+            <span className="opacity-80">{t("stat_discounts_today")}</span>
+            <span className="font-bold tabular-nums">−{formatMoney(dayDiscounts, c)}</span>
+          </div>
+        )}
+      </section>
 
       {!shift && otherShift && (
         <div className="space-y-3">
@@ -153,34 +216,6 @@ export default async function CashierHome({
 
       {shift && (
         <>
-          <section className="rounded-xl bg-brand p-5 text-white shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs uppercase tracking-wide opacity-70">{t("stat_today_sales")}</div>
-                <div className="mt-0.5 text-3xl font-extrabold tabular-nums">
-                  {formatMoney((totals?.cashSales ?? 0) + (totals?.kbzSales ?? 0) + (totals?.otherSales ?? 0), c)}
-                </div>
-              </div>
-              <div className="text-xs opacity-60 text-right">
-                {t("label_shift_since")} {formatTime(shift.openedAt)}
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-white/10 px-3 py-2">
-                <div className="text-[10px] uppercase opacity-70">{t("payment_method_cash")}</div>
-                <div className="text-base font-bold tabular-nums">{formatMoney(totals?.cashSales ?? 0, c)}</div>
-              </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2">
-                <div className="text-[10px] uppercase opacity-70">KBZPay</div>
-                <div className="text-base font-bold tabular-nums">{formatMoney(totals?.kbzSales ?? 0, c)}</div>
-              </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2">
-                <div className="text-[10px] uppercase opacity-70">{t("payment_method_other")}</div>
-                <div className="text-base font-bold tabular-nums">{formatMoney(totals?.otherSales ?? 0, c)}</div>
-              </div>
-            </div>
-          </section>
-
           <section className="rounded-xl bg-white p-5 shadow-sm">
             <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_cash_in_drawer")}</h3>
             <div className="space-y-1.5 text-sm">
