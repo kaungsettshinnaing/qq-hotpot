@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { generatePayroll, lockPayroll } from "./actions";
 import { getT } from "@/lib/lang";
+import LockPayrollButton from "./LockPayrollButton";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -54,14 +55,12 @@ export default async function PayrollDetailPage({
             </button>
           </form>
           {payroll && payroll.items.length > 0 && (
-            <form action={lockPayroll} onSubmit={(e) => {
-              if (!confirm(t("confirm_lock_payroll"))) e.preventDefault();
-            }}>
-              <input type="hidden" name="yearMonth" value={yearMonth} />
-              <button type="submit" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-                {t("btn_lock_payroll")}
-              </button>
-            </form>
+            <LockPayrollButton
+              yearMonth={yearMonth}
+              action={lockPayroll}
+              label={t("btn_lock_payroll")}
+              confirmMessage={t("confirm_lock_payroll")}
+            />
           )}
         </div>
       )}
