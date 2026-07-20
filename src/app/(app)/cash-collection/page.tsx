@@ -1,7 +1,7 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getCashStanding, createCashMovement, computeShiftTotals } from "@/lib/shift";
+import { getCashStanding, createCashMovement } from "@/lib/shift";
 import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
 import { mmToday, mmDayOf, mmDayRange } from "@/lib/business-day";
 import { revalidatePath } from "next/cache";
@@ -47,7 +47,7 @@ export default async function CashCollectionPage({
   const rangeStart = mmDayRange(fromStr).start;
   const rangeEnd = mmDayRange(toStr).end;
 
-  const [cashStanding, lastShift, recent, rangeShifts] = await Promise.all([
+  const [cashStanding, lastShift, recent, rangeShifts, cashPayments, closedSessions, dayExpenses] = await Promise.all([
     getCashStanding(),
     prisma.cashierShift.findFirst({
       where: { status: "CLOSED" },
@@ -64,45 +64,74 @@ export default async function CashCollectionPage({
       orderBy: { openedAt: "asc" },
       include: { cashier: { select: { name: true } } },
     }),
+    // Day-scoped cash income/expense (independent of shiftId) — matches how
+    // /reports computes cash totals, so an expense entered after a shift closes
+    // still counts toward that day's figures instead of silently disappearing.
+    prisma.payment.findMany({
+      where: { method: "CASH", receivedAt: { gte: rangeStart, lt: rangeEnd } },
+      select: { amount: true, receivedAt: true },
+    }),
+    prisma.tableSession.findMany({
+      where: { status: "CLOSED", closedAt: { gte: rangeStart, lt: rangeEnd } },
+      select: { billTotal: true, closedAt: true, payments: { select: { method: true, amount: true } } },
+    }),
+    prisma.expense.findMany({
+      where: { paymentSource: "CASH_DRAWER", rejectedAt: null, businessDate: { gte: rangeStart, lt: rangeEnd } },
+      select: { amount: true, businessDate: true },
+    }),
   ]);
 
-  // Per-shift cash sales/expenses (change-deducted, matches shift close reconciliation).
-  const shiftTotals = new Map(
-    await Promise.all(
-      rangeShifts.map(async (s) => [
-        s.id,
-        await computeShiftTotals(s.id, s.openingFloat, { openedAt: s.openedAt, closedAt: s.closedAt }),
-      ] as const),
-    ),
-  );
+  const dayKey = (d: Date) => mmDayOf(d).toISOString().slice(0, 10);
+
+  const cashIncomeByDay = new Map<string, number>();
+  for (const p of cashPayments) {
+    const key = dayKey(p.receivedAt);
+    cashIncomeByDay.set(key, (cashIncomeByDay.get(key) ?? 0) + p.amount);
+  }
+  for (const s of closedSessions) {
+    if (!s.closedAt) continue;
+    const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
+    if (cashPaid === 0) continue;
+    const totalPaid = s.payments.reduce((sum, p) => sum + p.amount, 0);
+    const change = Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+    const key = dayKey(s.closedAt);
+    cashIncomeByDay.set(key, (cashIncomeByDay.get(key) ?? 0) - change);
+  }
+  const cashExpenseByDay = new Map<string, number>();
+  for (const e of dayExpenses) {
+    const key = dayKey(e.businessDate);
+    cashExpenseByDay.set(key, (cashExpenseByDay.get(key) ?? 0) + e.amount);
+  }
 
   // Group shifts by the Myanmar business day they opened on — a shift that
   // spans midnight is attributed to the day it started, same convention as
   // attendance/business-day grouping elsewhere in the app.
   const dayMap = new Map<string, typeof rangeShifts>();
   for (const s of rangeShifts) {
-    const key = mmDayOf(s.openedAt).toISOString().slice(0, 10);
+    const key = dayKey(s.openedAt);
     const group = dayMap.get(key) ?? [];
     group.push(s);
     dayMap.set(key, group);
   }
-  const dailyCash = Array.from(dayMap.entries())
-    .map(([day, shifts]) => {
-      const first = shifts[0];
-      const last = shifts[shifts.length - 1];
-      const cashIncome = shifts.reduce((sum, s) => sum + (shiftTotals.get(s.id)?.cashSales ?? 0), 0);
-      const cashExpense = shifts.reduce((sum, s) => sum + (shiftTotals.get(s.id)?.cashExpenses ?? 0), 0);
+  // Union with days that had cash income/expense but no shift at all (rare, but
+  // otherwise those amounts would silently vanish from this report).
+  const allDayKeys = new Set([...dayMap.keys(), ...cashIncomeByDay.keys(), ...cashExpenseByDay.keys()]);
+
+  const dailyCash = Array.from(allDayKeys)
+    .map((day) => {
+      const shifts = dayMap.get(day) ?? [];
+      const first = shifts[0] ?? null;
+      const last = shifts[shifts.length - 1] ?? null;
       return {
         day,
         shiftCount: shifts.length,
-        startCash: first.openingFloat,
-        startTime: first.openedAt,
-        endCash: last.status === "CLOSED" ? last.countedCash : null,
-        endTime: last.closedAt,
-        endInProgress: last.status !== "CLOSED",
-        lastCashier: last.cashier.name,
-        cashIncome,
-        cashExpense,
+        startCash: first?.openingFloat ?? null,
+        startTime: first?.openedAt ?? null,
+        endCash: last?.status === "CLOSED" ? last.countedCash : null,
+        endTime: last?.closedAt ?? null,
+        endInProgress: last ? last.status !== "CLOSED" : false,
+        cashIncome: cashIncomeByDay.get(day) ?? 0,
+        cashExpense: cashExpenseByDay.get(day) ?? 0,
       };
     })
     .sort((a, b) => (a.day < b.day ? 1 : -1));
@@ -169,12 +198,13 @@ export default async function CashCollectionPage({
         </div>
         <p className="mb-2 text-xs text-gray-400">
           Start = opening float of the first shift that day. End = counted cash at the close of the last shift
-          that day (a shift spanning midnight counts toward the day it opened).
+          that day (a shift spanning midnight counts toward the day it opened). Cash income/expense are scoped to
+          the calendar day itself, not to a shift — so an expense entered after the shift closes still counts.
         </p>
 
         {dailyCash.length === 0 ? (
           <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
-            No shifts opened in this range.
+            No shifts or cash-drawer activity in this range.
           </p>
         ) : (
           <>
@@ -187,8 +217,12 @@ export default async function CashCollectionPage({
                     <span className="text-xs text-gray-400">{d.shiftCount} shift{d.shiftCount > 1 ? "s" : ""}</span>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Start ({formatTime(d.startTime)})</span>
-                    <span className="tabular-nums font-medium">{formatMoney(d.startCash, c)}</span>
+                    <span className="text-gray-500">
+                      Start{d.startTime ? ` (${formatTime(d.startTime)})` : ""}
+                    </span>
+                    <span className="tabular-nums font-medium">
+                      {d.startCash != null ? formatMoney(d.startCash, c) : "—"}
+                    </span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-sm">
                     <span className="text-gray-500">Cash income</span>
@@ -203,7 +237,9 @@ export default async function CashCollectionPage({
                       End{d.endTime ? ` (${formatTime(d.endTime)})` : ""}
                     </span>
                     <span className="tabular-nums font-medium">
-                      {d.endInProgress ? (
+                      {d.shiftCount === 0 ? (
+                        "—"
+                      ) : d.endInProgress ? (
                         <span className="text-amber-600">shift in progress</span>
                       ) : (
                         formatMoney(d.endCash ?? 0, c)
@@ -234,8 +270,12 @@ export default async function CashCollectionPage({
                     <tr key={d.day}>
                       <td className="px-4 py-2.5 font-medium">{fmtDate(new Date(d.day))}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{d.shiftCount}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{formatTime(d.startTime)}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">{formatMoney(d.startCash, c)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
+                        {d.startTime ? formatTime(d.startTime) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                        {d.startCash != null ? formatMoney(d.startCash, c) : "—"}
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium text-emerald-600">
                         +{formatMoney(d.cashIncome, c)}
                       </td>
@@ -246,7 +286,9 @@ export default async function CashCollectionPage({
                         {d.endTime ? formatTime(d.endTime) : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                        {d.endInProgress ? (
+                        {d.shiftCount === 0 ? (
+                          "—"
+                        ) : d.endInProgress ? (
                           <span className="text-amber-600">in progress</span>
                         ) : (
                           formatMoney(d.endCash ?? 0, c)
