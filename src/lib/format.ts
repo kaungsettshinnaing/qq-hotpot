@@ -34,6 +34,17 @@ export function formatTime(d: Date | string): string {
   return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Date → "YYYY-MM-DD" in server-local time, for <input type="date"> defaultValue.
+ *  Uses local parts (not toISOString) so a date stored as local midnight
+ *  round-trips to the same calendar day instead of shifting a day back. */
+export function toInputDate(d: Date | null | undefined): string {
+  if (!d) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const MONTH_MAP: Record<string, number> = {
   Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
   Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,

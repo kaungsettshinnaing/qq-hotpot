@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { toInputDate } from "@/lib/format";
 import { updateEmployee } from "../../actions";
 import { getT } from "@/lib/lang";
+import DateField from "@/components/DateField";
 
 export const dynamic = "force-dynamic";
 
@@ -72,13 +73,11 @@ export default async function EditEmployeePage({
           </div>
           <div>
             <label className="label">{t("label_start_date")} *</label>
-            <input name="startDate" required className="input"
-              defaultValue={formatDate(emp.startDate)} />
+            <DateField name="startDate" required defaultValue={toInputDate(emp.startDate)} />
           </div>
           <div>
             <label className="label">{t("label_date_of_birth")}</label>
-            <input name="dateOfBirth" className="input"
-              defaultValue={emp.dateOfBirth ? formatDate(emp.dateOfBirth) : ""} />
+            <DateField name="dateOfBirth" defaultValue={toInputDate(emp.dateOfBirth)} />
           </div>
           <div>
             <label className="label">{t("label_phone")}</label>
