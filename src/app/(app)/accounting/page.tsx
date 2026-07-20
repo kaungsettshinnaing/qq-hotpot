@@ -1,9 +1,11 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDateTime } from "@/lib/format";
 import { mmNow, mmDayRange } from "@/lib/business-day";
+import { getSessionDetail } from "@/lib/orders";
 import { getT } from "@/lib/lang";
+import MovementsTable from "../reports/MovementsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +110,14 @@ export default async function AccountingPage({
     tab === "pl"
       ? prisma.tableSession.findMany({
           where: { status: "CLOSED", closedAt: { gte: rangeStart, lt: rangeEnd } },
-          select: { billTotal: true, payments: { select: { method: true, amount: true } } },
+          select: {
+            id: true, adults: true, children: true, billTotal: true,
+            openedAt: true, closedAt: true,
+            table: { select: { label: true } },
+            mergedTables: { select: { table: { select: { label: true } } } },
+            payments: { select: { method: true, amount: true } },
+          },
+          orderBy: { closedAt: "asc" },
         })
       : Promise.resolve([]),
   ]);
@@ -139,6 +148,44 @@ export default async function AccountingPage({
   }
   const totalExpenses = plExpenses.reduce((s, e) => s + e.amount, 0);
   const netPL = totalRevenue - totalExpenses;
+
+  // Itemized income — per-session breakdown (bill line items aren't stored, recompute each).
+  const movementRows = await Promise.all(
+    plSessions.map(async (s) => {
+      const bill = (await getSessionDetail(s.id))?.bill ?? null;
+      return {
+        id: s.id,
+        tableLabel: [s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + "),
+        adults: s.adults,
+        children: s.children,
+        revenue: s.billTotal ?? bill?.total ?? 0,
+        start: formatDateTime(s.openedAt),
+        end: s.closedAt ? formatDateTime(s.closedAt) : "—",
+        lines: (bill?.lines ?? []).map((l) => ({
+          label: l.label, qty: l.qty, unitLabel: l.unitLabel, unitPrice: l.unitPrice, amount: l.amount,
+        })),
+        subtotal: bill?.subtotal ?? 0,
+        discount: bill?.discount ?? 0,
+        serviceCharge: bill?.serviceCharge ?? 0,
+        tax: bill?.tax ?? 0,
+        total: bill?.total ?? (s.billTotal ?? 0),
+      };
+    }),
+  );
+  const movementsRevenue = movementRows.reduce((s, r) => s + r.revenue, 0);
+  const totalAdults = plSessions.reduce((s, x) => s + x.adults, 0);
+  const totalChildren = plSessions.reduce((s, x) => s + x.children, 0);
+
+  // Income by menu item — aggregated across every session in range.
+  const incomeByItem = new Map<string, { label: string; qty: number; amount: number }>();
+  for (const r of movementRows) {
+    for (const l of r.lines) {
+      const row = incomeByItem.get(l.label) ?? { label: l.label, qty: 0, amount: 0 };
+      row.qty += l.qty;
+      row.amount += l.amount;
+      incomeByItem.set(l.label, row);
+    }
+  }
 
   const pendingARTotal   = pendingPayments.reduce((s, p) => s + p.amount, 0);
   const accrualTotal     = accrualExpenses.reduce((s, e) => s + e.amount, 0);
@@ -417,6 +464,41 @@ export default async function AccountingPage({
                 <span className="tabular-nums text-green-700">{formatMoney(totalRevenue)}</span>
               </div>
             </div>
+
+            {incomeByItem.size > 0 && (
+              <details className="mt-4 border-t pt-3">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t("label_income_by_item")} ({incomeByItem.size})
+                </summary>
+                <div className="mt-2 space-y-1 text-sm">
+                  {Array.from(incomeByItem.values())
+                    .sort((a, b) => b.amount - a.amount)
+                    .map((row) => (
+                      <div key={row.label} className="flex items-center justify-between">
+                        <span className="text-gray-600">{row.label} <span className="text-xs text-gray-400">× {row.qty}</span></span>
+                        <span className="tabular-nums text-gray-700">{formatMoney(row.amount)}</span>
+                      </div>
+                    ))}
+                </div>
+              </details>
+            )}
+
+            {movementRows.length > 0 && (
+              <details className="mt-4 border-t pt-3">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t("label_itemized_sessions")} ({movementRows.length})
+                </summary>
+                <div className="mt-2">
+                  <MovementsTable
+                    rows={movementRows}
+                    currency="MMK"
+                    totalAdults={totalAdults}
+                    totalChildren={totalChildren}
+                    totalRevenue={movementsRevenue}
+                  />
+                </div>
+              </details>
+            )}
           </div>
 
           <div className="rounded-xl border bg-white p-5 shadow-sm">
@@ -447,6 +529,44 @@ export default async function AccountingPage({
                   <span className="tabular-nums text-red-700">{formatMoney(totalExpenses)}</span>
                 </div>
               </div>
+            )}
+
+            {plExpenses.length > 0 && (
+              <details className="mt-4 border-t pt-3">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t("label_itemized_expenses")} ({plExpenses.length})
+                </summary>
+                <div className="mt-2 space-y-2 text-sm">
+                  {plExpenses
+                    .slice()
+                    .sort((a, b) => b.businessDate.getTime() - a.businessDate.getTime())
+                    .map((e) => (
+                      <div key={e.id} className="flex items-start justify-between gap-2 border-b border-gray-50 pb-2 last:border-0">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-gray-700">{e.description}</span>
+                            <span className="text-xs text-gray-400">({e.category.name})</span>
+                            <span className={
+                              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold " +
+                              (e.paymentSource === "CASH_DRAWER" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700")
+                            }>
+                              {e.paymentSource === "CASH_DRAWER" ? t("source_cash_drawer") : t("source_bank_transfer")}
+                            </span>
+                            {!e.confirmedAt && (
+                              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                {t("badge_accrual")}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400">
+                            {e.vendor && <>{e.vendor} · </>}{fmtDate(e.businessDate)}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 tabular-nums font-medium text-red-700">{formatMoney(e.amount)}</span>
+                      </div>
+                    ))}
+                </div>
+              </details>
             )}
           </div>
 
