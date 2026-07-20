@@ -8,6 +8,24 @@ import type { Role } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import type { Prisma } from "@prisma/client";
+
+/**
+ * Frees up `username` if it's currently held by an inactive user, by renaming
+ * their username out of the way (suffixed with their own id — deterministic,
+ * guaranteed unique). Throws if it's held by an active user. No-ops if free.
+ * Every audit/actor relation in the schema is a userId FK, never a username
+ * string, so renaming an inactive user's username later is always safe.
+ */
+async function reclaimUsernameIfInactive(tx: Prisma.TransactionClient, username: string): Promise<void> {
+  const existing = await tx.user.findUnique({ where: { username } });
+  if (!existing) return;
+  if (existing.isActive) throw new Error("USERNAME_TAKEN");
+  await tx.user.update({
+    where: { id: existing.id },
+    data: { username: `${username}-old-${existing.id.slice(-6)}` },
+  });
+}
 
 export async function createEmployee(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN"]);
@@ -22,14 +40,20 @@ export async function createEmployee(fd: FormData) {
     const staffRoleId = (fd.get("staffRoleId") as string | null)?.trim() ?? "";
     if (!name || !username || !password) redirect("/hr/employees/new?error=missing");
     if (!staffRoleId) redirect("/hr/employees/new?error=no-role");
-    const existing = await prisma.user.findUnique({ where: { username } });
-    if (existing) redirect("/hr/employees/new?error=exists");
     const staffRole = await prisma.staffRole.findUnique({ where: { id: staffRoleId } });
     const roles = (staffRole?.permissions ?? []) as Role[];
-    const user = await prisma.user.create({
-      data: { name, username, passwordHash: hashPassword(password), roles },
-    });
-    userId = user.id;
+    try {
+      const user = await prisma.$transaction(async (tx) => {
+        await reclaimUsernameIfInactive(tx, username);
+        return tx.user.create({
+          data: { name, username, passwordHash: hashPassword(password), roles },
+        });
+      });
+      userId = user.id;
+    } catch (err) {
+      if (err instanceof Error && err.message === "USERNAME_TAKEN") redirect("/hr/employees/new?error=exists");
+      throw err;
+    }
     // staffRoleId stored on employee below
   } else {
     userId = fd.get("userId") as string;
@@ -83,17 +107,25 @@ export async function updateEmployee(fd: FormData) {
   if (!name) redirect(`/hr/employees/${userId}/edit?error=missing-name`);
   if (!username) redirect(`/hr/employees/${userId}/edit?error=missing-username`);
 
-  // Check username uniqueness (excluding this user)
+  // Check username uniqueness (excluding this user) — reclaims it if the
+  // current holder is inactive, otherwise blocks as before.
   const conflict = await prisma.user.findFirst({
     where: { username, NOT: { id: userId } },
-    select: { id: true },
+    select: { id: true, isActive: true },
   });
-  if (conflict) redirect(`/hr/employees/${userId}/edit?error=username-taken`);
+  if (conflict?.isActive) redirect(`/hr/employees/${userId}/edit?error=username-taken`);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { name, username },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (conflict) await reclaimUsernameIfInactive(tx, username);
+      await tx.user.update({ where: { id: userId }, data: { name, username } });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "USERNAME_TAKEN") {
+      redirect(`/hr/employees/${userId}/edit?error=username-taken`);
+    }
+    throw err;
+  }
 
   await prisma.employee.update({
     where: { userId },
@@ -131,7 +163,14 @@ export async function toggleEmployeeActive(fd: FormData) {
   const userId = fd.get("userId") as string;
   const emp = await prisma.employee.findUnique({ where: { userId } });
   if (!emp) return;
-  await prisma.employee.update({ where: { userId }, data: { isActive: !emp.isActive } });
+  const newActive = !emp.isActive;
+  // Deactivating an employee also revokes login (User.isActive) — previously
+  // this only flipped the HR-facing flag, leaving a "deactivated" employee
+  // still able to log in with their old credentials.
+  await prisma.$transaction([
+    prisma.employee.update({ where: { userId }, data: { isActive: newActive } }),
+    prisma.user.update({ where: { id: userId }, data: { isActive: newActive } }),
+  ]);
   revalidatePath(`/hr/employees/${userId}`);
 }
 
@@ -211,11 +250,17 @@ export async function createSystemAccount(fd: FormData) {
   const password = (fd.get("password") as string ?? "").trim();
   const roles = (fd.getAll("roles") as string[]) as Role[];
   if (!name || !username || !password) redirect("/hr/employees?tab=system&error=missing");
-  const existing = await prisma.user.findUnique({ where: { username } });
-  if (existing) redirect("/hr/employees?tab=system&error=exists");
-  await prisma.user.create({
-    data: { name, username, passwordHash: hashPassword(password), roles, isSystemAccount: true },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await reclaimUsernameIfInactive(tx, username);
+      await tx.user.create({
+        data: { name, username, passwordHash: hashPassword(password), roles, isSystemAccount: true },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "USERNAME_TAKEN") redirect("/hr/employees?tab=system&error=exists");
+    throw err;
+  }
   revalidatePath("/hr/employees");
   redirect("/hr/employees?tab=system");
 }
