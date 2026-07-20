@@ -1,7 +1,7 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getCashStanding, createCashMovement } from "@/lib/shift";
+import { getCashStanding, createCashMovement, computeShiftTotals } from "@/lib/shift";
 import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
 import { mmToday, mmDayOf, mmDayRange } from "@/lib/business-day";
 import { revalidatePath } from "next/cache";
@@ -66,6 +66,16 @@ export default async function CashCollectionPage({
     }),
   ]);
 
+  // Per-shift cash sales/expenses (change-deducted, matches shift close reconciliation).
+  const shiftTotals = new Map(
+    await Promise.all(
+      rangeShifts.map(async (s) => [
+        s.id,
+        await computeShiftTotals(s.id, s.openingFloat, { openedAt: s.openedAt, closedAt: s.closedAt }),
+      ] as const),
+    ),
+  );
+
   // Group shifts by the Myanmar business day they opened on — a shift that
   // spans midnight is attributed to the day it started, same convention as
   // attendance/business-day grouping elsewhere in the app.
@@ -80,6 +90,8 @@ export default async function CashCollectionPage({
     .map(([day, shifts]) => {
       const first = shifts[0];
       const last = shifts[shifts.length - 1];
+      const cashIncome = shifts.reduce((sum, s) => sum + (shiftTotals.get(s.id)?.cashSales ?? 0), 0);
+      const cashExpense = shifts.reduce((sum, s) => sum + (shiftTotals.get(s.id)?.cashExpenses ?? 0), 0);
       return {
         day,
         shiftCount: shifts.length,
@@ -89,6 +101,8 @@ export default async function CashCollectionPage({
         endTime: last.closedAt,
         endInProgress: last.status !== "CLOSED",
         lastCashier: last.cashier.name,
+        cashIncome,
+        cashExpense,
       };
     })
     .sort((a, b) => (a.day < b.day ? 1 : -1));
@@ -177,6 +191,14 @@ export default async function CashCollectionPage({
                     <span className="tabular-nums font-medium">{formatMoney(d.startCash, c)}</span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Cash income</span>
+                    <span className="tabular-nums font-medium text-emerald-600">+{formatMoney(d.cashIncome, c)}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Cash expense</span>
+                    <span className="tabular-nums font-medium text-red-500">−{formatMoney(d.cashExpense, c)}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between text-sm">
                     <span className="text-gray-500">
                       End{d.endTime ? ` (${formatTime(d.endTime)})` : ""}
                     </span>
@@ -201,6 +223,8 @@ export default async function CashCollectionPage({
                     <th className="px-4 py-2 text-right">Shifts</th>
                     <th className="px-4 py-2 text-right">Start of day (time)</th>
                     <th className="px-4 py-2 text-right">Cash at start</th>
+                    <th className="px-4 py-2 text-right">Cash income</th>
+                    <th className="px-4 py-2 text-right">Cash expense</th>
                     <th className="px-4 py-2 text-right">End of day (time)</th>
                     <th className="px-4 py-2 text-right">Cash at end</th>
                   </tr>
@@ -212,6 +236,12 @@ export default async function CashCollectionPage({
                       <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{d.shiftCount}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{formatTime(d.startTime)}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium">{formatMoney(d.startCash, c)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium text-emerald-600">
+                        +{formatMoney(d.cashIncome, c)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium text-red-500">
+                        −{formatMoney(d.cashExpense, c)}
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
                         {d.endTime ? formatTime(d.endTime) : "—"}
                       </td>
