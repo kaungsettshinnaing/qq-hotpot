@@ -2,7 +2,8 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { getCashStanding, createCashMovement } from "@/lib/shift";
-import { formatMoney, formatDateTime } from "@/lib/format";
+import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
+import { mmToday, mmDayOf, mmDayRange } from "@/lib/business-day";
 import { revalidatePath } from "next/cache";
 import CollectionCard from "./CollectionCard";
 
@@ -28,12 +29,25 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default async function CashCollectionPage() {
+export default async function CashCollectionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
   await requireAnyRole(["ADMIN"]);
   const settings = await getSettings();
   const c = settings.currency;
 
-  const [cashStanding, lastShift, recent] = await Promise.all([
+  const sp = await searchParams;
+  const todayStr = mmToday();
+  const defaultFrom = new Date(mmDayRange(todayStr).start.getTime() - 13 * 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10);
+  const fromStr = sp.from ?? defaultFrom;
+  const toStr = sp.to ?? todayStr;
+  const rangeStart = mmDayRange(fromStr).start;
+  const rangeEnd = mmDayRange(toStr).end;
+
+  const [cashStanding, lastShift, recent, rangeShifts] = await Promise.all([
     getCashStanding(),
     prisma.cashierShift.findFirst({
       where: { status: "CLOSED" },
@@ -45,7 +59,39 @@ export default async function CashCollectionPage() {
       take: 50,
       include: { recordedBy: { select: { name: true } } },
     }),
+    prisma.cashierShift.findMany({
+      where: { openedAt: { gte: rangeStart, lt: rangeEnd } },
+      orderBy: { openedAt: "asc" },
+      include: { cashier: { select: { name: true } } },
+    }),
   ]);
+
+  // Group shifts by the Myanmar business day they opened on — a shift that
+  // spans midnight is attributed to the day it started, same convention as
+  // attendance/business-day grouping elsewhere in the app.
+  const dayMap = new Map<string, typeof rangeShifts>();
+  for (const s of rangeShifts) {
+    const key = mmDayOf(s.openedAt).toISOString().slice(0, 10);
+    const group = dayMap.get(key) ?? [];
+    group.push(s);
+    dayMap.set(key, group);
+  }
+  const dailyCash = Array.from(dayMap.entries())
+    .map(([day, shifts]) => {
+      const first = shifts[0];
+      const last = shifts[shifts.length - 1];
+      return {
+        day,
+        shiftCount: shifts.length,
+        startCash: first.openingFloat,
+        startTime: first.openedAt,
+        endCash: last.status === "CLOSED" ? last.countedCash : null,
+        endTime: last.closedAt,
+        endInProgress: last.status !== "CLOSED",
+        lastCashier: last.cashier.name,
+      };
+    })
+    .sort((a, b) => (a.day < b.day ? 1 : -1));
 
   return (
     <div className="space-y-6">
@@ -81,6 +127,109 @@ export default async function CashCollectionPage() {
         <CollectionCard type="COLLECT" standing={cashStanding} currency={c} action={recordCollection} />
         <CollectionCard type="INJECT" standing={cashStanding} currency={c} action={recordCollection} />
       </div>
+
+      {/* Daily cash report */}
+      <section>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Daily cash on hand
+          </h2>
+          <form method="GET" className="flex items-center gap-2">
+            <input
+              type="date"
+              name="from"
+              defaultValue={fromStr}
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+            />
+            <span className="text-xs text-gray-400">→</span>
+            <input
+              type="date"
+              name="to"
+              defaultValue={toStr}
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+            />
+            <button className="rounded-lg bg-gray-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-900">
+              Apply
+            </button>
+          </form>
+        </div>
+        <p className="mb-2 text-xs text-gray-400">
+          Start = opening float of the first shift that day. End = counted cash at the close of the last shift
+          that day (a shift spanning midnight counts toward the day it opened).
+        </p>
+
+        {dailyCash.length === 0 ? (
+          <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
+            No shifts opened in this range.
+          </p>
+        ) : (
+          <>
+            {/* Mobile cards */}
+            <div className="space-y-2 sm:hidden">
+              {dailyCash.map((d) => (
+                <div key={d.day} className="rounded-xl border bg-white p-3.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{fmtDate(new Date(d.day))}</span>
+                    <span className="text-xs text-gray-400">{d.shiftCount} shift{d.shiftCount > 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Start ({formatTime(d.startTime)})</span>
+                    <span className="tabular-nums font-medium">{formatMoney(d.startCash, c)}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">
+                      End{d.endTime ? ` (${formatTime(d.endTime)})` : ""}
+                    </span>
+                    <span className="tabular-nums font-medium">
+                      {d.endInProgress ? (
+                        <span className="text-amber-600">shift in progress</span>
+                      ) : (
+                        formatMoney(d.endCash ?? 0, c)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto rounded-xl bg-white shadow-sm">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase text-gray-400 border-b">
+                  <tr>
+                    <th className="px-4 py-2">Date</th>
+                    <th className="px-4 py-2 text-right">Shifts</th>
+                    <th className="px-4 py-2 text-right">Start of day (time)</th>
+                    <th className="px-4 py-2 text-right">Cash at start</th>
+                    <th className="px-4 py-2 text-right">End of day (time)</th>
+                    <th className="px-4 py-2 text-right">Cash at end</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {dailyCash.map((d) => (
+                    <tr key={d.day}>
+                      <td className="px-4 py-2.5 font-medium">{fmtDate(new Date(d.day))}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{d.shiftCount}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{formatTime(d.startTime)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">{formatMoney(d.startCash, c)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
+                        {d.endTime ? formatTime(d.endTime) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                        {d.endInProgress ? (
+                          <span className="text-amber-600">in progress</span>
+                        ) : (
+                          formatMoney(d.endCash ?? 0, c)
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* History */}
       <section>
