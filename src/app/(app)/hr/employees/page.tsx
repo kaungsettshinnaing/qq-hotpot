@@ -92,6 +92,7 @@ export default async function EmployeesPage({
               <tr>
                 <th className="px-4 py-2">{t("col_no")}</th>
                 <th className="px-4 py-2">{t("col_name")}</th>
+                <th className="px-4 py-2">{t("label_username_onboard")}</th>
                 <th className="px-4 py-2">{t("col_roles")}</th>
                 <th className="px-4 py-2">{t("col_basic_salary")}</th>
                 <th className="px-4 py-2">{t("col_rest_days")}</th>
@@ -110,6 +111,7 @@ export default async function EmployeesPage({
                       </span>
                     )}
                   </td>
+                  <td className="px-4 py-2 text-gray-500 font-mono text-xs">{e.user.username}</td>
                   <td className="px-4 py-2 text-gray-500">{e.user.roles.join(", ")}</td>
                   <td className="px-4 py-2">{e.basicSalary.toLocaleString()} MMK</td>
                   <td className="px-4 py-2 text-gray-500">
@@ -124,7 +126,7 @@ export default async function EmployeesPage({
               ))}
               {employees.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                     {t("empty_no_employees")}
                   </td>
                 </tr>
