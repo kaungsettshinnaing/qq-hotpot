@@ -41,7 +41,16 @@ const MONTH_MAP: Record<string, number> = {
 
 export function parseInputDate(s: string | null | undefined): Date | null {
   if (!s || !s.trim()) return null;
-  const parts = s.trim().split("-");
+  const trimmed = s.trim();
+
+  // Native <input type="date"> always submits ISO "YYYY-MM-DD" regardless of locale.
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (iso) {
+    const [, year, month, day] = iso;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+
+  const parts = trimmed.split("-");
   if (parts.length !== 3) return null;
   const [day, mon, year] = parts;
   const m = MONTH_MAP[mon];

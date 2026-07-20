@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { createEmployee } from "../actions";
 import { getT } from "@/lib/lang";
+import DateField from "@/components/DateField";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -85,11 +86,11 @@ export default async function NewEmployeePage({
           </div>
           <div>
             <label className="label">{t("label_start_date")} *</label>
-            <input name="startDate" required className="input" placeholder="26-Jun-2026" />
+            <DateField name="startDate" required />
           </div>
           <div>
             <label className="label">{t("label_date_of_birth")}</label>
-            <input name="dateOfBirth" className="input" placeholder="01-Jan-1990" />
+            <DateField name="dateOfBirth" />
           </div>
           <div>
             <label className="label">{t("label_phone")}</label>
