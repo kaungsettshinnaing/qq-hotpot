@@ -108,7 +108,7 @@ export async function getCashStanding(): Promise<number> {
   // check against expectedCash, never a source of truth for standing.
   const baseline = lastShift?.expectedCash ?? 0;
 
-  const [injectAgg, collectAgg] = await Promise.all([
+  const [injectAgg, collectAgg, untaggedExpenseAgg] = await Promise.all([
     prisma.cashCollection.aggregate({
       _sum: { amount: true },
       where: { type: "INJECT", createdAt: { gt: sinceDate } },
@@ -117,7 +117,20 @@ export async function getCashStanding(): Promise<number> {
       _sum: { amount: true },
       where: { type: "COLLECT", createdAt: { gt: sinceDate } },
     }),
+    // Cash-drawer expenses entered with no shift open (shiftId: null) never hit
+    // any shift's expectedCash calc — without this they'd silently vanish from
+    // the running standing and compound into every subsequent day's opening float.
+    prisma.expense.aggregate({
+      _sum: { amount: true },
+      where: {
+        paymentSource: "CASH_DRAWER", shiftId: null, rejectedAt: null,
+        createdAt: { gt: sinceDate },
+      },
+    }),
   ]);
 
-  return baseline + (injectAgg._sum.amount ?? 0) - (collectAgg._sum.amount ?? 0);
+  return baseline
+    + (injectAgg._sum.amount ?? 0)
+    - (collectAgg._sum.amount ?? 0)
+    - (untaggedExpenseAgg._sum.amount ?? 0);
 }
