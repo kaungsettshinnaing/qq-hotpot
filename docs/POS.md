@@ -79,7 +79,15 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
      are free/paid on the bill (note: `isFree` flag on historical pots is NOT
      retroactively changed; only the computed bill view changes).
    - **Void Pot** — removes a pending pot (sends `kitchen:pot:void`).
-   - **Cancel Session** — only if no payments have been made.
+   - **Move Table** (`changeTable`) — moves the session to a different table.
+     The destination dropdown only ever lists currently-unoccupied tables
+     (built server-side from open sessions + merges), and `changeTable` itself
+     also guards against writing onto an already-occupied table, so this
+     can't create two OPEN sessions on the same table either through the UI
+     or a direct call to the action.
+   - **Cancel Session** — blocked if the session has ever had a payment (live
+     or voided — see §6.5). Voids all pot orders, unlinks table merges, sets
+     status to `CANCELLED`.
 
 ### 3.2 Kitchen (PC display)
 
@@ -157,7 +165,13 @@ Full access including `/admin`:
   reservation block minutes, tax/service toggles + rates, currency, restaurant name.
 - **Flavours** — add/edit/delete/hide soup flavours; set `appliesTo`
   (HOTPOT/BBQ/BOTH). Two preview buckets (Hotpot | BBQ) show which flavours
-  are in each category. Unified list with ▲/▼/Edit/Hide/Delete.
+  are in each category. Unified list with ▲/▼/Edit/Hide/Delete. **Delete is
+  blocked (returns an error, no destructive action taken) if the flavour has
+  ever been used in a `PotOrder`** — deleting a used flavour would silently
+  erase it from every historical order that used it (no cascade snapshot
+  exists). Use **Hide** (`toggleFlavour` → `isActive: false`) to remove a
+  flavour from active use instead; Delete only succeeds for a flavour with
+  zero usage.
 - **Categories** — add/toggle expense categories; mark categories as "stock" type.
 - **Stock Items / Suppliers** — manage inventory items and vendors (ADMIN only).
 
@@ -171,7 +185,7 @@ User account management is done via **HR → Employees**, not Admin.
 
 | File | Purpose |
 |---|---|
-| [`auth.ts`](../src/lib/auth.ts) | JWT sessions (12h), cookie `qq_session`, `requireSession()`, `requireAnyRole()`, `hashPassword`, `verifyPassword`, `hashPin` |
+| [`auth.ts`](../src/lib/auth.ts) | JWT sessions (12h), cookie `qq_session`, `requireSession()`, `requireAnyRole()`, `hashPassword`, `verifyPassword`, `hashPin`. **`requireSession()` re-verifies `isActive`/`roles` against the DB on every call** (not just the JWT claims) — a deactivated user or a role change takes effect on the user's very next request, not after the 12h cookie expires. |
 | [`rbac.ts`](../src/lib/rbac.ts) | Role enum, `MODULES` array, `modulesFor()`, `landingFor()`, `ROUTE_ROLES` |
 | [`db.ts`](../src/lib/db.ts) | Singleton `PrismaClient` via `globalThis.__qq_prisma` |
 | [`realtime.ts`](../src/lib/realtime.ts) | `emitKitchen()`, `emitFloor()`, `emitHR()`, `setIO()` — Socket.IO bridge |
@@ -268,10 +282,13 @@ TableSession
 │   └── PotOrderFlavour → SoupFlavour
 ├── OrderItem  (itemCode, qty, unitPrice — includes BEER and any extra menu items)
 └── Payment → CashierShift
+    └── voidedAt/voidedById — soft-void (see 6.5); voided payments are never
+        hard-deleted, and every functional total (balance, revenue,
+        reconciliation) must explicitly filter `voidedAt: null`
 
 CashierShift
-├── Payment (CASH only → affects reconciliation)
-└── Expense (CASH_DRAWER only → affects reconciliation)
+├── Payment (CASH only, voidedAt: null → affects reconciliation)
+└── Expense (CASH_DRAWER only, rejectedAt: null → affects reconciliation)
 ```
 
 ### SYSTEM_CODES
@@ -314,9 +331,13 @@ freePotsAllowed(diners, ratio, rounding)
 - **Default ratio = 4** (configurable via `Setting.freePotRatio`).
 - **Default rounding = UP** (configurable via `Setting.freePotRounding`).
 - Examples: 1–4 diners → 1 free pot; 5 diners → 2 free pots; 8 diners → 2 free pots.
-- `isFree` is stamped on each `PotOrder` **at creation time** (in `addPot` action).
-  Changing headcount after the fact does NOT retroactively flip `isFree`; the
-  bill re-computes paid pot count from total pots vs new allowance.
+- `isFree` is stamped on each `PotOrder` **at creation time** (in `addPot` action)
+  and is never rewritten afterward — it's a snapshot, not a live value.
+  Both the settlement bill (`getSessionDetail`/`computeBill`) and the kitchen
+  ticket's free/"(add-on)" label recompute free-vs-paid dynamically from
+  *current* headcount and pot order each time they render, so a headcount
+  change after pots exist is reflected everywhere it's displayed — only the
+  raw stored `isFree` column itself goes stale, and nothing reads it directly.
 
 ### 6.2 Soup flavour rules
 
@@ -361,37 +382,57 @@ All amounts are **whole MMK** (Math.round applied to percent calculations).
 - When a CASH payment amount exceeds the remaining balance (customer overpays),
   a **Change Due** banner is shown live in the checkout UI. The change amount is
   deducted from `cashSales_net` in shift reconciliation via the `billTotal` field.
+- `balance`/`paid` (`getSessionDetail` in `lib/orders.ts`) only ever sums
+  **live** payments (`voidedAt: null`) — a voided payment's amount is excluded
+  so the guest can be re-charged the correct amount after a void.
 
-### 6.5 Payment void — INTENTIONALLY DISABLED after settlement
+### 6.5 Payment void — soft-void only, still blocked after settlement
 
-**Do not add void/delete functionality for payments after a session is settled. This is by design to prevent staff fraud.**
+**Voiding never hard-deletes a `Payment` row, and it's still impossible after a session is settled — both by design, for fraud prevention and audit trail.**
 
-The `voidPayment` action exists in `cashier/actions.ts` but it is NOT exposed in the UI after `settleSession()` has been called. The cashier checkout page only shows payment controls while `balance > 0`. Once a session is closed (`status = CLOSED`), there is no route or button to remove or reverse a payment.
+`voidPayment` (`cashier/actions.ts`) sets `voidedAt`/`voidedById` on the row instead of deleting it — this preserves an audit trail (who voided it, when) that a hard delete would have destroyed entirely. It still hard-checks `session.status === "OPEN"`, so once a session is settled/closed there is no route or button to void or reverse a payment, same as before.
 
-If a payment error occurs after settlement, the correction must be logged as a cash adjustment by a manager — not a payment deletion.
+**Why this matters beyond the audit trail:** `cancelSession` (`waiter/actions.ts`) blocks cancelling an OPEN session if it has ever had a payment (`s.payments.length > 0`, an unfiltered live query — voided rows still count). Before the soft-void fix, hard-deleting a voided payment made that check see zero payments, so a session that had real financial activity (cash taken, then voided) could be cleanly cancelled — pot orders voided, table merges deleted, no trace money was ever handled. Because voided payments are no longer deleted, `cancelSession`'s existing check now correctly still blocks cancellation in that case, with no change needed to `cancelSession` itself.
+
+If a payment error occurs after settlement, the correction must be logged as a cash adjustment by a manager — not a payment void/deletion.
 
 ### 6.6 Shift reconciliation
 
 ```
-openingFloat  = lastShift.countedCash + injections − collections  (getCashStanding())
+openingFloat  = lastShift.expectedCash + injections − collections
+                  − (CASH_DRAWER expenses entered since with no shift open)
+                  (getCashStanding() — never lastShift.countedCash; a manual
+                   count must only ever flag a discrepancy, never silently
+                   become the baseline every subsequent day carries forward)
 
-changeGiven   = Σ max(0, totalPaid − billTotal)
-                  for sessions settled during this shift that had CASH payments
-                  (deducts cash returned to customers who overpaid)
+netCashChange = for each settled session: non-cash tenders (KBZPAY/OTHER) are
+                  credited against billTotal first; only cash actually in
+                  excess of what's still owed counts as change
+                  (see `netCashChange()` in `src/lib/pricing.ts`)
 
-cashSales_net = Σ(CASH payments in shift) − changeGiven
+cashSales_net = Σ(live CASH payments in shift, voidedAt: null) − Σ netCashChange
 
 expected      = openingFloat + cashSales_net − Σ(CASH_DRAWER expenses in shift)
 variance      = countedCash − expected
 ```
 
-Source: [`src/lib/shift.ts`](../src/lib/shift.ts) — `computeShiftTotals(shiftId, openingFloat, shiftWindow?)`.
+Source: [`src/lib/shift.ts`](../src/lib/shift.ts) — `computeShiftTotals(shiftId, openingFloat, shiftWindow?)`, [`src/lib/pricing.ts`](../src/lib/pricing.ts) — `netCashChange(payments, billTotal)`.
 
 - Pass `shiftWindow: { openedAt, closedAt }` to enable change deduction (all
   current callers do so). Without it, falls back to gross CASH sum (old behaviour).
 - `billTotal` is stored on `TableSession` at `settleSession` time; sessions
   settled before this field was added have `billTotal = null` and are excluded
   from change deduction (no double-count risk).
+- **`netCashChange` is the one shared helper for this formula** — it's used
+  identically in shift reconciliation, `/accounting` P&L, `/reports`,
+  `/cash-collection`, and cashier history/day-summary. Earlier versions of
+  each of these computed change as `Σ(all payment methods) − billTotal` and
+  subtracted the whole thing from cash — which let a KBZPay/Other overpayment
+  wrongly eat into the cash figure. Never reimplement this inline; import the
+  helper.
+- `countedCash` (the physical count at shift close) is stored for variance
+  comparison **only** — it never feeds back into `getCashStanding()`/the next
+  shift's `openingFloat`. Only the calculated `expectedCash` does.
 - One cashier → one OPEN shift at a time. Multiple shifts per day are allowed.
 - BANK_TRANSFER expenses are **excluded** from reconciliation.
 - Handover enforced: `openShift` redirects to error if any other cashier's shift
@@ -531,6 +572,12 @@ update the seed values for `freePotRatio` and `freePotRounding` in
 2. Run `prisma db push` on the VPS.
 3. Update the cashier checkout UI to offer the new method.
 4. Decide whether it affects shift reconciliation (update `computeShiftTotals` if so).
+
+### Touching anything that reads `Payment` rows
+
+`Payment` is soft-voided (`voidedAt`/`voidedById`, §6.5), not hard-deleted. Any new query that reads `Payment` rows for a **functional total** (balance owed, revenue, cash/shift reconciliation) must filter `voidedAt: null` explicitly — a voided row still exists and will silently double-count or distort a total otherwise. Current call sites that already do this correctly: `getSessionDetail` (`lib/orders.ts`), `computeShiftTotals` (`lib/shift.ts`), `/accounting`, `/reports`, `/cash-collection`, `/cashier` (page + history). If you add a new payment total anywhere, add it to this list and to the filter.
+
+Also reuse `netCashChange(payments, billTotal)` (`src/lib/pricing.ts`) for computing how much of a session's cash is "change" — never reimplement `Σ(all methods) − billTotal` inline (see §6.6 for why that formula is wrong).
 
 ### Add a new role
 

@@ -296,7 +296,7 @@ src/app/(app)/
       page.tsx           monthly payroll list (DRAFT/LOCKED)
       [yearMonth]/
         page.tsx         generate/view/lock payroll for a month
-        actions.ts       generatePayroll (excludes isSystem employees), lockPayroll
+        actions.ts       generatePayroll (excludes isSystem; includes active + this-month leavers via endDate), lockPayroll
         slip/[employeeId]/page.tsx  printable individual payslip
 
   manager/
@@ -381,7 +381,18 @@ Two separate concepts:
 
 Use `Employee.isSystem` for employees who are onboarded but are view-only (e.g. managers who do not clock in). Use `User.isSystemAccount` for completely non-employee logins (e.g. a dedicated POS terminal account).
 
-### Employee deletion
+### Employee deactivation (toggle — the normal offboarding path)
+
+`toggleEmployeeActive(userId)` (`hr/employees/actions.ts`) is the everyday way to offboard someone, as opposed to the destructive `deleteEmployee` below. In one `$transaction`:
+1. Flips `Employee.isActive`.
+2. **Also flips `User.isActive` to match** — deactivating an employee immediately revokes their login (previously this only set the HR-facing flag, leaving a "deactivated" employee still able to log in with their old credentials for up to 12h until their session expired; both gaps are now closed — see `requireSession`'s DB re-check in `src/lib/auth.ts`).
+3. Sets `Employee.endDate = new Date()` on deactivation, or clears it (`null`) on reactivation. This is what lets `generatePayroll` still include someone for the month they left (see below) without needing a separate "was active during month X" history table.
+
+Reactivating (toggling back on) restores login and clears `endDate` — both directions are symmetric.
+
+**Username recycling**: `User.username` is a hard-unique column. If a new/edited employee requests a username currently held by an *inactive* user, `createEmployee`/`updateEmployee`/`createSystemAccount` silently rename the inactive holder's username out of the way (suffixed with their own id, e.g. `ko_aung-old-a1b2c3`) and hand the clean username to the new/active user — no schema change, safe because every audit/actor FK in the schema references `User.id`, never a stored username string. A username held by an *active* user is still a hard block (`?error=exists`/`?error=username-taken`), unchanged.
+
+### Employee deletion (destructive — rarely used)
 
 `deleteEmployee(userId)` runs a single `$transaction`:
 1. Deletes `EmployeeFieldValue`, `EmployeeDocument`, `LeaveRequest`, `EmployeeFine`, `AdHocBonus`, `PayrollItem` rows.
@@ -390,13 +401,16 @@ Use `Employee.isSystem` for employees who are onboarded but are view-only (e.g. 
 4. Deletes the `Employee` row.
 5. Sets `User.isActive = false` (deactivates the login, does not delete the `User` row to avoid FK issues with other tables).
 
+Prefer `toggleEmployeeActive` for normal offboarding — this path permanently erases HR history (leave, fines, bonuses, payroll items) and should only be used to fully purge a record, not to end someone's employment.
+
 ### Payroll generation
 
-1. For each **active, non-system** employee: read attendance summary for the month.
-2. Collect ad-hoc bonuses, advance instalments, and fines targeting this month.
-3. Run `computePayrollItem()` to get all computed fields.
-4. Upsert a `PayrollItem` row (idempotent — regeneration overwrites draft items).
-5. Cannot regenerate a `LOCKED` payroll.
+1. Employees included: **active, non-system employees, PLUS anyone whose `endDate` falls within the month being generated** — i.e. `isActive: true OR endDate >= monthStart`. This means an employee deactivated partway through the month still gets their final prorated paycheck when payroll for that month is generated, even if the deactivation happened before generation. (Before this fix, `generatePayroll` filtered `isActive: true` only, so deactivating someone before running that month's payroll silently dropped them entirely — contradicting the present-basis attendance design below, which assumes they're still included.)
+2. Read attendance summary for the month (present-basis — see below).
+3. Collect ad-hoc bonuses, advance instalments, and fines targeting this month.
+4. Run `computePayrollItem()` to get all computed fields.
+5. Upsert a `PayrollItem` row (idempotent — regeneration overwrites draft items).
+6. Cannot regenerate a `LOCKED` payroll.
 
 ### Payroll lock
 
@@ -413,7 +427,10 @@ Use `Employee.isSystem` for employees who are onboarded but are view-only (e.g. 
 
 ### Date input format
 
-All HR date inputs use **DD-MMM-YYYY** format (e.g. `26-Jun-2026`), parsed by `parseInputDate()` in `src/lib/format.ts`. This overrides the browser's default `<input type="date">` locale format.
+Two input styles are in use, both parsed by `parseInputDate()` in `src/lib/format.ts`:
+- **New/Edit Employee** (Start Date, Date of Birth) use `<DateField>` (`src/components/DateField.tsx`) — a real native date picker rendered invisible and overlaid on a styled display box showing `DD MMM YYYY` (e.g. `20 Jul 2026`) once a date is picked. This submits ISO `YYYY-MM-DD` (whatever the native picker gives regardless of browser locale).
+- Other HR date inputs (e.g. Leave Request) are still plain text fields expecting **DD-MMM-YYYY** (e.g. `26-Jun-2026`).
+- `parseInputDate()` accepts **both** formats — it detects ISO `YYYY-MM-DD` first, then falls back to the `DD-Mon-YYYY` split. If you add a new date field, prefer `<DateField>` over a free-text input; the DOB field silently wiping on any format mismatch (browser autofill, a stray space) was a real bug from the free-text version.
 
 ---
 

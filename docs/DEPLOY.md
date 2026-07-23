@@ -185,6 +185,22 @@ docker compose exec app npx prisma db push --accept-data-loss
 
 > This project uses `prisma db push` (not `prisma migrate deploy`). No migration history on VPS.
 
+### Troubleshooting: a push didn't reach prod/UAT
+
+The documented flow (§ "Deploy production/UAT (automatic)") depends on `DEPLOY_ENABLED = true` and a working SSH deploy job. In practice this has been observed to silently not fire — prod stayed on a build from days earlier despite several pushes to `main`, with no error surfaced anywhere obvious. Symptoms: `git log -1` in `/opt/qq-hotpot` shows the latest commit (the git pull step ran), but `docker inspect --format='{{.Created}}' $(docker compose images -q app)` shows an old timestamp (the image was never rebuilt/repulled) and `docker compose pull` fetches nothing new.
+
+**First, check whether CI actually ran and deployed:** GitHub → repo → Actions tab, and confirm the `DEPLOY_ENABLED` repo variable is actually set to `true` (Settings → Secrets and variables → Actions → Variables) — if it's unset/false, the deploy job silently no-ops even though the build job still succeeds.
+
+**If you need it live now and don't want to wait on CI**, bypass the registry entirely and build straight from the already-pulled source on the VPS:
+```bash
+cd /opt/qq-hotpot   # or /opt/qq-hotpot-uat with the dc-uat alias
+git pull --ff-only
+docker compose build app
+docker compose up -d --force-recreate app
+docker image prune -f
+```
+`docker compose up -d` alone (without `--force-recreate`) can no-op if Compose thinks nothing changed — `--force-recreate` guarantees the container actually restarts on the freshly built image. If the schema changed, also run `docker compose exec -T app npx prisma db push` (or `--accept-data-loss` for a destructive change) before or after this, per the schema-change section above.
+
 ### Reset UAT database (re-seed)
 
 ```bash

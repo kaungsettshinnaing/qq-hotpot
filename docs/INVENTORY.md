@@ -182,7 +182,7 @@ MANAGER/ADMIN only. Sets `final_${itemId}` per item, creates `StockMovement` rec
 **ADMIN only.** For a `PREPAID` delivery, optionally adjusts the linked `Expense.amount` to the final invoice total (mandatory note), sets `paymentStatus = PAID`, logs `PREPAY_SETTLED`.
 
 ### Legacy actions (retained, drain-only)
-`submitCashierSide` / `submitNonStockCashierSide` and the `/inventory/deliveries/[id]/cashier` page still serve deliveries created before this flow. `approveStockIn` (manager) still approves legacy simplified stock-ins.
+`submitCashierSide` / `submitNonStockCashierSide` and the `/inventory/deliveries/[id]/cashier` page still serve deliveries created before this flow. `approveStockIn` (manager) still approves legacy simplified stock-ins. `submitCashierSide`'s `Expense.create` now also resolves `shiftId` via `getOpenShift`/`getAnyOpenShift` (same pattern as `addStockInvoice`) — it previously omitted this, so a CASH_DRAWER expense entered through this legacy path silently got `shiftId: null` and never hit that shift's reconciliation.
 
 ---
 
