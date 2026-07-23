@@ -18,7 +18,10 @@ export default function DeleteFlavourButton({
     if (!confirm(labels.confirm)) return;
     const fd = new FormData();
     fd.append("id", id);
-    start(() => deleteFlavour(fd));
+    start(async () => {
+      const result = await deleteFlavour(fd);
+      if (!result.ok) alert(result.error);
+    });
   }
 
   return (

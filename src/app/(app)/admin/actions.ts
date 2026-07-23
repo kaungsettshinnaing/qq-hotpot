@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { setSetting } from "@/lib/settings";
 import { ALL_ROLES, type Role } from "@/lib/rbac";
+import type { ActionResult } from "@/lib/action-result";
 
 const ADMIN: Role[] = ["ADMIN"];
 
@@ -204,15 +205,21 @@ export async function updateFlavour(formData: FormData): Promise<void> {
   redirect("/admin/flavours");
 }
 
-export async function deleteFlavour(formData: FormData): Promise<void> {
+export async function deleteFlavour(formData: FormData): Promise<ActionResult> {
   await requireAnyRole(ADMIN);
   const id = str(formData.get("id"));
-  await prisma.$transaction([
-    prisma.potOrderFlavour.deleteMany({ where: { flavourId: id } }),
-    prisma.soupFlavour.delete({ where: { id } }),
-  ]);
+  // Hard delete would silently drop this flavor from every historical
+  // PotOrder that used it (no cascade, no denormalized name anywhere) —
+  // only allow it for flavors that were never actually served. isActive
+  // (toggleFlavour) is the normal way to remove one from active use.
+  const usageCount = await prisma.potOrderFlavour.count({ where: { flavourId: id } });
+  if (usageCount > 0) {
+    return { ok: false, error: "This flavor has been used in past orders — deactivate it instead of deleting, to keep order history intact." };
+  }
+  await prisma.soupFlavour.delete({ where: { id } });
   revalidatePath("/admin/flavours");
   revalidatePath("/waiter");
+  return { ok: true };
 }
 
 // ---- Expense categories ----

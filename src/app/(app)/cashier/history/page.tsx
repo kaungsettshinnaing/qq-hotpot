@@ -35,7 +35,7 @@ export default async function CashierHistoryPage({
       table: { select: { label: true } },
       openedBy: { select: { name: true } },
       closedBy: { select: { name: true } },
-      payments: { select: { method: true, amount: true } },
+      payments: { where: { voidedAt: null }, select: { method: true, amount: true } },
       mergedTables: { include: { table: { select: { label: true } } } },
     },
     orderBy: { closedAt: "asc" },

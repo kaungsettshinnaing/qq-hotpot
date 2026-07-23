@@ -35,9 +35,9 @@ export async function computeShiftTotals(
   shiftWindow?: { openedAt: Date; closedAt: Date | null },
 ): Promise<ShiftTotals> {
   const [cashAgg, kbzAgg, otherAgg, expAgg, injectAgg, collectAgg] = await Promise.all([
-    prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "CASH" } }),
-    prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "KBZPAY" } }),
-    prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "OTHER" } }),
+    prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "CASH", voidedAt: null } }),
+    prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "KBZPAY", voidedAt: null } }),
+    prisma.payment.aggregate({ _sum: { amount: true }, where: { shiftId, method: "OTHER", voidedAt: null } }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { shiftId, paymentSource: "CASH_DRAWER", rejectedAt: null } }),
     prisma.cashCollection.aggregate({ _sum: { amount: true }, where: { shiftId, type: "INJECT" } }),
     prisma.cashCollection.aggregate({ _sum: { amount: true }, where: { shiftId, type: "COLLECT" } }),
@@ -57,9 +57,9 @@ export async function computeShiftTotals(
         status: "CLOSED",
         billTotal: { not: null },
         closedAt: { gte: shiftWindow.openedAt, lt: shiftWindow.closedAt ?? new Date() },
-        payments: { some: { shiftId, method: "CASH" } },
+        payments: { some: { shiftId, method: "CASH", voidedAt: null } },
       },
-      select: { billTotal: true, payments: { select: { amount: true, method: true } } },
+      select: { billTotal: true, payments: { where: { voidedAt: null }, select: { amount: true, method: true } } },
     });
     for (const s of settled) {
       cashSales -= netCashChange(s.payments, s.billTotal ?? 0);

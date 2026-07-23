@@ -95,11 +95,17 @@ export async function addPayment(
 }
 
 export async function voidPayment(formData: FormData): Promise<void> {
-  await requireAnyRole(CASHIER_ROLES);
+  const user = await requireAnyRole(CASHIER_ROLES);
   const id = str(formData.get("paymentId"));
   const p = await prisma.payment.findUnique({ where: { id }, include: { session: true } });
-  if (!p || p.session.status !== "OPEN") return;
-  await prisma.payment.delete({ where: { id } });
+  if (!p || p.session.status !== "OPEN" || p.voidedAt) return;
+  // Soft-void, not delete — keeps an audit trail (who/when) and means a
+  // session that ever had a payment still shows one to cancelSession's
+  // financial-activity check, even after the payment is voided.
+  await prisma.payment.update({
+    where: { id },
+    data: { voidedAt: new Date(), voidedById: user.id },
+  });
   revalidatePath(`/cashier/checkout/${p.sessionId}`);
 }
 

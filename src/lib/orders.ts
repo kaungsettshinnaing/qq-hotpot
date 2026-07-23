@@ -21,7 +21,7 @@ export async function getSessionDetail(sessionId: string) {
         orderBy: { createdAt: "asc" },
       },
       orderItems: { where: { voidedAt: null } },
-      payments: { orderBy: { receivedAt: "asc" } },
+      payments: { where: { voidedAt: null }, orderBy: { receivedAt: "asc" } },
     },
   });
   if (!session) return null;

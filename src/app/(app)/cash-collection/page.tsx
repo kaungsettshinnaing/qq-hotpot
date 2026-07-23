@@ -2,6 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { getCashStanding, createCashMovement } from "@/lib/shift";
+import { netCashChange } from "@/lib/pricing";
 import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
 import { mmToday, mmDayOf, mmDayRange } from "@/lib/business-day";
 import { revalidatePath } from "next/cache";
@@ -68,12 +69,15 @@ export default async function CashCollectionPage({
     // /reports computes cash totals, so an expense entered after a shift closes
     // still counts toward that day's figures instead of silently disappearing.
     prisma.payment.findMany({
-      where: { method: "CASH", receivedAt: { gte: rangeStart, lt: rangeEnd } },
+      where: { method: "CASH", receivedAt: { gte: rangeStart, lt: rangeEnd }, voidedAt: null },
       select: { amount: true, receivedAt: true },
     }),
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: rangeStart, lt: rangeEnd } },
-      select: { billTotal: true, closedAt: true, payments: { select: { method: true, amount: true } } },
+      select: {
+        billTotal: true, closedAt: true,
+        payments: { where: { voidedAt: null }, select: { method: true, amount: true } },
+      },
     }),
     prisma.expense.findMany({
       where: { paymentSource: "CASH_DRAWER", rejectedAt: null, businessDate: { gte: rangeStart, lt: rangeEnd } },
@@ -92,8 +96,8 @@ export default async function CashCollectionPage({
     if (!s.closedAt) continue;
     const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
     if (cashPaid === 0) continue;
-    const totalPaid = s.payments.reduce((sum, p) => sum + p.amount, 0);
-    const change = Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+    const billTotal = s.billTotal ?? s.payments.reduce((sum, p) => sum + p.amount, 0);
+    const change = netCashChange(s.payments, billTotal);
     const key = dayKey(s.closedAt);
     cashIncomeByDay.set(key, (cashIncomeByDay.get(key) ?? 0) - change);
   }

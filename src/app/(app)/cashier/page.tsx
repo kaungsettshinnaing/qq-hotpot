@@ -55,7 +55,7 @@ export default async function CashierHome({
     where: { status: "CLOSED", closedAt: { gte: dayStart, lt: dayEnd } },
     select: {
       id: true, billTotal: true, discountType: true,
-      payments: { select: { method: true, amount: true } },
+      payments: { where: { voidedAt: null }, select: { method: true, amount: true } },
     },
   });
   let dayCash = 0, dayKbz = 0, dayOther = 0;

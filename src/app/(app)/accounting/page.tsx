@@ -68,7 +68,7 @@ export default async function AccountingPage({
   // ── Summary card queries (always unfiltered — show current outstanding) ────
   const [pendingPayments, accrualExpenses, confirmedPendingExpenses] = await Promise.all([
     prisma.payment.findMany({
-      where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: null },
+      where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: null, voidedAt: null },
       include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
       orderBy: { receivedAt: "asc" },
     }),
@@ -87,7 +87,7 @@ export default async function AccountingPage({
   // ── Date-filtered queries (history sections + P&L) ────────────────────────
   const [reconciledPayments, paidExpenses, plExpenses, plSessions] = await Promise.all([
     prisma.payment.findMany({
-      where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd } },
+      where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd }, voidedAt: null },
       include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
       orderBy: { receivedAt: "desc" },
     }),
@@ -110,7 +110,7 @@ export default async function AccountingPage({
             openedAt: true, closedAt: true,
             table: { select: { label: true } },
             mergedTables: { select: { table: { select: { label: true } } } },
-            payments: { select: { method: true, amount: true } },
+            payments: { where: { voidedAt: null }, select: { method: true, amount: true } },
           },
           orderBy: { closedAt: "asc" },
         })

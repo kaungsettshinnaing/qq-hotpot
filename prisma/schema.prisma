@@ -42,6 +42,7 @@ model User {
   potsCreated    PotOrder[]     @relation("potCreatedBy")
   potsDelivered  PotOrder[]     @relation("potDeliveredBy")
   payments       Payment[]
+  voidedPayments Payment[]      @relation("PaymentVoider")
   reservations   Reservation[]
   expenses       Expense[]
   shifts         CashierShift[]
@@ -272,6 +273,9 @@ model Payment {
   receivedById String
   receivedAt   DateTime      @default(now())
   reconciledAt DateTime? // set by admin when KBZPay/OTHER is confirmed received
+  voidedAt     DateTime? // soft-void — keeps an audit trail instead of hard-deleting
+  voidedById   String?
+  voidedBy     User?         @relation("PaymentVoider", fields: [voidedById], references: [id])
 
   @@index([sessionId])
   @@index([shiftId])

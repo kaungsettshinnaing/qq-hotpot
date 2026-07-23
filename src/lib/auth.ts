@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
+import { prisma } from "./db";
 import type { Role } from "./rbac";
 
 export const SESSION_COOKIE = "qq_session";
@@ -78,7 +79,15 @@ export async function getSession(): Promise<SessionUser | null> {
 export async function requireSession(): Promise<SessionUser> {
   const s = await getSession();
   if (!s) redirect("/login");
-  return s;
+  // Re-verify against the DB on every request — the JWT's roles/identity are
+  // only a snapshot from login time. Without this, a deactivated user or a
+  // role downgrade has no effect until the cookie expires (up to 12h).
+  const fresh = await prisma.user.findUnique({
+    where: { id: s.id },
+    select: { isActive: true, roles: true },
+  });
+  if (!fresh || !fresh.isActive) redirect("/login");
+  return { ...s, roles: fresh.roles };
 }
 
 export async function requireAnyRole(allowed: Role[]): Promise<SessionUser> {
