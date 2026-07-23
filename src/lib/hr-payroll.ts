@@ -3,7 +3,8 @@
 export interface PayrollInputs {
   basicSalary: number;
   workingDays: number;   // calendar working days (calendar days minus rest days)
-  absentDays: number;    // ABSENT + LEAVE days (both are unpaid; half-day = 0.5)
+  absentDays: number;    // present-basis: ABSENT/LEAVE rows *and* any working day with
+                         // no attendance record at all (both unpaid; half-day = 0.5)
   otDays: number;        // days marked OT (extra days worked beyond required)
   attendanceBonusAmt: number;
   adHocBonuses: number;

@@ -1,5 +1,4 @@
 import { prisma } from "./db";
-import { workingDaysInMonth } from "./hr-payroll";
 import { mmTodayUTC, mmNow } from "./business-day";
 
 /** All attendance rows for a month, keyed by employeeId+date string. */
@@ -13,7 +12,18 @@ export async function getMonthAttendance(year: number, month: number) {
   });
 }
 
-/** Attendance summary for a single employee in a month (for payroll generation). */
+/**
+ * Attendance summary for a single employee in a month (for payroll generation).
+ *
+ * Present-basis: a working day only counts toward pay if there's a positive
+ * attendance record for it (PRESENT/OT, or REST_DAY if manually marked as an
+ * ad-hoc day off). A working day with NO attendance row at all — e.g. every
+ * day after an employee has left, or every day before a mid-month hire's
+ * start date — counts as absent (unpaid), not as implicitly present. This is
+ * what makes a mid-month departure or a mid-month start prorate correctly;
+ * previously only explicit ABSENT/LEAVE rows reduced pay, so an employee with
+ * no attendance rows at all for the rest of the month was paid in full.
+ */
 export async function getAttendanceSummary(
   employeeId: string,
   year: number,
@@ -26,21 +36,34 @@ export async function getAttendanceSummary(
   const rows = await prisma.attendance.findMany({
     where: { employeeId, date: { gte: start, lt: end } },
   });
+  const byDate = new Map(rows.map((r) => [r.date.toISOString().slice(0, 10), r]));
 
-  const workingDays = workingDaysInMonth(year, month, restDays);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  let absentDays = 0;
+  let otDays = 0;
 
-  // Half-day rows count as 0.5; PRESENT+HALF means worked half, absent half
-  const absentDays = rows.reduce((sum, r) => {
-    const factor = r.dayType === "HALF" ? 0.5 : 1;
-    if (r.status === "ABSENT" || r.status === "LEAVE") return sum + factor;
-    if (r.status === "PRESENT" && r.dayType === "HALF") return sum + 0.5;
-    return sum;
-  }, 0);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month - 1, d).getDay(); // 0=Sun
+    if (restDays.includes(dow)) continue; // scheduled rest day — not a working day at all
 
-  const otDays = rows.reduce((sum, r) => {
-    if (r.status !== "OT") return sum;
-    return sum + (r.dayType === "HALF" ? 0.5 : 1);
-  }, 0);
+    workingDays++;
+    const key = new Date(Date.UTC(year, month - 1, d)).toISOString().slice(0, 10);
+    const row = byDate.get(key);
+
+    if (!row) {
+      // No attendance record on a working day — unpaid under present-basis.
+      absentDays += 1;
+    } else if (row.status === "ABSENT" || row.status === "LEAVE") {
+      absentDays += row.dayType === "HALF" ? 0.5 : 1;
+    } else if (row.status === "OT") {
+      otDays += row.dayType === "HALF" ? 0.5 : 1;
+    } else if (row.status === "PRESENT" && row.dayType === "HALF") {
+      absentDays += 0.5; // half-day present = half-day unpaid
+    }
+    // PRESENT+FULL or REST_DAY (manually marked ad-hoc day off) → fully
+    // accounted for, no deduction.
+  }
 
   return { workingDays, absentDays, otDays };
 }

@@ -192,11 +192,21 @@ Lives in `src/lib/hr-payroll.ts` → `computePayrollItem(inputs)` and `workingDa
 
 ## Attendance status counts (for payroll)
 
-Counted by `src/lib/hr-attendance.ts → getAttendanceSummary(employeeId, year, month, restDays)`:
+Counted by `src/lib/hr-attendance.ts → getAttendanceSummary(employeeId, year, month, restDays)`.
 
-- `absentDays` = rows where status is `ABSENT` **or** `LEAVE` (both are unpaid)
+**Present-basis**, not absent-basis: the function loops every calendar day of the month, skips
+scheduled rest days, and for every remaining working day requires a positive attendance record to
+count as paid. A working day with no attendance row at all (e.g. every day after an employee has
+left, or every day before a mid-month hire's start date) counts as absent — it is not implicitly
+treated as present. This is what makes mid-month departures and mid-month starts prorate correctly
+without any separate start/end-date logic.
+
+- `absentDays` = rows where status is `ABSENT` **or** `LEAVE`, **plus** any working day in the
+  month with no attendance row at all (all unpaid; half-day = 0.5)
 - `otDays` = rows where status is `OT`
 - `workingDays` = computed from restDays, not from attendance rows
+- `PRESENT` (full day) or a manually-marked `REST_DAY` on a working day count as fully paid, no
+  deduction
 
 ---
 
