@@ -5,7 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { getOpenShift, getAnyOpenShift, computeShiftTotals } from "@/lib/shift";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import SubmitButton from "@/components/SubmitButton";
-import { closeShift } from "../actions";
+import { closeShift, forceCloseShift } from "../actions";
 import { getT } from "@/lib/lang";
 import CountedCashInput from "./CountedCashInput";
 
@@ -23,6 +23,10 @@ export default async function ShiftPage() {
     : null;
   const anyOpen = shift ? null : await getAnyOpenShift();
   const otherShift = anyOpen?.cashierId !== user.id ? anyOpen : null;
+  const canForceClose = user.roles.includes("MANAGER") || user.roles.includes("ADMIN");
+  const otherShiftTotals = otherShift && canForceClose
+    ? await computeShiftTotals(otherShift.id, otherShift.openingFloat, { openedAt: otherShift.openedAt, closedAt: null })
+    : null;
 
   const recent = await prisma.cashierShift.findMany({
     where: { cashierId: user.id, status: "CLOSED" },
@@ -50,6 +54,28 @@ export default async function ShiftPage() {
           <Link href="/cashier" className="mt-2 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">
             ← {t("nav_cashier")}
           </Link>
+          {canForceClose && otherShiftTotals && (
+            <form action={forceCloseShift} className="mt-4 space-y-2 border-t border-red-200 pt-4">
+              <input type="hidden" name="shiftId" value={otherShift!.id} />
+              <p className="text-sm font-bold text-red-800">{t("label_force_close_shift")}</p>
+              <p className="text-xs text-red-600">
+                {t("force_close_warning", { name: otherShift!.cashier.name })}
+              </p>
+              <CountedCashInput
+                expected={otherShiftTotals.expected}
+                currency={c}
+                label={t("label_counted_cash")}
+                matchLabel={t("label_counted_cash_match")}
+                discrepancyWarning={t("warning_cash_discrepancy")}
+              />
+              <SubmitButton
+                className="w-full rounded-lg bg-red-700 py-2.5 font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+                pendingText={t("pending_force_closing")}
+              >
+                {t("btn_force_close_shift")}
+              </SubmitButton>
+            </form>
+          )}
         </div>
       ) : !shift ? (
         <div className="rounded-xl bg-white p-5 shadow-sm text-center py-10">

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+const RESOLVED_UPLOAD_DIR = path.resolve(UPLOAD_DIR);
 
 const MIME: Record<string, string> = {
   jpg: "image/jpeg",
@@ -20,12 +22,23 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ slug: string[] }> },
 ) {
+  await requireSession();
   const { slug } = await params;
-  // Reject any path segment that isn't a safe filename token (prevents traversal)
-  if (slug.some((s) => /[^a-zA-Z0-9.\-_]/.test(s))) {
+  // Reject any path segment that isn't a safe filename token, and explicitly
+  // reject "." / ".." segments (traversal) even though they'd otherwise pass
+  // the charset check below.
+  if (slug.some((s) => s === "." || s === ".." || /[^a-zA-Z0-9.\-_]/.test(s))) {
     return new NextResponse("Forbidden", { status: 403 });
   }
   const filePath = path.join(UPLOAD_DIR, ...slug);
+  // Defense in depth: confirm the resolved path is still inside UPLOAD_DIR.
+  const resolvedFilePath = path.resolve(filePath);
+  if (
+    resolvedFilePath !== RESOLVED_UPLOAD_DIR &&
+    !resolvedFilePath.startsWith(RESOLVED_UPLOAD_DIR + path.sep)
+  ) {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
   if (!existsSync(filePath)) {
     return new NextResponse("Not found", { status: 404 });
   }

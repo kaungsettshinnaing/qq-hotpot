@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isPayrollLocked } from "@/lib/payroll-lock";
 
 export async function createFine(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
@@ -11,6 +12,10 @@ export async function createFine(fd: FormData) {
   const reason = (fd.get("reason") as string).trim();
   const deductMonth = parseInt(fd.get("deductMonth") as string);
   const deductYear = parseInt(fd.get("deductYear") as string);
+
+  if (await isPayrollLocked(deductMonth, deductYear)) {
+    throw new Error("Payroll for this month is already locked; cannot add a fine to it.");
+  }
 
   await prisma.employeeFine.create({
     data: { employeeId, amount, reason, deductMonth, deductYear, createdById: session.id },

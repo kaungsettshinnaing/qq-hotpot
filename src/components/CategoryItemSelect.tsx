@@ -6,6 +6,7 @@ export interface PickerItem {
   id: string;
   name: string;
   meta?: string;
+  unit?: string;
 }
 
 export interface PickerCategory {
@@ -22,6 +23,7 @@ export default function CategoryItemSelect({
   required = true,
   className = "",
   selectClassName = "rounded-lg border border-gray-300 px-3 py-2",
+  onItemChange,
 }: {
   categories: PickerCategory[];
   name?: string;
@@ -30,6 +32,7 @@ export default function CategoryItemSelect({
   required?: boolean;
   className?: string;
   selectClassName?: string;
+  onItemChange?: (item: PickerItem | undefined) => void;
 }) {
   const [categoryId, setCategoryId] = useState("");
   const items = categories.find((c) => c.id === categoryId)?.items ?? [];
@@ -38,7 +41,10 @@ export default function CategoryItemSelect({
     <div className={`flex flex-wrap gap-2 ${className}`}>
       <select
         value={categoryId}
-        onChange={(e) => setCategoryId(e.target.value)}
+        onChange={(e) => {
+          setCategoryId(e.target.value);
+          onItemChange?.(undefined);
+        }}
         required={required}
         className={selectClassName}
       >
@@ -53,6 +59,7 @@ export default function CategoryItemSelect({
         required={required}
         disabled={!categoryId}
         defaultValue=""
+        onChange={(e) => onItemChange?.(items.find((i) => i.id === e.target.value))}
         className={`${selectClassName} disabled:bg-gray-50 disabled:text-gray-400`}
       >
         <option value="">{itemPlaceholder}</option>

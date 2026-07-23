@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import SubmitButton from "@/components/SubmitButton";
-import CategoryItemSelect from "@/components/CategoryItemSelect";
 import { recordUsage } from "../actions";
 import { getT } from "@/lib/lang";
+import UsageItemQtyFields from "./UsageItemQtyFields";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +31,12 @@ export default async function NewUsagePage() {
     ...categories.map((c) => ({
       id: c.id,
       name: c.name,
-      items: c.items.map((i) => ({ id: i.id, name: i.name, meta: UNIT_LABEL[i.unit] })),
+      items: c.items.map((i) => ({ id: i.id, name: i.name, meta: UNIT_LABEL[i.unit], unit: UNIT_LABEL[i.unit] })),
     })),
     ...(uncategorized.length > 0 ? [{
       id: "__uncategorized__",
       name: t("label_uncategorized"),
-      items: uncategorized.map((i) => ({ id: i.id, name: i.name, meta: UNIT_LABEL[i.unit] })),
+      items: uncategorized.map((i) => ({ id: i.id, name: i.name, meta: UNIT_LABEL[i.unit], unit: UNIT_LABEL[i.unit] })),
     }] : []),
   ];
 
@@ -49,22 +49,14 @@ export default async function NewUsagePage() {
 
       <section className="rounded-xl bg-white p-5 shadow-sm">
         <form action={recordUsage} className="space-y-4 text-sm">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_item")}</label>
-            <CategoryItemSelect
-              categories={pickerCategories}
-              categoryPlaceholder={`— ${t("label_category")} —`}
-              itemPlaceholder={`— ${t("label_item")} —`}
-              selectClassName="w-full rounded-lg border border-gray-300 px-3 py-2"
-              className="flex-col"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_quantity_used")}</label>
-            <input name="qty" type="number" min="1" required placeholder="0"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-lg font-semibold" />
-          </div>
+          <UsageItemQtyFields
+            categories={pickerCategories}
+            itemLabel={t("label_item")}
+            categoryPlaceholder={`— ${t("label_category")} —`}
+            itemPlaceholder={`— ${t("label_item")} —`}
+            qtyLabel={t("label_quantity_used")}
+            unitLabel={t("label_unit")}
+          />
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_note_optional")}</label>

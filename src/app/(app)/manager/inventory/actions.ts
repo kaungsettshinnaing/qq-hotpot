@@ -228,10 +228,15 @@ export async function submitStockCount(formData: FormData): Promise<void> {
       },
     });
 
-    // Create adjustment movement if actual differs from system
+    // Create adjustment movement if actual differs from system. The trigger
+    // condition stays keyed off the snapshot (systemQty) — that's what "did
+    // the count find a discrepancy vs. what we expected" means — but the
+    // movement qty is computed against the live level, so it corrects stock
+    // relative to what it actually is now, not what it was when the count
+    // started (deliveries/usage may have happened mid-count).
     if (resolvedActual !== null && resolvedActual !== item.systemQty) {
-      const diff = resolvedActual - item.systemQty;
       const currentLevel = levels.get(item.stockItemId) ?? 0;
+      const diff = resolvedActual - currentLevel;
       await prisma.stockMovement.create({
         data: {
           stockItemId: item.stockItemId,

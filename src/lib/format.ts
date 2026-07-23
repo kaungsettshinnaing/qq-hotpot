@@ -55,10 +55,12 @@ export function parseInputDate(s: string | null | undefined): Date | null {
   const trimmed = s.trim();
 
   // Native <input type="date"> always submits ISO "YYYY-MM-DD" regardless of locale.
+  // Built as UTC midnight (not server-local) so the calendar date doesn't shift
+  // when the server runs in a non-UTC TZ — matches mmDateUTC() in business-day.ts.
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
   if (iso) {
     const [, year, month, day] = iso;
-    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
   }
 
   const parts = trimmed.split("-");
@@ -66,5 +68,5 @@ export function parseInputDate(s: string | null | undefined): Date | null {
   const [day, mon, year] = parts;
   const m = MONTH_MAP[mon];
   if (m === undefined || !day || !year) return null;
-  return new Date(parseInt(year), m, parseInt(day));
+  return new Date(Date.UTC(parseInt(year), m, parseInt(day)));
 }

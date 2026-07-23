@@ -202,6 +202,15 @@ export async function deleteEmployee(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN"]);
   const userId = fd.get("userId") as string;
 
+  const lockedItem = await prisma.payrollItem.findFirst({
+    where: { employeeId: userId, payroll: { status: "LOCKED" } },
+  });
+  if (lockedItem) {
+    throw new Error(
+      "This employee has locked payroll history and cannot be permanently deleted. Use Deactivate instead.",
+    );
+  }
+
   await prisma.$transaction([
     prisma.employeeFieldValue.deleteMany({ where: { employeeId: userId } }),
     prisma.employeeDocument.deleteMany({ where: { employeeId: userId } }),

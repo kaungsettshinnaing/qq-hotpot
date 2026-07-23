@@ -171,6 +171,37 @@ export async function closeShift(formData: FormData): Promise<void> {
   redirect("/cashier/shift");
 }
 
+/** Manager/admin override for closeShift — a cashier's shift can otherwise
+ *  only be closed by that same cashier (closeShift is scoped to the caller's
+ *  own open shift), which stalls every other cashier from starting a shift
+ *  if the outgoing one leaves without closing out. */
+export async function forceCloseShift(formData: FormData): Promise<void> {
+  const actor = await requireAnyRole(["MANAGER", "ADMIN"]);
+  const shiftId = str(formData.get("shiftId"));
+  const countedCash = clampInt(formData.get("countedCash"), 0, 1_000_000_000);
+  const shift = await prisma.cashierShift.findUnique({ where: { id: shiftId } });
+  if (!shift || shift.status !== "OPEN") redirect("/cashier/shift");
+  const closedAt = new Date();
+  const { expected } = await computeShiftTotals(shift.id, shift.openingFloat, {
+    openedAt: shift.openedAt,
+    closedAt,
+  });
+  await prisma.cashierShift.update({
+    where: { id: shift.id },
+    data: {
+      status: "CLOSED",
+      closedAt,
+      countedCash,
+      expectedCash: expected,
+      variance: countedCash - expected,
+      note: `Force closed by ${actor.name} (${actor.username})`,
+    },
+  });
+  revalidatePath("/cashier/shift");
+  revalidatePath("/cashier");
+  redirect("/cashier/shift");
+}
+
 /** Mid-shift cash inject/withdraw — auto-tagged to whichever shift is open
  *  (if any), so the drawer stays reconcilable against expected cash.
  *  Manager/admin only — a plain cashier moving cash out of their own drawer

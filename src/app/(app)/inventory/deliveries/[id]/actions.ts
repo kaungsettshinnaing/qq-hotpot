@@ -168,6 +168,11 @@ export async function submitNonStockCashierSide(formData: FormData): Promise<voi
 
   let expenseId = delivery.expenseId;
   if (!expenseId && categoryId) {
+    let shiftId: string | null = null;
+    if (paymentSource === "CASH_DRAWER") {
+      const userShift = await getOpenShift(session.id);
+      shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
+    }
     const expense = await prisma.expense.create({
       data: {
         businessDate: delivery.deliveryDate,
@@ -176,6 +181,7 @@ export async function submitNonStockCashierSide(formData: FormData): Promise<voi
         paymentSource,
         description,
         enteredById: session.id,
+        shiftId,
       },
     });
     expenseId = expense.id;

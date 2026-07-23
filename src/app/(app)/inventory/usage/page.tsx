@@ -3,11 +3,11 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/rbac";
 import SubmitButton from "@/components/SubmitButton";
-import CategoryItemSelect from "@/components/CategoryItemSelect";
 import { formatDateTime } from "@/lib/format";
 import { recordAdjustment } from "./actions";
 import { computeAllStockLevels } from "@/lib/inventory";
 import { getT } from "@/lib/lang";
+import AdjustmentItemQtyFields from "./AdjustmentItemQtyFields";
 
 export const dynamic = "force-dynamic";
 
@@ -54,12 +54,12 @@ export default async function UsagePage() {
     ...categories.map((c) => ({
       id: c.id,
       name: c.name,
-      items: c.items.map((i) => ({ id: i.id, name: i.name, meta: itemMeta(i) })),
+      items: c.items.map((i) => ({ id: i.id, name: i.name, meta: itemMeta(i), unit: UNIT_LABEL[i.unit] })),
     })),
     ...(uncategorized.length > 0 ? [{
       id: "__uncategorized__",
       name: t("label_uncategorized"),
-      items: uncategorized.map((i) => ({ id: i.id, name: i.name, meta: itemMeta(i) })),
+      items: uncategorized.map((i) => ({ id: i.id, name: i.name, meta: itemMeta(i), unit: UNIT_LABEL[i.unit] })),
     }] : []),
   ];
 
@@ -78,18 +78,17 @@ export default async function UsagePage() {
           <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("section_manual_adjustment")}</h3>
           <p className="mb-3 text-xs text-gray-500">{t("hint_manual_adjustment")}</p>
           <form action={recordAdjustment} className="flex flex-wrap items-start gap-3 text-sm">
-            <CategoryItemSelect
+            <AdjustmentItemQtyFields
               categories={pickerCategories}
               categoryPlaceholder={`— ${t("label_category")} —`}
               itemPlaceholder={`— ${t("label_item")} —`}
+              qtyPlaceholder={t("placeholder_adjustment_qty")}
             />
             <select name="direction" required
               className="rounded-lg border border-gray-300 px-3 py-2">
               <option value="ADD">{t("option_add_stock")}</option>
               <option value="REMOVE">{t("option_remove_stock")}</option>
             </select>
-            <input name="qty" type="number" min="1" required placeholder={t("placeholder_adjustment_qty")}
-              className="w-28 rounded-lg border border-gray-300 px-3 py-2" />
             <input name="note" placeholder={t("placeholder_adj_reason")}
               className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2" />
             <SubmitButton className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
@@ -132,7 +131,7 @@ export default async function UsagePage() {
                   <td className="px-4 py-2 font-medium text-gray-800">{m.stockItem.name}</td>
                   <td className={`px-4 py-2 text-center text-xs font-semibold ${type.cls}`}>{type.label}</td>
                   <td className={`px-4 py-2 text-center font-bold ${m.qty > 0 ? "text-green-600" : "text-red-600"}`}>
-                    {m.qty > 0 ? `+${m.qty}` : m.qty}
+                    {m.qty > 0 ? `+${m.qty}` : m.qty} <span className="font-normal text-gray-400">{UNIT_LABEL[m.stockItem.unit]}</span>
                   </td>
                   <td className="px-4 py-2 text-gray-600">{m.note ?? "—"}</td>
                   <td className="px-4 py-2 text-gray-500">{m.recordedBy.name}</td>
