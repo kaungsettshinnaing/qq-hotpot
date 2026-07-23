@@ -167,8 +167,13 @@ export async function toggleEmployeeActive(fd: FormData) {
   // Deactivating an employee also revokes login (User.isActive) — previously
   // this only flipped the HR-facing flag, leaving a "deactivated" employee
   // still able to log in with their old credentials.
+  // endDate marks when they left, so generatePayroll can still include them
+  // for whichever month they were active in, even after deactivation.
   await prisma.$transaction([
-    prisma.employee.update({ where: { userId }, data: { isActive: newActive } }),
+    prisma.employee.update({
+      where: { userId },
+      data: { isActive: newActive, endDate: newActive ? null : new Date() },
+    }),
     prisma.user.update({ where: { id: userId }, data: { isActive: newActive } }),
   ]);
   revalidatePath(`/hr/employees/${userId}`);

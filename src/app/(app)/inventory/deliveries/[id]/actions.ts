@@ -6,6 +6,7 @@ import type { ExpenseSource } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAnyRole, requireSession } from "@/lib/auth";
 import { runComparison, confirmLinkedExpense } from "@/lib/deliveries";
+import { getOpenShift, getAnyOpenShift } from "@/lib/shift";
 
 function str(v: unknown, max = 200): string {
   return String(v ?? "").trim().slice(0, max);
@@ -78,6 +79,11 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
 
   let expenseId = delivery.expenseId;
   if (!expenseId && categoryId) {
+    let shiftId: string | null = null;
+    if (paymentSource === "CASH_DRAWER") {
+      const userShift = await getOpenShift(session.id);
+      shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
+    }
     const expense = await prisma.expense.create({
       data: {
         businessDate: delivery.deliveryDate,
@@ -86,6 +92,7 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
         paymentSource,
         description,
         enteredById: session.id,
+        shiftId,
       },
     });
     expenseId = expense.id;

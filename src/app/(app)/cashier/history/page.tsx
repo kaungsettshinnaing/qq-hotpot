@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { formatMoney, formatTime, formatDate } from "@/lib/format";
 import { mmToday, mmDayRange } from "@/lib/business-day";
 import { getSessionDetail } from "@/lib/orders";
+import { netCashChange } from "@/lib/pricing";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -48,8 +49,7 @@ export default async function CashierHistoryPage({
       const kbz = s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
       const other = s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
       const totalPaid = cashPaid + kbz + other;
-      const cashChange = cashPaid > 0 ? Math.max(0, totalPaid - (s.billTotal ?? totalPaid)) : 0;
-      const cash = cashPaid - cashChange;
+      const cash = cashPaid - netCashChange(s.payments, s.billTotal ?? totalPaid);
       const total = cash + kbz + other;
       const tableLabel = [s.table.label, ...s.mergedTables.map((m) => m.table.label)].join(" + ");
       const discount = s.discountType ? (await getSessionDetail(s.id))?.bill.discount ?? 0 : 0;

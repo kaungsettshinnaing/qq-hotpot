@@ -3,6 +3,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding } from "@/lib/shift";
 import { getSessionDetail, type SessionDetail } from "@/lib/orders";
+import { netCashChange } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import { mmToday, mmDayRange } from "@/lib/business-day";
 import { formatMoney, formatTime } from "@/lib/format";
@@ -63,8 +64,7 @@ export default async function CashierHome({
     const kbz = s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
     const other = s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
     const totalPaid = cashPaid + kbz + other;
-    const cashChange = cashPaid > 0 ? Math.max(0, totalPaid - (s.billTotal ?? totalPaid)) : 0;
-    dayCash += cashPaid - cashChange;
+    dayCash += cashPaid - netCashChange(s.payments, s.billTotal ?? totalPaid);
     dayKbz += kbz;
     dayOther += other;
   }

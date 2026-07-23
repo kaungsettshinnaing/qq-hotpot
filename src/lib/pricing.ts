@@ -52,6 +52,30 @@ export interface Bill {
   total: number;
 }
 
+/**
+ * How much of a session's CASH payments is actually "change" (money handed
+ * back to the customer), given a mixed tender across payment methods.
+ *
+ * Non-cash tenders (KBZPay/Other) are credited against the bill FIRST; only
+ * cash actually in excess of what's still owed after that counts as change.
+ * This matters because change is always physically returned in cash
+ * regardless of how the customer overpaid — if someone pays 60,000 by KBZPay
+ * on a 50,000 bill and also hands over 5,000 cash, the entire 5,000 cash is
+ * change (the bill was already covered by KBZPay alone), not just the
+ * "combined overpayment minus cash" a naive total-based calc would give.
+ * Never touches kbz/other totals — only how much of the CASH figure is
+ * change versus real revenue.
+ */
+export function netCashChange(
+  payments: { method: string; amount: number }[],
+  billTotal: number,
+): number {
+  const cashPaid = payments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0);
+  const nonCashPaid = payments.filter((p) => p.method !== "CASH").reduce((s, p) => s + p.amount, 0);
+  const remainingAfterNonCash = Math.max(0, billTotal - nonCashPaid);
+  return Math.max(0, cashPaid - remainingAfterNonCash);
+}
+
 /** Number of FREE pots a table is entitled to for a given headcount. */
 export function freePotsAllowed(
   diners: number,

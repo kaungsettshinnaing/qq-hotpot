@@ -3,7 +3,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
-import { freePotsAllowed } from "@/lib/pricing";
+import { freePotsAllowed, netCashChange } from "@/lib/pricing";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { getCashStanding } from "@/lib/shift";
 import { getSessionDetail } from "@/lib/orders";
@@ -173,8 +173,7 @@ async function CashTab({ dayStr, start, end, c, settings }: {
 }) {
   const t = await getT();
   const isToday = dayStr === mmToday();
-  const [payments, closedSessions, expenses, shifts, cashStanding] = await Promise.all([
-    prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
+  const [closedSessions, expenses, shifts, cashStanding] = await Promise.all([
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
       select: {
@@ -195,19 +194,16 @@ async function CashTab({ dayStr, start, end, c, settings }: {
   ]);
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
-  const grossCash = sum(payments.filter((p) => p.method === "CASH"));
-  const kbz  = sum(payments.filter((p) => p.method === "KBZPAY"));
-  const other = sum(payments.filter((p) => p.method === "OTHER"));
 
-  // Deduct change (cash overpayment) so cash shows net revenue, not tendered amount
-  let cashChange = 0;
+  // Derived entirely from closedSessions (closedAt-filtered) so this total can
+  // never disagree with any itemized-per-session list on the same page.
+  let cash = 0, kbz = 0, other = 0;
   for (const s of closedSessions) {
-    if (s.payments.some((p) => p.method === "CASH")) {
-      const totalPaid = s.payments.reduce((acc, p) => acc + p.amount, 0);
-      cashChange += Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
-    }
+    const billTotal = s.billTotal ?? sum(s.payments);
+    cash += sum(s.payments.filter((p) => p.method === "CASH")) - netCashChange(s.payments, billTotal);
+    kbz += sum(s.payments.filter((p) => p.method === "KBZPAY"));
+    other += sum(s.payments.filter((p) => p.method === "OTHER"));
   }
-  const cash = grossCash - cashChange;
   const totalSales = cash + kbz + other;
 
   const adults = closedSessions.reduce((s, x) => s + x.adults, 0);
@@ -924,8 +920,7 @@ async function DailySummaryTab({
 }) {
   const t = await getT();
 
-  const [payments, closedSessions, expenses, attendances, dailyReports] = await Promise.all([
-    prisma.payment.findMany({ where: { receivedAt: { gte: start, lt: end } } }),
+  const [closedSessions, expenses, attendances, dailyReports] = await Promise.all([
     prisma.tableSession.findMany({
       where: { status: "CLOSED", closedAt: { gte: start, lt: end } },
       select: {
@@ -1001,18 +996,17 @@ async function DailySummaryTab({
   );
 
   const sum = (arr: { amount: number }[]) => arr.reduce((s, x) => s + x.amount, 0);
-  const grossCash = sum(payments.filter((p) => p.method === "CASH"));
-  const kbz       = sum(payments.filter((p) => p.method === "KBZPAY"));
-  const other      = sum(payments.filter((p) => p.method === "OTHER"));
 
-  let cashChange = 0;
+  // Derived entirely from closedSessions (closedAt-filtered) — same universe
+  // as movementRows above, so this total and the itemized Movements table
+  // can never disagree due to a receivedAt-vs-closedAt filter mismatch.
+  let cash = 0, kbz = 0, other = 0;
   for (const s of closedSessions) {
-    if (s.payments.some((p) => p.method === "CASH")) {
-      const totalPaid = s.payments.reduce((acc, p) => acc + p.amount, 0);
-      cashChange += Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
-    }
+    const billTotal = s.billTotal ?? sum(s.payments);
+    cash += sum(s.payments.filter((p) => p.method === "CASH")) - netCashChange(s.payments, billTotal);
+    kbz += sum(s.payments.filter((p) => p.method === "KBZPAY"));
+    other += sum(s.payments.filter((p) => p.method === "OTHER"));
   }
-  const cash = grossCash - cashChange;
   const totalSales = cash + kbz + other;
 
   const adults   = closedSessions.reduce((s, x) => s + x.adults, 0);

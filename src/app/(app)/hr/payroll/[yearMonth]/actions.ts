@@ -28,8 +28,17 @@ export async function generatePayroll(fd: FormData) {
     throw new Error("Cannot regenerate a locked payroll.");
   }
 
+  // Include anyone active today, plus anyone who left partway through *this*
+  // month (endDate set by toggleEmployeeActive on deactivation) — otherwise a
+  // deactivation processed before this month's payroll is generated silently
+  // drops their final prorated paycheck. Present-basis attendance already
+  // correctly zeroes out their post-departure days.
+  const monthStart = new Date(Date.UTC(year, month - 1, 1));
   const employees = await prisma.employee.findMany({
-    where: { isActive: true, isSystem: false },
+    where: {
+      isSystem: false,
+      OR: [{ isActive: true }, { endDate: { gte: monthStart } }],
+    },
   });
 
   for (const emp of employees) {

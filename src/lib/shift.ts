@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { netCashChange } from "./pricing";
 
 export async function getOpenShift(cashierId: string) {
   return prisma.cashierShift.findFirst({
@@ -58,11 +59,10 @@ export async function computeShiftTotals(
         closedAt: { gte: shiftWindow.openedAt, lt: shiftWindow.closedAt ?? new Date() },
         payments: { some: { shiftId, method: "CASH" } },
       },
-      select: { billTotal: true, payments: { select: { amount: true } } },
+      select: { billTotal: true, payments: { select: { amount: true, method: true } } },
     });
     for (const s of settled) {
-      const totalPaid = s.payments.reduce((sum, p) => sum + p.amount, 0);
-      cashSales -= Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
+      cashSales -= netCashChange(s.payments, s.billTotal ?? 0);
     }
   }
 

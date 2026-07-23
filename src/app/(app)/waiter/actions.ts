@@ -259,6 +259,19 @@ export async function changeTable(formData: FormData): Promise<void> {
   const session = await prisma.tableSession.findUnique({ where: { id: sessionId } });
   if (!session || session.status !== "OPEN") redirect("/waiter");
 
+  // Guard against moving onto a table that's already occupied — the normal UI
+  // already filters these out of the destination list, but the action itself
+  // had no server-side check, so a direct call could still create two OPEN
+  // sessions on the same table.
+  const [occupiedByOpenSession, occupiedByMerge] = await Promise.all([
+    prisma.tableSession.findFirst({ where: { tableId: newTableId, status: "OPEN" } }),
+    prisma.tableMerge.findFirst({ where: { tableId: newTableId } }),
+  ]);
+  if (occupiedByOpenSession || occupiedByMerge) {
+    revalidatePath(`/waiter/session/${sessionId}`);
+    redirect(`/waiter/session/${sessionId}?error=table-occupied`);
+  }
+
   const oldTableId = session.tableId;
   await prisma.tableSession.update({ where: { id: sessionId }, data: { tableId: newTableId } });
   emitFloor("table:update", { tableId: oldTableId });

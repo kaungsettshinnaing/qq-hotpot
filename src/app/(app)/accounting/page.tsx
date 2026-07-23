@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { mmNow, mmDayRange } from "@/lib/business-day";
 import { getSessionDetail } from "@/lib/orders";
+import { netCashChange } from "@/lib/pricing";
 import { getT } from "@/lib/lang";
 import MovementsTable from "../reports/MovementsTable";
 
@@ -84,7 +85,7 @@ export default async function AccountingPage({
   ]);
 
   // ── Date-filtered queries (history sections + P&L) ────────────────────────
-  const [reconciledPayments, paidExpenses, plPayments, plExpenses, plSessions] = await Promise.all([
+  const [reconciledPayments, paidExpenses, plExpenses, plSessions] = await Promise.all([
     prisma.payment.findMany({
       where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd } },
       include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
@@ -95,12 +96,6 @@ export default async function AccountingPage({
       include: { category: { select: { name: true } }, enteredBy: { select: { name: true } } },
       orderBy: { businessDate: "desc" },
     }),
-    tab === "pl"
-      ? prisma.payment.findMany({
-          where: { receivedAt: { gte: rangeStart, lt: rangeEnd } },
-          select: { amount: true, method: true },
-        })
-      : Promise.resolve([]),
     tab === "pl"
       ? prisma.expense.findMany({
           where: { businessDate: { gte: rangeStart, lt: rangeEnd }, rejectedAt: null },
@@ -123,19 +118,19 @@ export default async function AccountingPage({
   ]);
 
   // ── P&L aggregation ───────────────────────────────────────────────────────
-  // Deduct change (cash overpayment vs billTotal) so revenue is net, matching /reports
-  let plCashChange = 0;
+  // Derived entirely from plSessions (closedAt-filtered) — the same universe
+  // as the itemized movementRows below, so the P&L total and the itemized
+  // total can never disagree due to a receivedAt-vs-closedAt filter mismatch.
+  // Change is deducted per-session via netCashChange (non-cash tenders cover
+  // the bill first; only genuine excess cash counts as change).
+  const revenue = { cash: 0, kbz: 0, other: 0 };
   for (const s of plSessions) {
-    if (s.payments.some((p) => p.method === "CASH")) {
-      const totalPaid = s.payments.reduce((acc, p) => acc + p.amount, 0);
-      plCashChange += Math.max(0, totalPaid - (s.billTotal ?? totalPaid));
-    }
+    const billTotal = s.billTotal ?? s.payments.reduce((sum, p) => sum + p.amount, 0);
+    const cashPaid = s.payments.filter((p) => p.method === "CASH").reduce((sum, p) => sum + p.amount, 0);
+    revenue.cash += cashPaid - netCashChange(s.payments, billTotal);
+    revenue.kbz += s.payments.filter((p) => p.method === "KBZPAY").reduce((sum, p) => sum + p.amount, 0);
+    revenue.other += s.payments.filter((p) => p.method === "OTHER").reduce((sum, p) => sum + p.amount, 0);
   }
-  const revenue = {
-    cash:  plPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0) - plCashChange,
-    kbz:   plPayments.filter((p) => p.method === "KBZPAY").reduce((s, p) => s + p.amount, 0),
-    other: plPayments.filter((p) => p.method === "OTHER").reduce((s, p) => s + p.amount, 0),
-  };
   const totalRevenue = revenue.cash + revenue.kbz + revenue.other;
 
   const expByCat = new Map<string, { name: string; confirmed: number; accrual: number }>();

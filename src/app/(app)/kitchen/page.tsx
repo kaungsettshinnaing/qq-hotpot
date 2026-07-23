@@ -1,6 +1,8 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatTime } from "@/lib/format";
+import { getSettings } from "@/lib/settings";
+import { freePotsAllowed } from "@/lib/pricing";
 import KitchenLive from "./KitchenLive";
 import { deliverPot } from "./actions";
 import { mmToday, mmDayRange } from "@/lib/business-day";
@@ -17,6 +19,7 @@ export default async function KitchenPage() {
   const t = await getT();
 
   const startOfDay = mmDayRange(mmToday()).start;
+  const settings = await getSettings();
 
   const [pending, delivered] = await Promise.all([
     prisma.potOrder.findMany({
@@ -31,6 +34,24 @@ export default async function KitchenPage() {
       take: 24,
     }),
   ]);
+
+  // Recompute free-vs-paid per session from *current* headcount, matching the
+  // bill (getSessionDetail) — the stored PotOrder.isFree is only a snapshot
+  // from creation time and goes stale if headcount changes afterward.
+  const sessionIds = [...new Set([...pending, ...delivered].map((p) => p.sessionId))];
+  const sessionPots = await prisma.tableSession.findMany({
+    where: { id: { in: sessionIds } },
+    select: {
+      id: true, adults: true, children: true,
+      potOrders: { where: { voidedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true } },
+    },
+  });
+  const freePotIds = new Set<string>();
+  for (const s of sessionPots) {
+    const allowance = freePotsAllowed(s.adults + s.children, settings.freePotRatio, settings.freePotRounding);
+    for (const pot of s.potOrders.slice(0, allowance)) freePotIds.add(pot.id);
+  }
+  const isPotFree = (potId: string) => freePotIds.has(potId);
 
   return (
     <div className="space-y-5">
@@ -62,7 +83,7 @@ export default async function KitchenPage() {
                 </div>
                 <div className="mt-2 text-lg font-bold">
                   {p.kind === "HOTPOT" ? t("pot_kind_hotpot") : t("pot_kind_bbq")}
-                  {p.isFree ? "" : " (add-on)"}
+                  {isPotFree(p.id) ? "" : " (add-on)"}
                 </div>
                 <div className="text-sm text-gray-600">
                   {p.flavours.map((fl) => fl.flavour.name).join(" + ")}
