@@ -811,6 +811,8 @@ const dict: Record<string, { en: string; my: string }> = {
   label_daily_in:               { en: "In",                                 my: "ဝင်ငွေ" },
   label_daily_out:              { en: "Out",                                my: "ထွက်ငွေ" },
   label_daily_net:              { en: "Net",                                my: "အသားတင်" },
+  label_daily_balance:          { en: "Balance",                            my: "လက်ကျန်" },
+  label_balance_carried_over:   { en: "Balance carried over:",              my: "ဆက်လက်ဆောင်ရွက်သော လက်ကျန်" },
 
   // ── Manager — Expenses (NEW) ──────────────────────────────────────────────
   section_awaiting_confirm:     { en: "Awaiting confirmation",              my: "အတည်ပြုချက် စောင့်ဆိုင်းဆဲ" },

@@ -94,7 +94,7 @@ export default async function AccountingPage({
   ]);
 
   // ── Date-filtered queries (history sections + P&L) ────────────────────────
-  const [reconciledPayments, paidExpenses, plExpenses, plSessions, journalEntries] = await Promise.all([
+  const [reconciledPayments, paidExpenses, plExpenses, plSessions, journalEntries, priorLines] = await Promise.all([
     prisma.payment.findMany({
       where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd }, voidedAt: null },
       include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
@@ -131,6 +131,12 @@ export default async function AccountingPage({
           orderBy: { entryNo: "asc" },
         })
       : Promise.resolve([]),
+    tab === "journal"
+      ? prisma.journalLine.findMany({
+          where: { entry: { date: { lt: rangeStart } } },
+          select: { debit: true, credit: true, account: { select: { type: true } } },
+        })
+      : Promise.resolve([]),
   ]);
 
   const journalTotals = journalEntries.reduce(
@@ -144,22 +150,67 @@ export default async function AccountingPage({
     { debit: 0, credit: 0 },
   );
 
+  // Balance carried over from before the selected range — cumulative net
+  // (revenue − expense) of every entry dated earlier, so the daily running
+  // balance below doesn't reset to zero at an arbitrary date-picker boundary.
+  const openingBalance = priorLines.reduce((sum, l) => {
+    if (l.account.type === "REVENUE") return sum + (l.credit - l.debit);
+    if (l.account.type === "EXPENSE") return sum - (l.debit - l.credit);
+    return sum;
+  }, 0);
+
   // Daily ins/outs — "in" = net revenue recognized that day (credits to
   // REVENUE accounts minus contra-revenue debits, e.g. Discounts &
   // Allowances), "out" = expenses recognized that day (debits to EXPENSE
-  // accounts, incl. COGS-equivalent/payroll). This is exactly how the
-  // period P&L above is derived, just broken out per day instead of summed.
-  const dailyMap = new Map<string, { date: Date; in: number; out: number }>();
+  // accounts, incl. payroll). This is exactly how the period P&L above is
+  // derived, just broken out per day. "In" is further broken down by which
+  // asset account received the money (Cash vs Digital Wallet, etc.) and
+  // "Out" by expense category, each down to the individual entries that
+  // made it up — so the summary is drillable without needing the old raw
+  // entry-by-entry list.
+  type Breakdown = { code: string; name: string; amount: number };
+  type OutCategory = Breakdown & { items: { entryNo: number; description: string; amount: number }[] };
+  type DayRow = { date: Date; in: number; out: number; inByAccount: Breakdown[]; outByCategory: OutCategory[] };
+
+  const dailyMap = new Map<string, DayRow>();
   for (const e of journalEntries) {
     const dayKey = mmDayOf(e.date).toISOString().slice(0, 10);
-    const row = dailyMap.get(dayKey) ?? { date: mmDayOf(e.date), in: 0, out: 0 };
+    const row = dailyMap.get(dayKey) ?? { date: mmDayOf(e.date), in: 0, out: 0, inByAccount: [], outByCategory: [] };
+
+    const isRevenueEntry = e.lines.some((l) => l.account.type === "REVENUE");
     for (const l of e.lines) {
       if (l.account.type === "REVENUE") row.in += l.credit - l.debit;
       if (l.account.type === "EXPENSE") row.out += l.debit - l.credit;
+
+      // "In" breakdown: the asset side of a revenue-recognizing entry (Cash,
+      // Digital Wallet, ...) — never the revenue/discount lines themselves.
+      if (isRevenueEntry && l.account.type === "ASSET" && l.debit > 0) {
+        const existing = row.inByAccount.find((a) => a.code === l.account.code);
+        if (existing) existing.amount += l.debit;
+        else row.inByAccount.push({ code: l.account.code, name: l.account.name, amount: l.debit });
+      }
+
+      // "Out" breakdown: category (= the expense account itself) → items.
+      if (l.account.type === "EXPENSE" && l.debit > 0) {
+        let cat = row.outByCategory.find((c) => c.code === l.account.code);
+        if (!cat) {
+          cat = { code: l.account.code, name: l.account.name, amount: 0, items: [] };
+          row.outByCategory.push(cat);
+        }
+        cat.amount += l.debit;
+        cat.items.push({ entryNo: e.entryNo, description: e.description, amount: l.debit });
+      }
     }
     dailyMap.set(dayKey, row);
   }
-  const dailyRows = Array.from(dailyMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const dailyRowsRaw = Array.from(dailyMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // Running balance = opening balance + cumulative net up to and including that day.
+  let runningBalance = openingBalance;
+  const dailyRows = dailyRowsRaw.map((d) => {
+    runningBalance += d.in - d.out;
+    return { ...d, balance: runningBalance };
+  });
 
   // ── P&L aggregation ───────────────────────────────────────────────────────
   // Derived entirely from plSessions (closedAt-filtered) — the same universe
@@ -635,7 +686,7 @@ export default async function AccountingPage({
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-700">
-              {t("section_journal_entries")} ({journalEntries.length})
+              {t("section_journal_entries")}
             </h2>
             <a
               href={`/accounting/journal/export?from=${fromStr}&to=${toStr}`}
@@ -650,71 +701,90 @@ export default async function AccountingPage({
               {t("msg_no_journal_entries")}
             </p>
           ) : (
-            <>
             <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
               <h3 className="border-b border-gray-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 {t("section_daily_ins_outs")}
               </h3>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-xs text-gray-500">
-                    <th className="px-4 py-2 text-left font-medium">{t("col_date_time")}</th>
-                    <th className="px-4 py-2 text-right font-medium">{t("label_daily_in")}</th>
-                    <th className="px-4 py-2 text-right font-medium">{t("label_daily_out")}</th>
-                    <th className="px-4 py-2 text-right font-medium">{t("label_daily_net")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {dailyRows.map((d) => {
-                    const net = d.in - d.out;
-                    return (
-                      <tr key={d.date.toISOString()}>
-                        <td className="px-4 py-2 text-gray-700">{fmtDate(d.date)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-green-700">{formatMoney(d.in)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-red-700">{formatMoney(d.out)}</td>
-                        <td className={`px-4 py-2 text-right tabular-nums font-semibold ${net >= 0 ? "text-green-700" : "text-red-700"}`}>
-                          {net >= 0 ? "+" : ""}{formatMoney(net)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200 font-bold">
-                    <td className="px-4 py-2">{t("row_total")}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-green-700">{formatMoney(dailyRows.reduce((s, d) => s + d.in, 0))}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-red-700">{formatMoney(dailyRows.reduce((s, d) => s + d.out, 0))}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{formatMoney(dailyRows.reduce((s, d) => s + (d.in - d.out), 0))}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
 
-            <div className="space-y-3">
-              {journalEntries.map((e) => (
-                <div key={e.id} className="rounded-xl border bg-white p-4 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <span className="font-mono text-xs text-gray-400">JE-{String(e.entryNo).padStart(6, "0")}</span>
-                      <span className="ml-2 font-medium text-gray-800">{e.description}</span>
-                    </div>
-                    <span className="text-xs text-gray-400">{fmtDate(e.date)}</span>
-                  </div>
-                  <table className="mt-2 w-full text-xs">
-                    <tbody>
-                      {e.lines.map((l) => (
-                        <tr key={l.id} className="border-t border-gray-50">
-                          <td className="py-1 pr-2 text-gray-500">{l.account.code} · {l.account.name}</td>
-                          <td className="py-1 pr-2 text-right tabular-nums text-gray-800">{l.debit > 0 ? formatMoney(l.debit) : ""}</td>
-                          <td className="py-1 text-right tabular-nums text-gray-800">{l.credit > 0 ? formatMoney(l.credit) : ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+              <div className="grid grid-cols-[1fr,auto,auto,auto,auto] gap-x-3 border-b border-gray-100 px-4 py-2 text-xs text-gray-500">
+                <span>{t("col_date_time")}</span>
+                <span className="text-right w-24">{t("label_daily_in")}</span>
+                <span className="text-right w-24">{t("label_daily_out")}</span>
+                <span className="text-right w-24">{t("label_daily_net")}</span>
+                <span className="text-right w-28">{t("label_daily_balance")}</span>
+              </div>
+
+              <div className="px-4 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
+                {t("label_balance_carried_over")} <span className="font-semibold tabular-nums text-gray-700">{formatMoney(openingBalance)}</span>
+              </div>
+
+              <div className="divide-y divide-gray-50">
+                {dailyRows.map((d) => {
+                  const net = d.in - d.out;
+                  return (
+                    <details key={d.date.toISOString()} className="group">
+                      <summary className="grid grid-cols-[1fr,auto,auto,auto,auto] gap-x-3 items-center px-4 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                        <span className="text-gray-700">{fmtDate(d.date)}</span>
+                        <span className="text-right w-24 tabular-nums text-green-700">{formatMoney(d.in)}</span>
+                        <span className="text-right w-24 tabular-nums text-red-700">{formatMoney(d.out)}</span>
+                        <span className={`text-right w-24 tabular-nums font-semibold ${net >= 0 ? "text-green-700" : "text-red-700"}`}>
+                          {net >= 0 ? "+" : ""}{formatMoney(net)}
+                        </span>
+                        <span className="text-right w-28 tabular-nums text-gray-700">{formatMoney(d.balance)}</span>
+                      </summary>
+
+                      <div className="px-4 pb-3 pl-6 space-y-3 bg-gray-50/60 text-xs">
+                        <div>
+                          <p className="mb-1 font-semibold text-green-700">{t("label_daily_in")}</p>
+                          {d.inByAccount.length === 0 ? (
+                            <p className="text-gray-400">—</p>
+                          ) : (
+                            d.inByAccount.map((a) => (
+                              <div key={a.code} className="flex items-center justify-between py-0.5">
+                                <span className="text-gray-600">{a.name}</span>
+                                <span className="tabular-nums text-gray-800">{formatMoney(a.amount)}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="mb-1 font-semibold text-red-700">{t("label_daily_out")}</p>
+                          {d.outByCategory.length === 0 ? (
+                            <p className="text-gray-400">—</p>
+                          ) : (
+                            d.outByCategory.map((c) => (
+                              <details key={c.code} className="mb-0.5">
+                                <summary className="flex cursor-pointer items-center justify-between py-0.5 text-gray-600">
+                                  <span>{c.name}</span>
+                                  <span className="tabular-nums text-gray-800">{formatMoney(c.amount)}</span>
+                                </summary>
+                                <div className="pl-4">
+                                  {c.items.map((it, i) => (
+                                    <div key={i} className="flex items-center justify-between py-0.5 text-[11px] text-gray-500">
+                                      <span>{it.description}</span>
+                                      <span className="tabular-nums">{formatMoney(it.amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-[1fr,auto,auto,auto,auto] gap-x-3 border-t-2 border-gray-200 px-4 py-2 text-sm font-bold">
+                <span>{t("row_total")}</span>
+                <span className="text-right w-24 tabular-nums text-green-700">{formatMoney(dailyRows.reduce((s, d) => s + d.in, 0))}</span>
+                <span className="text-right w-24 tabular-nums text-red-700">{formatMoney(dailyRows.reduce((s, d) => s + d.out, 0))}</span>
+                <span className="text-right w-24 tabular-nums">{formatMoney(dailyRows.reduce((s, d) => s + (d.in - d.out), 0))}</span>
+                <span className="text-right w-28 tabular-nums">{formatMoney(dailyRows.length > 0 ? dailyRows[dailyRows.length - 1].balance : openingBalance)}</span>
+              </div>
             </div>
-            </>
           )}
 
           <div className={
