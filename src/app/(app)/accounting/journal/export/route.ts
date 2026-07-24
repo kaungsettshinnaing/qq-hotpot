@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { mmDayRange } from "@/lib/business-day";
+import { mmDayRange, mmDayOf } from "@/lib/business-day";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +38,13 @@ export async function GET(req: NextRequest) {
   journalSheet.getRow(1).font = { bold: true };
 
   const accountTotals = new Map<string, { code: string; name: string; debit: number; credit: number }>();
+  const dailyTotals = new Map<string, { date: string; in: number; out: number }>();
   let grandDebit = 0;
   let grandCredit = 0;
 
   for (const e of entries) {
+    const dayKey = mmDayOf(e.date).toISOString().slice(0, 10);
+    const dayRow = dailyTotals.get(dayKey) ?? { date: dayKey, in: 0, out: 0 };
     for (const l of e.lines) {
       journalSheet.addRow({
         entryNo: `JE-${String(e.entryNo).padStart(6, "0")}`,
@@ -59,11 +62,32 @@ export async function GET(req: NextRequest) {
       row.debit += l.debit;
       row.credit += l.credit;
       accountTotals.set(l.account.id, row);
+      if (l.account.type === "REVENUE") dayRow.in += l.credit - l.debit;
+      if (l.account.type === "EXPENSE") dayRow.out += l.debit - l.credit;
     }
+    dailyTotals.set(dayKey, dayRow);
   }
   journalSheet.addRow({});
   const totalRow = journalSheet.addRow({ description: "TOTAL", debit: grandDebit, credit: grandCredit });
   totalRow.font = { bold: true };
+
+  const dailySheet = workbook.addWorksheet("Daily P&L");
+  dailySheet.columns = [
+    { header: "Date", key: "date", width: 14 },
+    { header: "In", key: "in", width: 16 },
+    { header: "Out", key: "out", width: 16 },
+    { header: "Net", key: "net", width: 16 },
+  ];
+  dailySheet.getRow(1).font = { bold: true };
+  let dailyInTotal = 0;
+  let dailyOutTotal = 0;
+  for (const row of [...dailyTotals.values()].sort((a, b) => a.date.localeCompare(b.date))) {
+    dailySheet.addRow({ date: row.date, in: row.in, out: row.out, net: row.in - row.out });
+    dailyInTotal += row.in;
+    dailyOutTotal += row.out;
+  }
+  const dailyTotalRow = dailySheet.addRow({ date: "TOTAL", in: dailyInTotal, out: dailyOutTotal, net: dailyInTotal - dailyOutTotal });
+  dailyTotalRow.font = { bold: true };
 
   const tbSheet = workbook.addWorksheet("Trial Balance");
   tbSheet.columns = [

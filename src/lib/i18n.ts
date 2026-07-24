@@ -807,6 +807,10 @@ const dict: Record<string, { en: string; my: string }> = {
   label_total_credit:           { en: "Total Credit",                       my: "စုစုပေါင်း အကြွေး" },
   label_balanced:               { en: "Balanced ✓",                         my: "ချိန်ညှိပြီး ✓" },
   label_unbalanced:             { en: "⚠ Unbalanced — investigate",         my: "⚠ မညီမျှပါ — စစ်ဆေးပါ" },
+  section_daily_ins_outs:       { en: "Daily ins & outs",                   my: "နေ့စဉ် ဝင်/ထွက်ငွေ" },
+  label_daily_in:               { en: "In",                                 my: "ဝင်ငွေ" },
+  label_daily_out:              { en: "Out",                                my: "ထွက်ငွေ" },
+  label_daily_net:              { en: "Net",                                my: "အသားတင်" },
 
   // ── Manager — Expenses (NEW) ──────────────────────────────────────────────
   section_awaiting_confirm:     { en: "Awaiting confirmation",              my: "အတည်ပြုချက် စောင့်ဆိုင်းဆဲ" },

@@ -2,7 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { formatMoney, formatDateTime } from "@/lib/format";
-import { mmNow, mmDayRange } from "@/lib/business-day";
+import { mmNow, mmDayRange, mmDayOf } from "@/lib/business-day";
 import { getSessionDetail } from "@/lib/orders";
 import { netCashChange } from "@/lib/pricing";
 import { getT } from "@/lib/lang";
@@ -143,6 +143,23 @@ export default async function AccountingPage({
     },
     { debit: 0, credit: 0 },
   );
+
+  // Daily ins/outs — "in" = net revenue recognized that day (credits to
+  // REVENUE accounts minus contra-revenue debits, e.g. Discounts &
+  // Allowances), "out" = expenses recognized that day (debits to EXPENSE
+  // accounts, incl. COGS-equivalent/payroll). This is exactly how the
+  // period P&L above is derived, just broken out per day instead of summed.
+  const dailyMap = new Map<string, { date: Date; in: number; out: number }>();
+  for (const e of journalEntries) {
+    const dayKey = mmDayOf(e.date).toISOString().slice(0, 10);
+    const row = dailyMap.get(dayKey) ?? { date: mmDayOf(e.date), in: 0, out: 0 };
+    for (const l of e.lines) {
+      if (l.account.type === "REVENUE") row.in += l.credit - l.debit;
+      if (l.account.type === "EXPENSE") row.out += l.debit - l.credit;
+    }
+    dailyMap.set(dayKey, row);
+  }
+  const dailyRows = Array.from(dailyMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
 
   // ── P&L aggregation ───────────────────────────────────────────────────────
   // Derived entirely from plSessions (closedAt-filtered) — the same universe
@@ -633,6 +650,46 @@ export default async function AccountingPage({
               {t("msg_no_journal_entries")}
             </p>
           ) : (
+            <>
+            <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+              <h3 className="border-b border-gray-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {t("section_daily_ins_outs")}
+              </h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-xs text-gray-500">
+                    <th className="px-4 py-2 text-left font-medium">{t("col_date_time")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("label_daily_in")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("label_daily_out")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("label_daily_net")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {dailyRows.map((d) => {
+                    const net = d.in - d.out;
+                    return (
+                      <tr key={d.date.toISOString()}>
+                        <td className="px-4 py-2 text-gray-700">{fmtDate(d.date)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-green-700">{formatMoney(d.in)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-red-700">{formatMoney(d.out)}</td>
+                        <td className={`px-4 py-2 text-right tabular-nums font-semibold ${net >= 0 ? "text-green-700" : "text-red-700"}`}>
+                          {net >= 0 ? "+" : ""}{formatMoney(net)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 font-bold">
+                    <td className="px-4 py-2">{t("row_total")}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-green-700">{formatMoney(dailyRows.reduce((s, d) => s + d.in, 0))}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-red-700">{formatMoney(dailyRows.reduce((s, d) => s + d.out, 0))}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatMoney(dailyRows.reduce((s, d) => s + (d.in - d.out), 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
             <div className="space-y-3">
               {journalEntries.map((e) => (
                 <div key={e.id} className="rounded-xl border bg-white p-4 shadow-sm">
@@ -657,6 +714,7 @@ export default async function AccountingPage({
                 </div>
               ))}
             </div>
+            </>
           )}
 
           <div className={
