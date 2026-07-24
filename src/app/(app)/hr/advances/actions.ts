@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isPayrollLocked } from "@/lib/payroll-lock";
+import { postAdvanceGiven } from "@/lib/journal-postings";
 
 export async function createAdvance(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
@@ -17,11 +18,14 @@ export async function createAdvance(fd: FormData) {
     throw new Error("Payroll for this month is already locked; cannot add an advance to it.");
   }
 
-  const advance = await prisma.salaryAdvance.create({
-    data: { employeeId, totalAmount: amount, note: note || null, createdById: session.id },
-  });
-  await prisma.advanceInstalment.create({
-    data: { advanceId: advance.id, month, year, amount },
+  await prisma.$transaction(async (tx) => {
+    const advance = await tx.salaryAdvance.create({
+      data: { employeeId, totalAmount: amount, note: note || null, createdById: session.id },
+    });
+    await tx.advanceInstalment.create({
+      data: { advanceId: advance.id, month, year, amount },
+    });
+    await postAdvanceGiven(tx, advance);
   });
   revalidatePath("/hr/advances");
 }

@@ -480,6 +480,45 @@ A table session is considered **overdue** when it has been open for ≥ **105 mi
 
 No server-side enforcement — purely a display warning to prompt checkout.
 
+### 6.12 General ledger / journal entries (audit / IRD filing)
+
+`/accounting` → **Journal** tab. A real double-entry ledger sitting alongside
+the existing P&L aggregation, built for audit trail and Myanmar IRD filing —
+`src/lib/journal.ts` (posting engine + chart of accounts) and
+`src/lib/journal-postings.ts` (one `post*()` function per business event).
+
+- **Chart of accounts** — `Account` model, fixed core accounts seeded on
+  first use (`CORE_ACCOUNTS` in `journal.ts`: Cash, AR-Digital Wallet, Bank,
+  Accounts Payable, Tax Payable, Owner/Drawer Adjustments, Employee Advances
+  Receivable, Sales Revenue, Service Charge Income, Discounts & Allowances,
+  Salaries & Wages Expense, Fines & Deductions Recovered), plus one
+  auto-provisioned expense account per `ExpenseCategory` row (5xxx range,
+  linked via `Account.linkedExpenseCategoryId`).
+- **Posting points** — session settlement (`cashier/actions.ts`
+  `settleSession`), AR reconciliation (`accounting/page.tsx` `markReceived`),
+  expense entry (all 3 `Expense.create` sites), AP payment (`markPaid`),
+  cash inject/collect (`lib/shift.ts` `createCashMovement`), salary advance
+  given (`hr/advances/actions.ts` `createAdvance`), and payroll lock
+  (`hr/payroll/[yearMonth]/actions.ts` `lockPayroll`). Each call site wraps
+  its state change and the journal posting in the same `$transaction`.
+- **Idempotency** — `JournalEntry` has a unique `(sourceType, sourceId)`;
+  `postEntry()` no-ops if that source has already been posted, and throws if
+  a caller ever tries to post an unbalanced entry (debits ≠ credits — a bug,
+  never swallowed silently).
+- **Backfill** — `scripts/backfill-journal.ts` walks every pre-existing
+  historical record through the same `post*()` functions (run once via
+  `npx tsx scripts/backfill-journal.ts`; safe to re-run since posting is
+  idempotent). Ends with a global debit=credit balance check.
+- **Export** — `/accounting/journal/export?from=&to=` streams an `.xlsx`
+  (via `exceljs`) with a General Journal sheet and a Trial Balance sheet.
+- **Scope limit (deliberate)** — this is a General Journal feeding the P&L,
+  not a full balance-sheet/GL system: no Equity/Retained-Earnings closing
+  entries, no fixed-asset/depreciation tracking, and no COGS account (qq-app
+  has never valued ingredient inventory — `ExpenseCategory` purchases are
+  expensed directly, same convention preserved here). Shift cash-count
+  variance (counted vs expected) is also **not** auto-posted — it's an
+  unresolved operational flag, not a confirmed gain/loss.
+
 ---
 
 ## 7. Realtime events
@@ -578,6 +617,13 @@ update the seed values for `freePotRatio` and `freePotRounding` in
 `Payment` is soft-voided (`voidedAt`/`voidedById`, §6.5), not hard-deleted. Any new query that reads `Payment` rows for a **functional total** (balance owed, revenue, cash/shift reconciliation) must filter `voidedAt: null` explicitly — a voided row still exists and will silently double-count or distort a total otherwise. Current call sites that already do this correctly: `getSessionDetail` (`lib/orders.ts`), `computeShiftTotals` (`lib/shift.ts`), `/accounting`, `/reports`, `/cash-collection`, `/cashier` (page + history). If you add a new payment total anywhere, add it to this list and to the filter.
 
 Also reuse `netCashChange(payments, billTotal)` (`src/lib/pricing.ts`) for computing how much of a session's cash is "change" — never reimplement `Σ(all methods) − billTotal` inline (see §6.6 for why that formula is wrong).
+
+### Add a new posting to the general journal (§6.12)
+
+1. Add a `post*()` function to `src/lib/journal-postings.ts` using `getCoreAccount`/`getOrCreateExpenseAccount` + `postEntry` from `src/lib/journal.ts`. Pick a `sourceType` string unique to that business event.
+2. Call it from inside the existing action's `$transaction`, right alongside the state change it accompanies — never as a separate un-transacted call (a crash between the two would silently leave the ledger out of sync with the transactional data it's supposed to mirror).
+3. Add the same event to `scripts/backfill-journal.ts` so historical data gets the new posting too (idempotent — safe to re-run against already-migrated data).
+4. New account needed? Add it to `CORE_ACCOUNTS` in `journal.ts` (not ad-hoc inline — every account should be resolvable by code).
 
 ### Add a new role
 

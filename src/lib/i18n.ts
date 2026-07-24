@@ -799,6 +799,14 @@ const dict: Record<string, { en: string; my: string }> = {
   row_total_expenses:           { en: "Total expenses",                     my: "စုစုပေါင်း ကုန်ကျစရိတ်" },
   label_net_pl:                 { en: "Net P&L",                            my: "အသားတင် အမြတ်အရှုံး" },
   msg_no_expenses_month:        { en: "No expenses this month.",            my: "ဤလတွင် ကုန်ကျစရိတ် မရှိပါ" },
+  tab_journal:                  { en: "Journal",                            my: "စာရင်းကိုင်စာအုပ်" },
+  section_journal_entries:      { en: "Journal entries",                    my: "စာရင်းသွင်းမှုများ" },
+  btn_export_excel:             { en: "Export Excel",                       my: "Excel ထုတ်ရန်" },
+  msg_no_journal_entries:       { en: "No journal entries in this period.", my: "ဤကာလအတွင်း စာရင်းသွင်းမှု မရှိပါ" },
+  label_total_debit:            { en: "Total Debit",                        my: "စုစုပေါင်း အရစ်" },
+  label_total_credit:           { en: "Total Credit",                       my: "စုစုပေါင်း အကြွေး" },
+  label_balanced:               { en: "Balanced ✓",                         my: "ချိန်ညှိပြီး ✓" },
+  label_unbalanced:             { en: "⚠ Unbalanced — investigate",         my: "⚠ မညီမျှပါ — စစ်ဆေးပါ" },
 
   // ── Manager — Expenses (NEW) ──────────────────────────────────────────────
   section_awaiting_confirm:     { en: "Awaiting confirmation",              my: "အတည်ပြုချက် စောင့်ဆိုင်းဆဲ" },

@@ -322,6 +322,7 @@ model ExpenseCategory {
   isActive Boolean               @default(true)
   expenses Expense[]
   items    ExpenseCategoryItem[]
+  account  Account?
 }
 
 model ExpenseCategoryItem {
@@ -925,6 +926,63 @@ model CashCollection {
 
   @@index([createdAt])
   @@index([shiftId])
+}
+
+// ---------------------------------------------------------------------------
+// General ledger — double-entry journal feeding the P&L (audit / IRD filing)
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  REVENUE
+  EXPENSE
+}
+
+model Account {
+  id                      String           @id @default(cuid())
+  code                    String           @unique
+  name                    String
+  type                    AccountType
+  // Set only for auto-provisioned expense accounts (one per ExpenseCategory) —
+  // keeps the account in sync with its category even if the category is renamed.
+  linkedExpenseCategory   ExpenseCategory? @relation(fields: [linkedExpenseCategoryId], references: [id])
+  linkedExpenseCategoryId String?          @unique
+  isActive                Boolean          @default(true)
+  createdAt               DateTime         @default(now())
+
+  lines JournalLine[]
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  entryNo     Int      @unique @default(autoincrement())
+  date        DateTime // business date the entry is posted against (not createdAt)
+  description String
+  // Traces the entry back to the transaction that generated it; the unique
+  // constraint makes posting idempotent — safe to re-run the backfill script
+  // or a retried request without ever double-posting the same source event.
+  sourceType  String
+  sourceId    String
+  createdAt   DateTime @default(now())
+
+  lines JournalLine[]
+
+  @@unique([sourceType, sourceId])
+  @@index([date])
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId   String
+  account   Account      @relation(fields: [accountId], references: [id])
+  accountId String
+  debit     Int          @default(0)
+  credit    Int          @default(0)
+
+  @@index([entryId])
+  @@index([accountId])
 }
 
 // ---------------------------------------------------------------------------

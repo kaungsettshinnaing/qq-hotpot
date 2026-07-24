@@ -6,6 +6,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getAttendanceSummary } from "@/lib/hr-attendance";
 import { computePayrollItem } from "@/lib/hr-payroll";
+import { postPayrollItem } from "@/lib/journal-postings";
 
 function parseYearMonth(slug: string): { year: number; month: number } {
   const [y, m] = slug.split("-").map(Number);
@@ -118,23 +119,27 @@ export async function lockPayroll(fd: FormData) {
   const payroll = await prisma.payroll.findUnique({ where: { month_year: { month, year } } });
   if (!payroll || payroll.status === "LOCKED") return;
 
-  await prisma.payroll.update({
-    where: { id: payroll.id },
-    data: { status: "LOCKED", lockedById: session.id, lockedAt: new Date() },
-  });
+  const lockedAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.payroll.update({
+      where: { id: payroll.id },
+      data: { status: "LOCKED", lockedById: session.id, lockedAt },
+    });
 
-  // Mark advance instalments as deducted
-  const items = await prisma.payrollItem.findMany({ where: { payrollId: payroll.id } });
-  for (const item of items) {
-    await prisma.advanceInstalment.updateMany({
-      where: { advance: { employeeId: item.employeeId }, month, year },
-      data: { deducted: true },
-    });
-    await prisma.employeeFine.updateMany({
-      where: { employeeId: item.employeeId, deductMonth: month, deductYear: year },
-      data: { deducted: true },
-    });
-  }
+    // Mark advance instalments as deducted
+    const items = await tx.payrollItem.findMany({ where: { payrollId: payroll.id } });
+    for (const item of items) {
+      await tx.advanceInstalment.updateMany({
+        where: { advance: { employeeId: item.employeeId }, month, year },
+        data: { deducted: true },
+      });
+      await tx.employeeFine.updateMany({
+        where: { employeeId: item.employeeId, deductMonth: month, deductYear: year },
+        data: { deducted: true },
+      });
+      await postPayrollItem(tx, item, lockedAt);
+    }
+  });
 
   revalidatePath(`/hr/payroll/${slug}`);
   revalidatePath("/hr/payroll");

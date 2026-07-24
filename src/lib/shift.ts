@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { netCashChange } from "./pricing";
+import { postCashMovement } from "./journal-postings";
 
 export async function getOpenShift(cashierId: string) {
   return prisma.cashierShift.findFirst({
@@ -85,8 +86,12 @@ export async function createCashMovement(
   recordedById: string,
 ) {
   const openShift = await getAnyOpenShift();
-  return prisma.cashCollection.create({
-    data: { type, amount, note, recordedById, shiftId: openShift?.id ?? null },
+  return prisma.$transaction(async (tx) => {
+    const movement = await tx.cashCollection.create({
+      data: { type, amount, note, recordedById, shiftId: openShift?.id ?? null },
+    });
+    await postCashMovement(tx, movement);
+    return movement;
   });
 }
 

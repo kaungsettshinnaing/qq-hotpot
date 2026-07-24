@@ -8,6 +8,7 @@ import { getSessionDetail } from "@/lib/orders";
 import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding, createCashMovement } from "@/lib/shift";
 import { runComparison } from "@/lib/deliveries";
 import { emitFloor } from "@/lib/realtime";
+import { postSessionClose, postExpenseEntry } from "@/lib/journal-postings";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
 import { mkdirSync, writeFileSync } from "fs";
@@ -117,13 +118,20 @@ export async function settleSession(formData: FormData): Promise<void> {
   if (!detail || detail.session.status !== "OPEN") redirect("/cashier");
   if (detail.balance > 0) redirect(`/cashier/checkout/${sessionId}`);
 
-  await prisma.$transaction([
-    prisma.tableMerge.deleteMany({ where: { sessionId } }),
-    prisma.tableSession.update({
+  const closedAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.tableMerge.deleteMany({ where: { sessionId } });
+    await tx.tableSession.update({
       where: { id: sessionId },
-      data: { status: "CLOSED", closedById: user.id, closedAt: new Date(), billTotal: detail.bill.total, note },
-    }),
-  ]);
+      data: { status: "CLOSED", closedById: user.id, closedAt, billTotal: detail.bill.total, note },
+    });
+    await postSessionClose(
+      tx,
+      { id: sessionId, closedAt, tableLabel: detail.session.table.label },
+      detail.bill,
+      detail.session.payments,
+    );
+  });
   emitFloor("table:update", { tableId: detail.session.tableId });
   revalidatePath("/cashier");
   revalidatePath("/waiter");
@@ -261,18 +269,22 @@ export async function addExpense(formData: FormData): Promise<void> {
     const userShift = await getOpenShift(user.id);
     shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
   }
-  const expense = await prisma.expense.create({
-    data: {
-      categoryId,
-      amount,
-      paymentSource,
-      description,
-      invoiceType,
-      businessDate,
-      enteredById: user.id,
-      shiftId,
-      lines: { create: lines },
-    },
+  const expense = await prisma.$transaction(async (tx) => {
+    const created = await tx.expense.create({
+      data: {
+        categoryId,
+        amount,
+        paymentSource,
+        description,
+        invoiceType,
+        businessDate,
+        enteredById: user.id,
+        shiftId,
+        lines: { create: lines },
+      },
+    });
+    await postExpenseEntry(tx, created);
+    return created;
   });
 
   await saveReceipts(expense.id, formData.getAll("receipts") as File[]);

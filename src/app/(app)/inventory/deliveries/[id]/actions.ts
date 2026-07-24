@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireAnyRole, requireSession } from "@/lib/auth";
 import { runComparison, confirmLinkedExpense } from "@/lib/deliveries";
 import { getOpenShift, getAnyOpenShift } from "@/lib/shift";
+import { postExpenseEntry } from "@/lib/journal-postings";
 
 function str(v: unknown, max = 200): string {
   return String(v ?? "").trim().slice(0, max);
@@ -84,16 +85,20 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
       const userShift = await getOpenShift(session.id);
       shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
     }
-    const expense = await prisma.expense.create({
-      data: {
-        businessDate: delivery.deliveryDate,
-        categoryId,
-        amount: totalCost,
-        paymentSource,
-        description,
-        enteredById: session.id,
-        shiftId,
-      },
+    const expense = await prisma.$transaction(async (tx) => {
+      const created = await tx.expense.create({
+        data: {
+          businessDate: delivery.deliveryDate,
+          categoryId,
+          amount: totalCost,
+          paymentSource,
+          description,
+          enteredById: session.id,
+          shiftId,
+        },
+      });
+      await postExpenseEntry(tx, created);
+      return created;
     });
     expenseId = expense.id;
   }
@@ -173,16 +178,20 @@ export async function submitNonStockCashierSide(formData: FormData): Promise<voi
       const userShift = await getOpenShift(session.id);
       shiftId = userShift?.id ?? (await getAnyOpenShift())?.id ?? null;
     }
-    const expense = await prisma.expense.create({
-      data: {
-        businessDate: delivery.deliveryDate,
-        categoryId,
-        amount: Math.round(totalCost),
-        paymentSource,
-        description,
-        enteredById: session.id,
-        shiftId,
-      },
+    const expense = await prisma.$transaction(async (tx) => {
+      const created = await tx.expense.create({
+        data: {
+          businessDate: delivery.deliveryDate,
+          categoryId,
+          amount: Math.round(totalCost),
+          paymentSource,
+          description,
+          enteredById: session.id,
+          shiftId,
+        },
+      });
+      await postExpenseEntry(tx, created);
+      return created;
     });
     expenseId = expense.id;
   }

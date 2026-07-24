@@ -7,6 +7,7 @@ import { getSessionDetail } from "@/lib/orders";
 import { netCashChange } from "@/lib/pricing";
 import { getT } from "@/lib/lang";
 import MovementsTable from "../reports/MovementsTable";
+import { postArReconciled, postApPaid } from "@/lib/journal-postings";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,11 @@ async function markReceived(fd: FormData) {
   "use server";
   await requireAnyRole(["ADMIN"]);
   const id = fd.get("id") as string;
-  await prisma.payment.update({ where: { id }, data: { reconciledAt: new Date() } });
+  const reconciledAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.update({ where: { id }, data: { reconciledAt } });
+    await postArReconciled(tx, { id: payment.id, amount: payment.amount, reconciledAt });
+  });
   revalidatePath("/accounting");
 }
 
@@ -24,7 +29,11 @@ async function markPaid(fd: FormData) {
   "use server";
   await requireAnyRole(["ADMIN"]);
   const id = fd.get("id") as string;
-  await prisma.expense.update({ where: { id }, data: { paidAt: new Date() } });
+  const paidAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    const expense = await tx.expense.update({ where: { id }, data: { paidAt } });
+    await postApPaid(tx, { id: expense.id, amount: expense.amount, paidAt });
+  });
   revalidatePath("/accounting");
 }
 
@@ -85,7 +94,7 @@ export default async function AccountingPage({
   ]);
 
   // ── Date-filtered queries (history sections + P&L) ────────────────────────
-  const [reconciledPayments, paidExpenses, plExpenses, plSessions] = await Promise.all([
+  const [reconciledPayments, paidExpenses, plExpenses, plSessions, journalEntries] = await Promise.all([
     prisma.payment.findMany({
       where: { method: { in: ["KBZPAY", "OTHER"] }, reconciledAt: { gte: rangeStart, lt: rangeEnd }, voidedAt: null },
       include: { session: { include: { table: { select: { label: true } } } }, receivedBy: { select: { name: true } } },
@@ -115,7 +124,25 @@ export default async function AccountingPage({
           orderBy: { closedAt: "asc" },
         })
       : Promise.resolve([]),
+    tab === "journal"
+      ? prisma.journalEntry.findMany({
+          where: { date: { gte: rangeStart, lt: rangeEnd } },
+          include: { lines: { include: { account: true }, orderBy: { id: "asc" } } },
+          orderBy: { entryNo: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const journalTotals = journalEntries.reduce(
+    (acc, e) => {
+      for (const l of e.lines) {
+        acc.debit += l.debit;
+        acc.credit += l.credit;
+      }
+      return acc;
+    },
+    { debit: 0, credit: 0 },
+  );
 
   // ── P&L aggregation ───────────────────────────────────────────────────────
   // Derived entirely from plSessions (closedAt-filtered) — the same universe
@@ -190,6 +217,7 @@ export default async function AccountingPage({
     { key: "ar", label: t("tab_ar") },
     { key: "ap", label: t("tab_ap") },
     { key: "pl", label: t("tab_pl") },
+    { key: "journal", label: t("tab_journal") },
   ];
 
   return (
@@ -581,6 +609,66 @@ export default async function AccountingPage({
             <p className="mt-1 text-xs text-gray-500">
               {t("label_pl_formula", { rev: formatMoney(totalRevenue), exp: formatMoney(totalExpenses) })}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── General Journal ── */}
+      {tab === "journal" && (
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">
+              {t("section_journal_entries")} ({journalEntries.length})
+            </h2>
+            <a
+              href={`/accounting/journal/export?from=${fromStr}&to=${toStr}`}
+              className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-800"
+            >
+              {t("btn_export_excel")}
+            </a>
+          </div>
+
+          {journalEntries.length === 0 ? (
+            <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
+              {t("msg_no_journal_entries")}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {journalEntries.map((e) => (
+                <div key={e.id} className="rounded-xl border bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-xs text-gray-400">JE-{String(e.entryNo).padStart(6, "0")}</span>
+                      <span className="ml-2 font-medium text-gray-800">{e.description}</span>
+                    </div>
+                    <span className="text-xs text-gray-400">{fmtDate(e.date)}</span>
+                  </div>
+                  <table className="mt-2 w-full text-xs">
+                    <tbody>
+                      {e.lines.map((l) => (
+                        <tr key={l.id} className="border-t border-gray-50">
+                          <td className="py-1 pr-2 text-gray-500">{l.account.code} · {l.account.name}</td>
+                          <td className="py-1 pr-2 text-right tabular-nums text-gray-800">{l.debit > 0 ? formatMoney(l.debit) : ""}</td>
+                          <td className="py-1 text-right tabular-nums text-gray-800">{l.credit > 0 ? formatMoney(l.credit) : ""}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className={
+            "rounded-xl border p-4 shadow-sm flex items-center justify-between " +
+            (journalTotals.debit === journalTotals.credit ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")
+          }>
+            <span className="text-sm font-semibold text-gray-700">
+              {t("label_total_debit")} {formatMoney(journalTotals.debit)} · {t("label_total_credit")} {formatMoney(journalTotals.credit)}
+            </span>
+            <span className={"text-xs font-bold " + (journalTotals.debit === journalTotals.credit ? "text-green-700" : "text-red-700")}>
+              {journalTotals.debit === journalTotals.credit ? t("label_balanced") : t("label_unbalanced")}
+            </span>
           </div>
         </div>
       )}
