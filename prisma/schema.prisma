@@ -726,8 +726,8 @@ enum DeliveryStatus {
 enum PaymentStatus {
   UNPAID // pay on delivery
   PREPAID // paid in advance, goods pending
-  PENDING_SETTLEMENT // expense logged for a bank transfer, AP not yet settled (see postApPaid/markPaid)
   PAID // paid at time of delivery
+  PENDING_SETTLEMENT // expense logged for a bank transfer, AP not yet settled (see postApPaid/markPaid)
 }
 
 enum MovementType {
