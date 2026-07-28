@@ -20,6 +20,10 @@ function posInt(v: unknown): number {
   const n = parseInt(String(v ?? ""), 10);
   return Number.isNaN(n) || n < 0 ? 0 : n;
 }
+function optFloat(v: unknown): number | null {
+  const n = parseFloat(String(v ?? ""));
+  return Number.isNaN(n) ? null : n;
+}
 function posFloat(v: unknown): number {
   const n = parseFloat(String(v ?? ""));
   return Number.isNaN(n) || n < 0 ? 0 : n;
@@ -50,8 +54,8 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
   if (delivery.paymentStatus === "PREPAID") redirect(`/inventory/deliveries/${id}?error=prepaid_use_expenses`);
 
   const itemIds = formData.getAll("itemId").map(String);
-  const cashierQtys = formData.getAll("cashierQty").map((v) => posInt(v));
-  const orderedQtys = formData.getAll("orderedQty").map((v) => optInt(v));
+  const cashierQtys = formData.getAll("cashierQty").map((v) => posFloat(v));
+  const orderedQtys = formData.getAll("orderedQty").map((v) => optFloat(v));
   const unitCosts = formData.getAll("unitCost").map((v) => optInt(v));
 
   const filteredItems = itemIds
@@ -74,9 +78,9 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
     });
   }
 
-  const totalCost = filteredItems.reduce((sum, x) => {
+  const totalCost = Math.round(filteredItems.reduce((sum, x) => {
     return sum + ((x.orderedQty ?? x.cashierQty) * (x.unitCost ?? 0));
-  }, 0);
+  }, 0));
 
   let expenseId = delivery.expenseId;
   if (!expenseId && categoryId) {
@@ -111,7 +115,9 @@ export async function submitCashierSide(formData: FormData): Promise<void> {
       cashierEnteredById: session.id,
       cashierSubmittedAt: new Date(),
       totalCost,
-      paymentStatus: "PAID",
+      // BANK_TRANSFER expenses sit in Accounts Payable until an admin
+      // confirms settlement via markPaid/postApPaid — not PAID yet.
+      paymentStatus: paymentSource === "BANK_TRANSFER" ? "PENDING_SETTLEMENT" : "PAID",
       paymentSource,
       expenseId,
       ...(newStatus ? { status: newStatus } : {}),
@@ -162,8 +168,8 @@ export async function submitNonStockCashierSide(formData: FormData): Promise<voi
         stockItemId: null,
         description: line.description,
         unitLabel: line.unitLabel || null,
-        cashierQty: Math.round(line.qty),
-        finalQty: Math.round(line.qty),
+        cashierQty: line.qty,
+        finalQty: line.qty,
         unitCost: line.unitCost || null,
       },
     });
@@ -203,7 +209,7 @@ export async function submitNonStockCashierSide(formData: FormData): Promise<voi
       cashierEnteredById: session.id,
       cashierSubmittedAt: new Date(),
       totalCost: Math.round(totalCost),
-      paymentStatus: "PAID",
+      paymentStatus: paymentSource === "BANK_TRANSFER" ? "PENDING_SETTLEMENT" : "PAID",
       paymentSource,
       expenseId,
       status: "COMPLETE",
@@ -233,7 +239,7 @@ export async function submitCounterSide(formData: FormData): Promise<void> {
   if (!delivery.cashierSubmittedAt) redirect(`/inventory/deliveries/${id}?error=no_invoice_yet`);
 
   const itemIds = formData.getAll("itemId").map(String);
-  const counterQtys = formData.getAll("counterQty").map((v) => posInt(v));
+  const counterQtys = formData.getAll("counterQty").map((v) => posFloat(v));
 
   const entries = itemIds.map((itemId, i) => ({ itemId, counterQty: counterQtys[i] }));
 
@@ -278,7 +284,7 @@ export async function resolveDelivery(formData: FormData): Promise<void> {
 
   for (const item of items) {
     const finalQtyRaw = formData.get(`final_${item.id}`);
-    const finalQty = posInt(finalQtyRaw ?? item.cashierQty ?? item.counterQty ?? 0);
+    const finalQty = posFloat(finalQtyRaw ?? item.cashierQty ?? item.counterQty ?? 0);
     await prisma.stockDeliveryItem.update({
       where: { id: item.id },
       data: { finalQty },

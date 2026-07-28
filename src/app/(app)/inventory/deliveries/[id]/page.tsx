@@ -264,6 +264,7 @@ export default async function DeliveryDetailPage({
                           name={`final_${item.id}`}
                           type="number"
                           min="0"
+                          step="any"
                           defaultValue={item.cashierQty ?? item.counterQty ?? 0}
                           className="w-20 rounded border border-gray-300 px-2 py-0.5 text-center"
                         />

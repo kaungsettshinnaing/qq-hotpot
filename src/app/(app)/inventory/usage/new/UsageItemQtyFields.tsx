@@ -39,7 +39,7 @@ export default function UsageItemQtyFields({
           {qtyLabel}
           {unit ? <span className="ml-1 font-normal text-gray-400">({unitLabel}: {unit})</span> : null}
         </label>
-        <input name="qty" type="number" min="1" required placeholder="0"
+        <input name="qty" type="number" min="0.01" step="any" required placeholder="0"
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-lg font-semibold" />
       </div>
     </>

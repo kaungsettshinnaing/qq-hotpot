@@ -10,7 +10,7 @@ export async function recordUsage(formData: FormData): Promise<void> {
   await requireAnyRole(["WAITER", "KITCHEN", "MANAGER", "ADMIN"]);
 
   const stockItemId = String(formData.get("stockItemId") ?? "").trim();
-  const qty = parseInt(String(formData.get("qty") ?? ""), 10);
+  const qty = parseFloat(String(formData.get("qty") ?? ""));
   const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
 
   if (!stockItemId || Number.isNaN(qty) || qty <= 0) {
@@ -38,7 +38,7 @@ export async function recordAdjustment(formData: FormData): Promise<void> {
 
   const stockItemId = String(formData.get("stockItemId") ?? "").trim();
   const direction = String(formData.get("direction") ?? "") === "REMOVE" ? "REMOVE" : "ADD";
-  const qty = parseInt(String(formData.get("qty") ?? ""), 10);
+  const qty = parseFloat(String(formData.get("qty") ?? ""));
   const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
 
   if (!stockItemId || Number.isNaN(qty) || qty <= 0) {

@@ -23,6 +23,9 @@ export default async function OpenTablePage({
   const open = await prisma.tableSession.findFirst({ where: { tableId, status: "OPEN" } });
   if (open) redirect(`/waiter/session/${open.id}`);
 
+  const occupiedByMerge = await prisma.tableMerge.findFirst({ where: { tableId } });
+  if (occupiedByMerge) redirect("/waiter?error=table-occupied");
+
   const action = openTable.bind(null, tableId);
 
   return (

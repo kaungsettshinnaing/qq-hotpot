@@ -25,7 +25,7 @@ export default function AdjustmentItemQtyFields({
         onItemChange={(item) => setUnit(item?.unit)}
       />
       <div className="flex items-center gap-2">
-        <input name="qty" type="number" min="1" required placeholder={qtyPlaceholder}
+        <input name="qty" type="number" min="0.01" step="any" required placeholder={qtyPlaceholder}
           className="w-28 rounded-lg border border-gray-300 px-3 py-2" />
         {unit && <span className="text-xs text-gray-500">{unit}</span>}
       </div>

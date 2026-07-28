@@ -28,3 +28,4 @@ prisma/*.db
 /caddy_data
 /caddy_config
 /pgdata
+.env.docker

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { requireAnyRole } from "@/lib/auth";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -8,6 +9,9 @@ export default async function PayslipPage({
 }: {
   params: Promise<{ yearMonth: string; employeeId: string }>;
 }) {
+  // Individual payslip has net pay, advance/fine deductions — HR/ADMIN only,
+  // same restriction as the payroll list and detail pages.
+  await requireAnyRole(["HR", "ADMIN"]);
   const { yearMonth, employeeId } = await params;
   const [yearStr, monthStr] = yearMonth.split("-");
   const year = parseInt(yearStr);

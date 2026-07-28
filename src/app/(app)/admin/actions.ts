@@ -114,12 +114,21 @@ export async function createMenuItem(formData: FormData): Promise<void> {
   const price = clampInt(formData.get("price"), 0, 1_000_000_000);
   const unit = str(formData.get("unit")) === "GRAM" ? ("GRAM" as const) : ("UNIT" as const);
   if (!name) redirect("/admin/menu?error=missing");
-  const code = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 50);
-  await prisma.menuItem.upsert({
-    where: { code },
-    update: { name, category, price, unit, isActive: true },
-    create: { code, name, category, price, unit },
+  
+  let baseCode = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
+  if (!baseCode) baseCode = "ITEM";
+
+  let code = baseCode;
+  let counter = 1;
+  while (await prisma.menuItem.findUnique({ where: { code } })) {
+    code = `${baseCode}_${counter}`;
+    counter++;
+  }
+
+  await prisma.menuItem.create({
+    data: { code, name, category, price, unit, isActive: true },
   });
+  
   revalidatePath("/admin/menu");
   redirect("/admin/menu");
 }

@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# Local development image — `tsx watch server.ts` with hot reload, NOT a
+# production build. The production image is ./Dockerfile.
+#
+# Source is bind-mounted at runtime; node_modules and .next are masked by named
+# volumes so the Linux artifacts built here never collide with the Windows ones
+# in the host working tree.
+FROM node:22-bookworm-slim
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Baked into the image so a fresh volume starts pre-populated instead of
+# spending the first boot on a cold install.
+COPY package.json package-lock.json* ./
+# The stamp must be written here too, or the compose command sees a missing
+# stamp on first boot and redoes this whole install against the volume.
+RUN npm ci && cp package-lock.json node_modules/.deps-stamp
+
+COPY prisma/ ./prisma/
+RUN npx prisma generate
+
+ENV NEXT_TELEMETRY_DISABLED=1
+# Docker Desktop does not forward inotify events from the Windows filesystem
+# into the VM, so the watchers have to poll to see edits at all.
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
+
+EXPOSE 3000
+CMD ["npm", "run", "dev"]

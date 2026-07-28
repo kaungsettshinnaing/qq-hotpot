@@ -76,6 +76,7 @@ export default async function CounterEntryPage({
                   name="counterQty"
                   type="number"
                   min="0"
+                  step="any"
                   required
                   placeholder="0"
                   className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-center text-lg font-semibold"

@@ -52,13 +52,26 @@ export async function generatePayroll(fd: FormData) {
     });
     const adHocBonuses = adHocRows.reduce((s, b) => s + b.amount, 0);
 
+    // Roll forward anything still outstanding from an earlier month — not
+    // just this month's scheduled instalments/fines — so a shortfall that
+    // lockPayroll couldn't fully collect (see lockPayroll below) gets a
+    // repeat attempt instead of silently disappearing. This is a preview
+    // sum only; lockPayroll does the real (order-sensitive) collection.
     const advanceInstalments = await prisma.advanceInstalment.findMany({
-      where: { advance: { employeeId: emp.userId }, month, year },
+      where: {
+        advance: { employeeId: emp.userId },
+        deducted: false,
+        OR: [{ year: { lt: year } }, { year, month: { lte: month } }],
+      },
     });
     const advanceDeduction = advanceInstalments.reduce((s, i) => s + i.amount, 0);
 
     const fines = await prisma.employeeFine.findMany({
-      where: { employeeId: emp.userId, deductMonth: month, deductYear: year },
+      where: {
+        employeeId: emp.userId,
+        deducted: false,
+        OR: [{ deductYear: { lt: year } }, { deductYear: year, deductMonth: { lte: month } }],
+      },
     });
     const fineDeduction = fines.reduce((s, f) => s + f.amount, 0);
 
@@ -85,6 +98,7 @@ export async function generatePayroll(fd: FormData) {
         absenceDeduction: result.absenceDeduction,
         otPremium: result.otPremium,
         adHocBonuses,
+        grossPay: result.grossPay,
         advanceDeduction,
         fineDeduction,
         netPay: result.netPay,
@@ -101,6 +115,7 @@ export async function generatePayroll(fd: FormData) {
         absenceDeduction: result.absenceDeduction,
         otPremium: result.otPremium,
         adHocBonuses,
+        grossPay: result.grossPay,
         advanceDeduction,
         fineDeduction,
         netPay: result.netPay,
@@ -126,18 +141,61 @@ export async function lockPayroll(fd: FormData) {
       data: { status: "LOCKED", lockedById: session.id, lockedAt },
     });
 
-    // Mark advance instalments as deducted
     const items = await tx.payrollItem.findMany({ where: { payrollId: payroll.id } });
     for (const item of items) {
-      await tx.advanceInstalment.updateMany({
-        where: { advance: { employeeId: item.employeeId }, month, year },
-        data: { deducted: true },
+      // Collect whatever grossPay can actually cover, oldest-first, treating
+      // each fine/instalment as an atomic unit (either fully collected this
+      // month or left untouched) — never partially deduct one, so nothing
+      // needs fractional tracking. Anything that doesn't fit stays
+      // deducted:false and is picked up again by next month's generatePayroll
+      // (which now looks back for any outstanding row, not just this
+      // month's). Fines are given priority over advances since they're
+      // disciplinary; this is a judgment call, easy to flip if the business
+      // wants advances collected first instead.
+      const outstandingFines = await tx.employeeFine.findMany({
+        where: {
+          employeeId: item.employeeId,
+          deducted: false,
+          OR: [{ deductYear: { lt: year } }, { deductYear: year, deductMonth: { lte: month } }],
+        },
+        orderBy: [{ deductYear: "asc" }, { deductMonth: "asc" }, { createdAt: "asc" }],
       });
-      await tx.employeeFine.updateMany({
-        where: { employeeId: item.employeeId, deductMonth: month, deductYear: year },
-        data: { deducted: true },
+      const outstandingInstalments = await tx.advanceInstalment.findMany({
+        where: {
+          advance: { employeeId: item.employeeId },
+          deducted: false,
+          OR: [{ year: { lt: year } }, { year, month: { lte: month } }],
+        },
+        orderBy: [{ year: "asc" }, { month: "asc" }, { id: "asc" }],
       });
-      await postPayrollItem(tx, item, lockedAt);
+
+      let available = Math.max(0, item.grossPay);
+      let actualFineDeduction = 0;
+      for (const fine of outstandingFines) {
+        if (fine.amount > available) break; // this and every later (larger-or-equal-age) one waits for next month
+        await tx.employeeFine.update({ where: { id: fine.id }, data: { deducted: true } });
+        available -= fine.amount;
+        actualFineDeduction += fine.amount;
+      }
+
+      let actualAdvanceDeduction = 0;
+      for (const inst of outstandingInstalments) {
+        if (inst.amount > available) break;
+        await tx.advanceInstalment.update({ where: { id: inst.id }, data: { deducted: true } });
+        available -= inst.amount;
+        actualAdvanceDeduction += inst.amount;
+      }
+
+      const netPay = available;
+      await tx.payrollItem.update({
+        where: { id: item.id },
+        data: { advanceDeduction: actualAdvanceDeduction, fineDeduction: actualFineDeduction, netPay },
+      });
+      await postPayrollItem(
+        tx,
+        { id: item.id, netPay, advanceDeduction: actualAdvanceDeduction, fineDeduction: actualFineDeduction },
+        lockedAt,
+      );
     }
   });
 

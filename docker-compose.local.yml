@@ -1,0 +1,88 @@
+# QQ Hotpot BBQ — full local dev stack (Postgres + custom Next/Socket.IO server).
+#
+#   Start:  docker compose -f docker-compose.local.yml up -d --build
+#   Logs:   docker compose -f docker-compose.local.yml logs -f qq-web
+#   Stop:   docker compose -f docker-compose.local.yml down
+#   Reset:  docker compose -f docker-compose.local.yml down -v   (wipes DB + re-seeds)
+#
+#   App:    http://localhost:3002
+#   DB:     localhost:5442  (qq / devpassword / qq_dev)
+#   Logins: admin/admin123, owner/owner123, manager/manager123, waiter/waiter123
+#
+# Ports are offset so this can run alongside pan-miniapp and retail-app.
+# This is the hot-reload stack. docker-compose.dev.yml is left as-is — that one
+# runs the production build in a container, which is the right tool for
+# smoke-testing an image but useless for day-to-day editing.
+
+services:
+  qq-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qq
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: qq_dev
+    ports:
+      - "127.0.0.1:5442:5432"
+    volumes:
+      - qq_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qq -d qq_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  qq-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      TZ: Asia/Yangon
+      DATABASE_URL: postgresql://qq:devpassword@qq-db:5432/qq_dev?schema=public
+      AUTH_SECRET: local-dev-secret-do-not-use-in-production
+      APP_URL: http://localhost:3002
+    # Optional override file, git-ignored. Absent by default.
+    env_file:
+      - path: .env.docker
+        required: false
+    ports:
+      - "3002:3000"
+    depends_on:
+      qq-db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - qq_node_modules:/app/node_modules
+      - qq_next:/app/.next
+      - qq_uploads:/app/uploads
+      - qq_devstate:/dev-state
+    command: >
+      sh -c '
+        set -e
+        if [ ! -f /app/node_modules/.deps-stamp ] || ! cmp -s /app/package-lock.json /app/node_modules/.deps-stamp; then
+          echo "→ package-lock.json changed — reinstalling dependencies…"
+          npm ci
+          cp /app/package-lock.json /app/node_modules/.deps-stamp
+        fi
+        echo "→ Generating Prisma client…"
+        npx prisma generate
+        echo "→ Syncing schema (db push, matching docker-entrypoint.sh)…"
+        npx prisma db push --accept-data-loss
+        if [ ! -f /dev-state/seeded ]; then
+          echo "→ Fresh database — seeding…"
+          npm run db:seed
+          touch /dev-state/seeded
+        fi
+        echo "→ Starting QQ dev server on http://localhost:3002"
+        exec npm run dev
+      '
+
+volumes:
+  qq_pgdata:
+  qq_node_modules:
+  qq_next:
+  qq_uploads:
+  qq_devstate:

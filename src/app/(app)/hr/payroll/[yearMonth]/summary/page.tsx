@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import { getT } from "@/lib/lang";
+import { requireAnyRole } from "@/lib/auth";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -10,6 +11,7 @@ export default async function PayrollSummaryPage({
 }: {
   params: Promise<{ yearMonth: string }>;
 }) {
+  await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const { yearMonth } = await params;
   const [yearStr, monthStr] = yearMonth.split("-");

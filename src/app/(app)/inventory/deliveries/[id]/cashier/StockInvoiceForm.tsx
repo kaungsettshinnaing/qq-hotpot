@@ -129,12 +129,12 @@ export default function StockInvoiceForm({
                       )}
                     </td>
                     <td className="py-2 text-center">
-                      <input name="orderedQty" type="number" min="0" placeholder="—"
+                      <input name="orderedQty" type="number" min="0" step="any" placeholder="—"
                         defaultValue={existing?.orderedQty ?? ""}
                         className="w-20 rounded border border-gray-200 px-2 py-1 text-center text-sm" />
                     </td>
                     <td className="py-2 text-center">
-                      <input name="cashierQty" type="number" min="0" placeholder="0"
+                      <input name="cashierQty" type="number" min="0" step="any" placeholder="0"
                         defaultValue={existing?.cashierQty ?? ""}
                         className="w-20 rounded border border-gray-200 px-2 py-1 text-center text-sm" />
                     </td>

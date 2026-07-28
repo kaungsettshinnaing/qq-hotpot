@@ -4,6 +4,7 @@ import { toInputDate } from "@/lib/format";
 import { updateEmployee } from "../../actions";
 import { getT } from "@/lib/lang";
 import DateField from "@/components/DateField";
+import { requireAnyRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function EditEmployeePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
+  await requireAnyRole(["HR", "ADMIN"]);
   const { id } = await params;
   const { error } = await searchParams;
   const t = await getT();

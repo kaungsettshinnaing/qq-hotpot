@@ -6,10 +6,14 @@ import { toggleEmployeeActive, resetEmployeePassword, toggleEmployeeSystem, dele
 import DeleteEmployeeButton from "./DeleteEmployeeButton";
 import SubmitButton from "@/components/SubmitButton";
 import { getT } from "@/lib/lang";
+import { requireAnyRole } from "@/lib/auth";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  // Full profile has bank account, DOB, home address, basic salary — matches
+  // the HR/ADMIN-only restriction already on the employees list page.
+  await requireAnyRole(["HR", "ADMIN"]);
   const { id } = await params;
   const t = await getT();
 

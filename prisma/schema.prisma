@@ -690,6 +690,7 @@ model PayrollItem {
   absenceDeduction   Int
   otPremium          Int
   adHocBonuses       Int
+  grossPay           Int      @default(0) // persisted so lockPayroll can cap deductions without reconstructing it from a possibly-clamped netPay
   advanceDeduction   Int
   fineDeduction      Int
   netPay             Int
@@ -725,6 +726,7 @@ enum DeliveryStatus {
 enum PaymentStatus {
   UNPAID // pay on delivery
   PREPAID // paid in advance, goods pending
+  PENDING_SETTLEMENT // expense logged for a bank transfer, AP not yet settled (see postApPaid/markPaid)
   PAID // paid at time of delivery
 }
 
@@ -833,10 +835,10 @@ model StockDeliveryItem {
   stockItem   StockItem?    @relation(fields: [stockItemId], references: [id])
   description String? // for NON_STOCK invoice lines (free text)
   unitLabel   String? // free-text unit for NON_STOCK lines
-  orderedQty  Int? // total qty on the purchase order (spans all batches)
-  cashierQty  Int? // this batch — from invoice
-  counterQty  Int? // this batch — from physical count
-  finalQty    Int? // set on COMPLETE/PARTIAL for this batch
+  orderedQty  Float? // total qty on the purchase order (spans all batches) — fractional units (KG/LITRE/GRAM)
+  cashierQty  Float? // this batch — from invoice
+  counterQty  Float? // this batch — from physical count
+  finalQty    Float? // set on COMPLETE/PARTIAL for this batch
   unitCost    Int? // MMK per unit
 
   @@unique([deliveryId, stockItemId])
@@ -861,8 +863,8 @@ model StockMovement {
   stockItemId  String
   stockItem    StockItem    @relation(fields: [stockItemId], references: [id])
   type         MovementType
-  qty          Int // positive = in, negative = out
-  previousQty  Int? // stock level before this movement (for ADJUSTMENT)
+  qty          Float // positive = in, negative = out — fractional units (KG/LITRE/GRAM)
+  previousQty  Float? // stock level before this movement (for ADJUSTMENT)
   note         String?
   deliveryId   String? // set for DELIVERY_IN movements
   recordedById String

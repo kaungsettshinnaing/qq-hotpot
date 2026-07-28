@@ -50,20 +50,40 @@ export async function computeShiftTotals(
   const cashWithdrawn = collectAgg._sum.amount ?? 0;
 
   // Gross CASH collected; reduced by change returned when customers overpay.
-  // We attribute change to the shift that settled the session (closedAt in window).
+  // A session's cash can be tendered across more than one shift (a bill left
+  // open across a shift change, more cash added later) and only settles once,
+  // when the final payment closes it out. Rather than dumping the whole
+  // session's change on whichever shift happens to be open when it finally
+  // settles, split the change proportionally by how much CASH each shift
+  // actually tendered for that session — a shift that never touched the cash
+  // for this bill shouldn't have its drawer docked for someone else's change.
+  // (Note: a shift that has *already closed* by the time the session settles
+  // keeps its already-frozen expectedCash — its books were reconciled at
+  // close time and aren't reopened — so only shifts still open or currently
+  // closing can absorb their share.)
   let cashSales = cashAgg._sum.amount ?? 0;
   if (shiftWindow) {
     const settled = await prisma.tableSession.findMany({
       where: {
         status: "CLOSED",
         billTotal: { not: null },
-        closedAt: { gte: shiftWindow.openedAt, lt: shiftWindow.closedAt ?? new Date() },
         payments: { some: { shiftId, method: "CASH", voidedAt: null } },
       },
-      select: { billTotal: true, payments: { where: { voidedAt: null }, select: { amount: true, method: true } } },
+      select: {
+        billTotal: true,
+        payments: { where: { voidedAt: null }, select: { amount: true, method: true, shiftId: true } },
+      },
     });
     for (const s of settled) {
-      cashSales -= netCashChange(s.payments, s.billTotal ?? 0);
+      const totalChange = netCashChange(s.payments, s.billTotal ?? 0);
+      if (totalChange <= 0) continue;
+      const cashPayments = s.payments.filter((p) => p.method === "CASH");
+      const totalCash = cashPayments.reduce((sum, p) => sum + p.amount, 0);
+      if (totalCash <= 0) continue;
+      const cashFromThisShift = cashPayments
+        .filter((p) => p.shiftId === shiftId)
+        .reduce((sum, p) => sum + p.amount, 0);
+      cashSales -= Math.round(totalChange * (cashFromThisShift / totalCash));
     }
   }
 

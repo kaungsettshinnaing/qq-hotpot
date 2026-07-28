@@ -405,11 +405,11 @@ export async function addStockInvoice(formData: FormData): Promise<void> {
         for (const [stockItemId, m] of merged) {
           await tx.stockDeliveryItem.upsert({
             where: { deliveryId_stockItemId: { deliveryId: taggedDeliveryId, stockItemId } },
-            update: { cashierQty: Math.round(m.qty), unitCost: m.unitCost || null },
+            update: { cashierQty: m.qty, unitCost: m.unitCost || null },
             create: {
               deliveryId: taggedDeliveryId,
               stockItemId,
-              cashierQty: Math.round(m.qty),
+              cashierQty: m.qty,
               unitCost: m.unitCost || null,
             },
           });
@@ -538,7 +538,10 @@ async function createInvoiceDelivery(args: {
         parentDeliveryId,
         invoiceType: "STOCK",
         status: "OPEN",
-        paymentStatus: skipExpense ? "PREPAID" : "PAID",
+        // BANK_TRANSFER logs the expense against Accounts Payable immediately
+        // (see postExpenseEntry) but the bank hasn't actually settled yet —
+        // don't call it PAID until an admin confirms via markPaid/postApPaid.
+        paymentStatus: skipExpense ? "PREPAID" : paymentSource === "BANK_TRANSFER" ? "PENDING_SETTLEMENT" : "PAID",
         paymentSource,
         totalCost: total,
         expenseId: createdExpenseId,
@@ -548,7 +551,7 @@ async function createInvoiceDelivery(args: {
         items: {
           create: [...merged].map(([stockItemId, m]) => ({
             stockItemId,
-            cashierQty: Math.round(m.qty),
+            cashierQty: m.qty,
             unitCost: m.unitCost || null,
           })),
         },

@@ -41,6 +41,24 @@ export async function addInstalment(fd: FormData) {
     throw new Error("Payroll for this month is already locked; cannot add an instalment to it.");
   }
 
+  // createAdvance disburses totalAmount as cash in full up front (one
+  // postAdvanceGiven entry) and schedules it as a single instalment — this
+  // action only splits that existing repayment schedule across more months,
+  // it does not hand out additional money, so no further journal entry is
+  // posted here. Guard against scheduling more repayment than was ever
+  // actually disbursed.
+  const advance = await prisma.salaryAdvance.findUnique({
+    where: { id: advanceId },
+    include: { instalments: { select: { amount: true } } },
+  });
+  if (!advance) throw new Error("Advance not found.");
+  const alreadyScheduled = advance.instalments.reduce((s, i) => s + i.amount, 0);
+  if (alreadyScheduled + amount > advance.totalAmount) {
+    throw new Error(
+      `This would schedule ${alreadyScheduled + amount} in repayments against an advance of only ${advance.totalAmount} already disbursed.`,
+    );
+  }
+
   await prisma.advanceInstalment.create({ data: { advanceId, month, year, amount } });
   revalidatePath("/hr/advances");
 }

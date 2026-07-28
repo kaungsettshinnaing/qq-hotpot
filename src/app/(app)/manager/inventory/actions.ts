@@ -142,7 +142,11 @@ export async function startSpotCheck(): Promise<void> {
       items: {
         create: selected.map((item) => ({
           stockItemId: item.id,
-          systemQty: levels.get(item.id) ?? 0,
+          // StockCountItem stays whole-unit (physical counts are done to the
+          // nearest unit, unlike delivery/usage recording) — round the
+          // now-possibly-fractional live level rather than let Prisma throw
+          // on a non-integer value for this Int column.
+          systemQty: Math.round(levels.get(item.id) ?? 0),
         })),
       },
     },
@@ -184,7 +188,7 @@ export async function startWeeklyCount(): Promise<void> {
       items: {
         create: activeItems.map((item) => ({
           stockItemId: item.id,
-          systemQty: levels.get(item.id) ?? 0,
+          systemQty: Math.round(levels.get(item.id) ?? 0),
         })),
       },
     },

@@ -33,8 +33,18 @@ async function markPaid(fd: FormData) {
   await prisma.$transaction(async (tx) => {
     const expense = await tx.expense.update({ where: { id }, data: { paidAt } });
     await postApPaid(tx, { id: expense.id, amount: expense.amount, paidAt });
+    // Any stock delivery logged against this expense (bank transfer, not yet
+    // settled) is now actually paid — flip it so supplier-spend reports stop
+    // excluding it.
+    await tx.stockDelivery.updateMany({
+      where: { expenseId: id, paymentStatus: "PENDING_SETTLEMENT" },
+      data: { paymentStatus: "PAID" },
+    });
   });
   revalidatePath("/accounting");
+  revalidatePath("/inventory");
+  revalidatePath("/inventory/deliveries");
+  revalidatePath("/manager/inventory");
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -3,8 +3,10 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { uploadDocument, deleteDocument } from "../../actions";
 import { getT } from "@/lib/lang";
+import { requireAnyRole } from "@/lib/auth";
 
 export default async function DocumentsPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAnyRole(["HR", "ADMIN"]);
   const { id } = await params;
   const t = await getT();
 

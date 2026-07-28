@@ -28,6 +28,16 @@ export async function openTable(tableId: string, formData: FormData): Promise<vo
   });
   if (existing) redirect(`/waiter/session/${existing.id}`);
 
+  // The normal UI already filters merged tables out of the "open" list (see
+  // waiter/page.tsx), but this action had no server-side check — same gap
+  // changeTable had, and got fixed for, below. A merged table has no
+  // TableSession of its own (it's only referenced via the parent session's
+  // mergedTables), so without this it would pass the check above and open a
+  // second, independent session on a table that's already serving as part
+  // of another one.
+  const occupiedByMerge = await prisma.tableMerge.findFirst({ where: { tableId } });
+  if (occupiedByMerge) redirect("/waiter?error=table-occupied");
+
   const session = await prisma.tableSession.create({
     data: { tableId, adults, children, openedById: user.id },
   });

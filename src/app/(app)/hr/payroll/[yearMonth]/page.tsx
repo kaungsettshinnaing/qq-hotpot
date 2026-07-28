@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { requireAnyRole } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { generatePayroll, lockPayroll } from "./actions";
 import { getT } from "@/lib/lang";
@@ -12,6 +13,10 @@ export default async function PayrollDetailPage({
 }: {
   params: Promise<{ yearMonth: string }>;
 }) {
+  // MANAGER can see the /hr/payroll layout tab-less (MANAGER_TABS excludes
+  // it), but this specific page has full net-pay figures per employee —
+  // matches the HR/ADMIN-only restriction already on the payroll list page.
+  await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const { yearMonth } = await params;
   const [yearStr, monthStr] = yearMonth.split("-");
