@@ -38,3 +38,9 @@ export function mmDayOf(instant: Date): Date {
 export function mmTodayUTC(): Date {
   return mmDayOf(new Date());
 }
+
+/** An instant as Myanmar wall-clock "YYYY-MM-DD HH:mm" — sortable as text,
+ *  for raw-data exports where a locale-formatted string would be ambiguous. */
+export function mmStamp(instant: Date): string {
+  return new Date(instant.getTime() + MM_OFFSET_MS).toISOString().slice(0, 16).replace("T", " ");
+}
