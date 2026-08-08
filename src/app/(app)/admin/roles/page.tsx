@@ -135,12 +135,12 @@ export default async function AdminRolesPage() {
         <section className="rounded-xl bg-gray-50 p-3 text-xs text-gray-500">
           <p className="font-medium text-gray-600 mb-1.5">{t("perm_guide_title")}</p>
           <ul className="space-y-1">
-            <li><span className="font-medium text-gray-700">WAITER</span> — take orders, manage tables</li>
-            <li><span className="font-medium text-gray-700">KITCHEN</span> — view/update kitchen display</li>
-            <li><span className="font-medium text-gray-700">CASHIER</span> — process payments &amp; shifts</li>
-            <li><span className="font-medium text-gray-700">MANAGER</span> — live attendance &amp; approvals</li>
-            <li><span className="font-medium text-gray-700">HR</span> — payroll, leave, employee records</li>
-            <li><span className="font-medium text-gray-700">ADMIN</span> — all settings, full access</li>
+            <li><span className="font-medium text-gray-700">WAITER</span> {t("perm_guide_waiter")}</li>
+            <li><span className="font-medium text-gray-700">KITCHEN</span> {t("perm_guide_kitchen")}</li>
+            <li><span className="font-medium text-gray-700">CASHIER</span> {t("perm_guide_cashier")}</li>
+            <li><span className="font-medium text-gray-700">MANAGER</span> {t("perm_guide_manager")}</li>
+            <li><span className="font-medium text-gray-700">HR</span> {t("perm_guide_hr")}</li>
+            <li><span className="font-medium text-gray-700">ADMIN</span> {t("perm_guide_admin")}</li>
           </ul>
         </section>
       </div>

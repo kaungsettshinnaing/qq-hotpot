@@ -7,6 +7,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { setSetting } from "@/lib/settings";
 import { ALL_ROLES, type Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
+import { getT } from "@/lib/lang";
 
 const ADMIN: Role[] = ["ADMIN"];
 
@@ -223,7 +224,8 @@ export async function deleteFlavour(formData: FormData): Promise<ActionResult> {
   // (toggleFlavour) is the normal way to remove one from active use.
   const usageCount = await prisma.potOrderFlavour.count({ where: { flavourId: id } });
   if (usageCount > 0) {
-    return { ok: false, error: "This flavor has been used in past orders — deactivate it instead of deleting, to keep order history intact." };
+    const t = await getT();
+    return { ok: false, error: t("error_flavour_used_in_orders") };
   }
   await prisma.soupFlavour.delete({ where: { id } });
   revalidatePath("/admin/flavours");

@@ -23,6 +23,14 @@ const dict: Record<string, { en: string; my: string }> = {
   nav_manager:                  { en: "Team",                              my: "အဖွဲ့" },
   nav_my_account:               { en: "My Account",                        my: "ကျွန်ုပ်အကောင့်" },
   nav_admin:                    { en: "Admin",                             my: "စီမံ" },
+  role_admin:                   { en: "Admin",                             my: "အက်ဒမင်" },
+  role_manager:                 { en: "Manager",                          my: "မန်နေဂျာ" },
+  role_hr:                      { en: "HR",                                my: "HR" },
+  role_cashier:                 { en: "Cashier",                          my: "ငွေကောက်" },
+  role_kitchen:                 { en: "Kitchen",                          my: "မီးဖိုချောင်" },
+  role_waiter:                  { en: "Waiter",                           my: "ဝိုင်တာ" },
+  role_marketing:               { en: "Marketing",                        my: "စျေးကွက်ရှာဖွေရေး" },
+  role_staff:                   { en: "Staff",                            my: "ဝန်ထမ်း" },
 
   // ── Notifications ─────────────────────────────────────────────────────────
   notifications_title:          { en: "Notifications",                     my: "အကြောင်းကြားချက်များ" },
@@ -122,6 +130,10 @@ const dict: Record<string, { en: string; my: string }> = {
   section_beer:                 { en: "Beer 🍺",                           my: "ဘီယာ 🍺" },
   section_wastage:              { en: "Wastage (grams)",                   my: "ဂရမ်ပိုကောက်ငွေ (ဂရမ်)" },
   section_menu_items:           { en: "Menu items",                        my: "မီနူးပစ္စည်းများ" },
+  error_invalid_count:          { en: "Invalid count.",                    my: "အရေအတွက် မမှန်ကန်ပါ" },
+  error_session_not_open:       { en: "Session is not open.",              my: "ဤစားပွဲအစည်းအဝေး ဖွင့်မထားပါ" },
+  error_choose_n_flavours:      { en: "Choose {need} soup flavour{s}.",    my: "ဟင်းချိုရသာ {need} ခု ရွေးပါ" },
+  error_invalid_soup_flavour:   { en: "Invalid soup flavour.",             my: "ဟင်းချိုရသာ မမှန်ကန်ပါ" },
 
   // ── Kitchen ───────────────────────────────────────────────────────────────
   heading_kitchen_orders:       { en: "Kitchen — Orders",                  my: "မီးဖိုချောင် — မှာယူမှုများ" },
@@ -198,6 +210,10 @@ const dict: Record<string, { en: string; my: string }> = {
   btn_remove:                   { en: "Remove",                            my: "ဖယ်ရှားရန်" },
   section_take_payment:         { en: "Take payment",                      my: "ငွေကောက်ရန်" },
   warning_open_shift_first:     { en: "Open a shift first to record payments.", my: "ငွေမကောက်မီ Shiftဖွင့်ပါ" },
+  error_percent_exceeds_100:    { en: "Percent cannot exceed 100.",        my: "ရာနှုန်းသည် ၁၀၀ ထက် မကျော်ရပါ" },
+  error_bill_not_open:          { en: "Bill is not open.",                 my: "ဤဘေလ် ဖွင့်မထားပါ" },
+  error_enter_positive_amount:  { en: "Enter a positive amount.",          my: "အပေါင်းပမာဏ ထည့်ပါ" },
+  error_open_shift_before_payment: { en: "Open a shift before taking payments.", my: "ငွေမကောက်မီ Shift ဖွင့်ပါ" },
   label_payment_method:         { en: "Method",                            my: "ငွေပေးချေနည်း" },
   label_payment_amount:         { en: "Amount",                            my: "ပမာဏ" },
   label_reference:              { en: "Reference",                         my: "ကိုးကားချက်" },
@@ -252,6 +268,7 @@ const dict: Record<string, { en: string; my: string }> = {
   // ── Cashier — Checkout (additional) ──────────────────────────────────────
   heading_checkout:             { en: "Checkout",                          my: "ငွေကောက်" },
   btn_collect_to_settle:        { en: "Collect",                           my: "ကောက်ရန်" },
+  btn_exact:                    { en: "Exact",                             my: "အတိအကျ" },
 
   // ── Cashier — Tables (additional) ────────────────────────────────────────
   placeholder_phone:            { en: "Phone",                             my: "ဖုန်းနံပါတ်" },
@@ -318,6 +335,14 @@ const dict: Record<string, { en: string; my: string }> = {
   empty_no_usage:               { en: "No usage recorded on this date.",   my: "ဤနေ့တွင် သုံးစွဲမှု မမှတ်တမ်းတင်ရသေးပါ" },
   col_total_used:               { en: "Total used",                        my: "စုစုပေါင်းသုံးစွဲမှု" },
   col_records:                  { en: "Records",                           my: "မှတ်တမ်းများ" },
+  heading_previous_reports:     { en: "Previous reports",                  my: "ယခင် အစီရင်ခံစာများ" },
+  heading_movements_count:      { en: "Movements ({n})",                   my: "ငွေလှုပ်ရှားမှု ({n})" },
+  hint_tap_table_breakdown:     { en: "Tap a table for its bill breakdown", my: "ဘေလ်အသေးစိတ်ကြည့်ရန် စားပွဲကို နှိပ်ပါ" },
+  heading_discounts_given_count:{ en: "Discounts given ({n})",             my: "ပေးထားသောလျှော့စျေး ({n})" },
+  empty_no_discounts_today:     { en: "No discounts on this day.",         my: "ဤနေ့တွင် လျှော့စျေး မရှိပါ" },
+  label_no_note_given:          { en: "No note given",                     my: "မှတ်ချက် မဖော်ပြပါ" },
+  label_total_discounts:        { en: "Total discounts",                   my: "စုစုပေါင်း လျှော့စျေး" },
+  empty_no_confirmed_expenses_day: { en: "No confirmed expenses on this day.", my: "ဤနေ့တွင် အတည်ပြုပြီးသော ကုန်ကျစရိတ် မရှိပါ" },
 
   // ── Manager ───────────────────────────────────────────────────────────────
   heading_manager_dashboard:    { en: "Manager Dashboard",                 my: "မန်နေဂျာ ဒက်ရှ်ဘုတ်" },
@@ -332,6 +357,7 @@ const dict: Record<string, { en: string; my: string }> = {
   section_live_attendance_today:{ en: "Live Attendance — Today",           my: "တိုက်ရိုက်တက်ရောက်မှု — ယနေ့" },
   link_full_view:               { en: "Full view →",                       my: "အားလုံးကြည့်ရန် →" },
   heading_live_attendance:      { en: "Live Attendance — Today",           my: "တိုက်ရိုက်တက်ရောက်မှု — ယနေ့" },
+  tab_live_attendance:          { en: "Live Attendance",                  my: "တိုက်ရိုက်တက်ရောက်မှု" },
   btn_end_of_day_review:        { en: "End of Day Review →",               my: "နေ့ပိတ်စစ်ဆေးမှု →" },
   status_not_started:           { en: "Not started",                       my: "မစတင်ရသေး" },
   status_working:               { en: "Working",                           my: "အလုပ်လုပ်နေသည်" },
@@ -439,6 +465,15 @@ const dict: Record<string, { en: string; my: string }> = {
   label_new_password:           { en: "New password",                      my: "စကားဝှက်အသစ်" },
   label_confirm_new_password:   { en: "Confirm new password",              my: "စကားဝှက်အသစ် အတည်ပြုရန်" },
   btn_update_password:          { en: "Update Password",                   my: "စကားဝှက် ပြောင်းရန်" },
+
+  // ── My Account — Master Password ─────────────────────────────────────────
+  heading_master_password:     { en: "Master login password",             my: "အထွေထွေဝင်ရောက်ရန် စကားဝှက်" },
+  desc_master_password:        { en: "A single override password that signs into any active account alongside each user's own password. Every use is flagged to admins in the notification bell. Keep it secret and rotate it after sharing.", my: "အသုံးပြုသူတစ်ဦးစီ၏ ကိုယ်ပိုင်စကားဝှက်အပြင် မည်သည့်တက်ကြွသောအကောင့်ကိုမဆို ဝင်ရောက်နိုင်သော အထွေထွေစကားဝှက်တစ်ခုဖြစ်သည်။ အသုံးပြုတိုင်း Admin များထံ အကြောင်းကြားချက်ဖြင့် အသိပေးမည်။ လျှို့ဝှက်ထားပြီး မျှဝေပြီးနောက် ပြောင်းလဲပါ" },
+  success_master_password_updated: { en: "Master password updated.",      my: "အထွေထွေစကားဝှက် ပြောင်းပြီးပါပြီ" },
+  label_your_current_password: { en: "Your current password",             my: "သင်၏ လက်ရှိစကားဝှက်" },
+  label_new_master_password:   { en: "New master password",               my: "အထွေထွေစကားဝှက်အသစ်" },
+  label_confirm_new_master_password: { en: "Confirm new master password", my: "အထွေထွေစကားဝှက်အသစ် အတည်ပြုရန်" },
+  btn_update_master_password:  { en: "Update master password",            my: "အထွေထွေစကားဝှက် ပြောင်းရန်" },
 
   // ── HR Tabs ───────────────────────────────────────────────────────────────
   tab_dashboard:                { en: "Dashboard",                         my: "ဒက်ရှ်ဘုတ်" },
@@ -813,6 +848,10 @@ const dict: Record<string, { en: string; my: string }> = {
   label_daily_net:              { en: "Net",                                my: "အသားတင်" },
   label_daily_balance:          { en: "Balance",                            my: "လက်ကျန်" },
   label_balance_carried_over:   { en: "Balance carried over:",              my: "ဆက်လက်ဆောင်ရွက်သော လက်ကျန်" },
+  label_date_range:             { en: "Date range",                        my: "ရက်စွဲကာလ" },
+  link_this_month:              { en: "This month",                        my: "ဤလ" },
+  empty_no_reconciled_payments_period: { en: "No reconciled payments in this period.", my: "ဤကာလအတွင်း စစ်ဆေးပြီးသောငွေပေးချေမှု မရှိပါ" },
+  empty_no_paid_expenses_period: { en: "No paid expenses in this period.", my: "ဤကာလအတွင်း ပေးချေပြီးသောကုန်ကျစရိတ် မရှိပါ" },
 
   // ── Manager — Expenses (NEW) ──────────────────────────────────────────────
   section_awaiting_confirm:     { en: "Awaiting confirmation",              my: "အတည်ပြုချက် စောင့်ဆိုင်းဆဲ" },
@@ -920,6 +959,8 @@ const dict: Record<string, { en: string; my: string }> = {
   title_click_to_hide:         { en: "Click to hide",                    my: "ဝှက်ရန် နှိပ်ပါ" },
   title_click_to_show:         { en: "Click to show",                    my: "ပြရန် နှိပ်ပါ" },
   empty_no_tables:             { en: "No tables.",                        my: "စားပွဲ မရှိပါ" },
+  title_move_up:               { en: "Move up",                           my: "အပေါ်သို့ ရွှေ့ရန်" },
+  title_move_down:             { en: "Move down",                         my: "အောက်သို့ ရွှေ့ရန်" },
 
   // ── Admin menu ────────────────────────────────────────────────────────────
   heading_menu_prices:         { en: "Menu prices",                       my: "မီနူး ဈေးနှုန်း" },
@@ -948,6 +989,13 @@ const dict: Record<string, { en: string; my: string }> = {
   btn_save_settings:           { en: "Save settings",                     my: "ဆက်တင် သိမ်းရန်" },
   label_unit_gram:             { en: "gram",                              my: "ဂရမ်" },
   label_unit_unit:             { en: "unit",                              my: "ယူနစ်" },
+  placeholder_soft_drink_example: { en: "e.g. Soft Drink",                my: "ဉပမာ: အအေးဖျော်ရည်" },
+  placeholder_drinks_example:  { en: "e.g. Drinks",                       my: "ဉပမာ: အဖျော်ယမကာများ" },
+  placeholder_pos_terminal_example: { en: "e.g. POS Terminal",            my: "ဉပမာ: POS စက်" },
+  placeholder_pos_terminal_username_example: { en: "e.g. pos_terminal",   my: "ဉပမာ: pos_terminal" },
+  placeholder_ko_aung_example: { en: "e.g. Ko Aung",                      my: "ဉပမာ: ကိုအောင်" },
+  placeholder_ko_aung_username_example: { en: "e.g. ko_aung",             my: "ဉပမာ: ko_aung" },
+  placeholder_employment_contract_example: { en: "e.g. Employment Contract", my: "ဉပမာ: အလုပ်ခန့်စာချုပ်" },
 
   // ── Admin flavours ────────────────────────────────────────────────────────
   heading_all_flavours:        { en: "All flavours",                      my: "ရသာအားလုံး" },
@@ -960,10 +1008,18 @@ const dict: Record<string, { en: string; my: string }> = {
   placeholder_flavour_name:    { en: "Flavour name",                      my: "ရသာအမည်" },
   btn_add_flavour:             { en: "Add flavour",                       my: "ရသာ ထည့်ရန်" },
   confirm_delete_item:         { en: "Delete \"{name}\"? This cannot be undone.", my: "\"{name}\" ဖျက်မည်လား? ပြန်မရနိုင်ပါ" },
+  error_flavour_used_in_orders:{ en: "This flavor has been used in past orders — deactivate it instead of deleting, to keep order history intact.", my: "ဤရသာကို ယခင်မှာယူမှုများတွင် အသုံးပြုထားပြီးဖြစ်သည် — မှတ်တမ်းမပျက်စေရန် ဖျက်မည့်အစား ရပ်ဆိုင်းပါ" },
 
   // ── Admin categories ──────────────────────────────────────────────────────
   label_non_stock:             { en: "Non-stock",                         my: "ကုန်ပစ္စည်းမဟုတ်သော" },
   hint_stock_category:         { en: "Mark Stock categories to link them with delivery reconciliation.", my: "ကုန်ပစ္စည်းပို့ဆောင်မှုနှင့် ချိတ်ဆက်ရန် Stock အမျိုးအစားများ သတ်မှတ်ပါ" },
+  link_back_expense_categories:{ en: "← Expense Categories",              my: "← ကုန်ကျစရိတ် အမျိုးအစားများ" },
+  heading_category_items:      { en: "{name} — Items",                    my: "{name} — ပစ္စည်းများ" },
+  warning_category_not_stock:  { en: "This category is not marked as Stock. Items here appear as description dropdowns in the expense form. Min/Optimal stock fields are only active for Stock categories.", my: "ဤအမျိုးအစားကို Stock အဖြစ် သတ်မှတ်မထားပါ။ ဤနေရာရှိပစ္စည်းများသည် ကုန်ကျစရိတ်ဖောင်တွင် ဖော်ပြချက် dropdown အဖြစ်သာ ပေါ်မည်" },
+  placeholder_default_unit:    { en: "Default unit in expense form (e.g. kg, box)", my: "ကုန်ကျစရိတ်ဖောင်ရှိ မူရင်းယူနစ် (ဉပမာ: kg, box)" },
+  label_item_image_optional:   { en: "Item Image (optional)",             my: "ပစ္စည်းပုံ (ရှိလျှင်)" },
+  empty_no_items_add_below:    { en: "No items yet. Add one below.",      my: "ပစ္စည်း မရှိသေးပါ။ အောက်တွင် ထည့်ပါ" },
+  placeholder_item_name_example: { en: "Item name (e.g. Pork Belly)",     my: "ပစ္စည်းအမည် (ဉပမာ: ဝက်သားပြား)" },
 
   // ── Admin stock-items ─────────────────────────────────────────────────────
   col_stock_level:             { en: "Stock",                             my: "ကုန်ပမာဏ" },
@@ -985,6 +1041,12 @@ const dict: Record<string, { en: string; my: string }> = {
   label_inactive_badge:        { en: "inactive",                          my: "ရပ်ဆိုင်း" },
   placeholder_role_name_ex:    { en: "Role name (e.g. Head Waiter)",      my: "တာဝန်အမည် (ဉပမာ: ဦးဆောင်ဝိုင်တာ)" },
   perm_guide_title:            { en: "Permission guide",                  my: "ခွင့်ပြုချက် လမ်းညွှန်" },
+  perm_guide_waiter:           { en: "— take orders, manage tables",      my: "— မှာယူမှုယူရန်၊ စားပွဲစီမံရန်" },
+  perm_guide_kitchen:          { en: "— view/update kitchen display",     my: "— မီးဖိုချောင်ဖန်သားပြင် ကြည့်ရှု/ပြင်ဆင်ရန်" },
+  perm_guide_cashier:          { en: "— process payments & shifts",       my: "— ငွေပေးချေမှုနှင့် Shift ဆောင်ရွက်ရန်" },
+  perm_guide_manager:          { en: "— live attendance & approvals",     my: "— တိုက်ရိုက်တက်ရောက်မှုနှင့် အတည်ပြုချက်များ" },
+  perm_guide_hr:               { en: "— payroll, leave, employee records", my: "— လစာ၊ ခွင့်၊ ဝန်ထမ်းမှတ်တမ်းများ" },
+  perm_guide_admin:            { en: "— all settings, full access",       my: "— ဆက်တင်အားလုံး၊ အပြည့်အဝဝင်ရောက်ခွင့်" },
 
   // ── Admin hr-fields ───────────────────────────────────────────────────────
   heading_custom_emp_fields:   { en: "Custom Employee Fields",            my: "ဝန်ထမ်း စိတ်ကြိုက်ကော်လံများ" },
@@ -1004,11 +1066,14 @@ const dict: Record<string, { en: string; my: string }> = {
   btn_enable:                  { en: "Enable",                            my: "ဖွင့်ရန်" },
   btn_disable:                 { en: "Disable",                           my: "ပိတ်ရန်" },
   empty_no_custom_fields:      { en: "No custom fields yet",              my: "စိတ်ကြိုက်ကော်လံ မရှိသေးပါ" },
+  placeholder_nrc_number_example: { en: "e.g. NRC Number",                my: "ဉပမာ: မှတ်ပုံတင်နံပါတ်" },
+  placeholder_option_a_b_example: { en: "Option A, Option B",             my: "ရွေးချယ်စရာ က, ရွေးချယ်စရာ ခ" },
 
   // ── Leave request page ────────────────────────────────────────────────────
   label_unpaid_leave:          { en: "Unpaid leave",                      my: "ပေးငွေမပါသောခွင့်" },
   hint_leave_unpaid_detail:    { en: "Leave requests are unpaid and require manager approval. Rest days don't need a request.", my: "ခွင့်တောင်းချက်များသည် ပေးငွေမပါ၊ မန်နေဂျာ အတည်ပြုချက် လိုအပ်သည်" },
   placeholder_date_ddmmm:      { en: "DD-MMM-YYYY  e.g. 02-Jul-2026",   my: "DD-MMM-YYYY  ဉပမာ: 02-Jul-2026" },
+  placeholder_select_date:     { en: "Select date",                      my: "ရက်စွဲ ရွေးပါ" },
 
   // ── Cashier history page ──────────────────────────────────────────────────
   nav_history:                 { en: "History",                           my: "မှတ်တမ်း" },
@@ -1061,6 +1126,11 @@ const dict: Record<string, { en: string; my: string }> = {
   label_filter_category:       { en: "Filter by category",                 my: "အမျိုးအစားဖြင့် စစ်ထုတ်ရန်" },
   option_all_categories:       { en: "All Items",                          my: "ပစ္စည်းအားလုံး" },
   col_unit_label:              { en: "Unit",                               my: "ယူနစ်" },
+  heading_recent_spot_checks:  { en: "Recent spot checks",                 my: "မကြာသေးမီ စစ်ဆေးချက်များ" },
+  heading_recent_weekly_counts:{ en: "Recent weekly counts",               my: "မကြာသေးမီ အပတ်စဉ်စစ်ဆေးမှုများ" },
+  placeholder_notes_discrepancies: { en: "Notes on discrepancies found…",  my: "မကိုက်ညီမှုများအတွက် မှတ်ချက်…" },
+  placeholder_notes_ellipsis:  { en: "Notes…",                             my: "မှတ်ချက်…" },
+  label_n_items:                { en: "{n} items",                        my: "{n} ခု" },
 
   // ── Daily report ────────────────────────────────────────────────────────────
   tab_daily_summary:           { en: "Daily Summary",                      my: "နေ့စဉ်အကျဉ်းချုပ်" },
@@ -1071,6 +1141,123 @@ const dict: Record<string, { en: string; my: string }> = {
   btn_submit_report:           { en: "Submit Report",                      my: "အစီရင်ခံစာ တင်ရန်" },
   empty_no_daily_reports:      { en: "No reports submitted yet.",          my: "အစီရင်ခံစာ မရှိသေးပါ" },
   label_report_by:             { en: "by",                                 my: "မှ" },
+
+  // ── App home ──────────────────────────────────────────────────────────────
+  heading_welcome:             { en: "Welcome, {name}",                    my: "ကြိုဆိုပါတယ်၊ {name}" },
+  empty_no_modules_assigned:   { en: "No modules are assigned to your account yet. Please contact an administrator to get access.", my: "သင့်အကောင့်တွင် ခွင့်ပြုထားသော module မရှိသေးပါ။ ဝင်ရောက်ခွင့်ရရန် အက်ဒမင်ကို ဆက်သွယ်ပါ" },
+
+  // ── Cash Collection page ─────────────────────────────────────────────────
+  heading_cash_collection:     { en: "Cash Collection",                    my: "ငွေသား ကောက်ခံမှု" },
+  label_cash_collection_desc:  { en: "Record cash taken from or added to the drawer. The cashier's opening float is auto-calculated from this ledger.", my: "ဘောက်ချာမှ ထုတ်/ထည့်သော ငွေသားကို မှတ်တမ်းတင်ပါ။ ငွေကောက်၏ အဖွင့်ငွေကို ဤမှတ်တမ်းမှ အလိုအလျောက် တွက်ချက်မည်" },
+  hint_cash_collection_warning:{ en: "Only record money that physically moves right now. To leave a float for tomorrow, collect just the excess — do not inject tomorrow's float in advance.", my: "ယခုချက်ချင်း အမှန်တကယ်ရွှေ့ပြောင်းနေသောငွေကိုသာ မှတ်တမ်းတင်ပါ။ မနက်ဖြန်အတွက် အဖွင့်ငွေထားလိုလျှင် ပိုငွေကိုသာ ထုတ်ယူပါ" },
+  label_current_cash_standing: { en: "Current cash standing",              my: "လက်ရှိငွေသားအနေအထား" },
+  label_based_on_last_shift:   { en: "Based on last shift closed {date}",  my: "နောက်ဆုံးပိတ်ထားသော Shift {date} အပေါ်အခြေခံသည်" },
+  label_amount_counted:        { en: "({amount} counted)",                 my: "({amount} ရေတွက်ထား)" },
+  label_no_closed_shifts_injections_only: { en: "No closed shifts yet — based on injections only", my: "ပိတ်ထားသောShift မရှိသေးပါ — ထည့်သွင်းငွေအပေါ်သာ အခြေခံသည်" },
+  heading_daily_cash_on_hand:  { en: "Daily cash on hand",                 my: "နေ့စဉ်ရရှိသောငွေသား" },
+  hint_daily_cash_explain:     { en: "Start = opening float of the first shift that day. End = counted cash at the close of the last shift that day (a shift spanning midnight counts toward the day it opened). Cash income/expense are scoped to the calendar day itself, not to a shift — so an expense entered after the shift closes still counts.", my: "Start = ထိုနေ့ ပထမShift၏ အဖွင့်ငွေ။ End = ထိုနေ့ နောက်ဆုံးShift ပိတ်ချိန်တွင် ရေတွက်ထားသောငွေ။ ငွေဝင်/ထွက်ကို ရက်အလိုက် တွက်ချက်သည်" },
+  empty_no_shift_cash_activity:{ en: "No shifts or cash-drawer activity in this range.", my: "ဤကာလအတွင်း Shift သို့မဟုတ် ငွေသားလှုပ်ရှားမှု မရှိပါ" },
+  label_n_shifts:              { en: "{n} shift(s)",                       my: "{n} Shift" },
+  label_cash_income:           { en: "Cash income",                        my: "ငွေသားဝင်ငွေ" },
+  label_cash_expense:          { en: "Cash expense",                       my: "ငွေသားကုန်ကျစရိတ်" },
+  label_end:                   { en: "End",                                my: "အဆုံး" },
+  label_shift_in_progress:     { en: "shift in progress",                  my: "Shift ဆက်လက်လုပ်ဆောင်နေသည်" },
+  col_shifts:                  { en: "Shifts",                             my: "Shiftများ" },
+  label_start_of_day_time:     { en: "Start of day (time)",                my: "နေ့စတင်ချိန် (အချိန်)" },
+  label_cash_at_start:         { en: "Cash at start",                      my: "အစတွင် ငွေသား" },
+  label_end_of_day_time:       { en: "End of day (time)",                  my: "နေ့ပြီးဆုံးချိန် (အချိန်)" },
+  label_cash_at_end:           { en: "Cash at end",                        my: "အဆုံးတွင် ငွေသား" },
+  label_in_progress:           { en: "in progress",                        my: "ဆက်လက်လုပ်ဆောင်နေသည်" },
+  heading_collection_history:  { en: "Collection history",                 my: "ကောက်ခံမှု မှတ်တမ်း" },
+  empty_no_records:            { en: "No records yet.",                    my: "မှတ်တမ်း မရှိသေးပါ" },
+  badge_collect:                { en: "↓ Collect",                         my: "↓ ကောက်ရန်" },
+  badge_inject:                 { en: "↑ Inject",                          my: "↑ ထည့်ရန်" },
+
+  // ── Cashier — Expense Form (extra) ───────────────────────────────────────
+  hint_stock_categories_only:  { en: "(stock categories only)",           my: "(ကုန်ပစ္စည်း အမျိုးအစားများသာ)" },
+  hint_bank_transfer_ap:       { en: "Bank transfer goes to AP — does not affect drawer cash.", my: "ဘဏ်လွှဲသည် AP သို့ရောက်မည် — ဘောက်ချာငွေသားကို မထိခိုက်ပါ" },
+  placeholder_advance_payment_example: { en: "e.g. Advance payment for beer order", my: "ဉပမာ: ဘီယာမှာယူမှုအတွက် ကြိုတင်ငွေပေးချေမှု" },
+  label_date_colon:            { en: "Date:",                              my: "ရက်စွဲ:" },
+  heading_line_items_breakdown:{ en: "Line Items (breakdown)",             my: "ပစ္စည်းမျဉ်းများ (အသေးစိတ်)" },
+  placeholder_select_item:     { en: "— Select item —",                    my: "— ပစ္စည်း ရွေးပါ —" },
+  placeholder_select_category_first: { en: "Select category first",       my: "ဦးစွာ အမျိုးအစား ရွေးပါ" },
+  placeholder_description_required: { en: "Description *",                my: "ဖော်ပြချက် *" },
+  placeholder_price:           { en: "Price",                              my: "ဈေးနှုန်း" },
+
+  // ── Cashier — Expense List ────────────────────────────────────────────────
+  tab_filter_all:               { en: "All",                               my: "အားလုံး" },
+  tab_filter_cash:               { en: "Cash",                             my: "ငွေသား" },
+  tab_filter_bank:               { en: "Bank",                             my: "ဘဏ်" },
+  badge_stock:                   { en: "Stock",                            my: "ကုန်ပစ္စည်း" },
+  badge_non_stock:                { en: "Non-stock",                       my: "ကုန်ပစ္စည်းမဟုတ်" },
+  label_rejected_reason:          { en: "Rejected: {reason}",              my: "ပယ်ချထားသည်: {reason}" },
+  label_rejected_by_manager:      { en: "Rejected by manager",             my: "မန်နေဂျာမှ ပယ်ချထားသည်" },
+
+  // ── HR — Delete employee ─────────────────────────────────────────────────
+  confirm_delete_employee:     { en: "Permanently delete \"{name}\"?\n\nThis will remove all their attendance, leave, advances, fines, and payroll records. The login account will be deactivated.\n\nThis cannot be undone.", my: "\"{name}\" ကို အပြီးဖျက်မည်လား?\n\nတက်ရောက်မှု၊ ခွင့်၊ ကြိုတင်ငွေ၊ ဒဏ်ကြေးနှင့် လစာမှတ်တမ်းအားလုံး ဖျက်သွားမည်။ ဝင်ရောက်အကောင့်ကို ရပ်ဆိုင်းမည်။\n\nပြန်ဖြည်နိုင်မည် မဟုတ်ပါ" },
+
+  // ── Month names ───────────────────────────────────────────────────────────
+  month_1:                     { en: "January",                            my: "ဇန်နဝါရီ" },
+  month_2:                     { en: "February",                           my: "ဖေဖော်ဝါရီ" },
+  month_3:                     { en: "March",                              my: "မတ်" },
+  month_4:                     { en: "April",                              my: "ဧပြီ" },
+  month_5:                     { en: "May",                                my: "မေ" },
+  month_6:                     { en: "June",                               my: "ဇွန်" },
+  month_7:                     { en: "July",                               my: "ဇူလိုင်" },
+  month_8:                     { en: "August",                             my: "သြဂုတ်" },
+  month_9:                     { en: "September",                          my: "စက်တင်ဘာ" },
+  month_10:                    { en: "October",                            my: "အောက်တိုဘာ" },
+  month_11:                    { en: "November",                           my: "နိုဝင်ဘာ" },
+  month_12:                    { en: "December",                           my: "ဒီဇင်ဘာ" },
+
+  // ── HR — Payslip ──────────────────────────────────────────────────────────
+  label_absence_deduction_calc:{ en: "Absence Deduction ({days} day{s} × {rate})", my: "ပျက်ကွက်ကြောင့်နုတ်ငွေ ({days} ရက်{s} × {rate})" },
+  label_ot_premium_calc:       { en: "OT Premium ({days} day × 0.5×)",     my: "OT ဆောင်ကြေး ({days} ရက် × 0.5×)" },
+  label_attendance_bonus_perfect: { en: "Attendance Bonus (perfect attendance)", my: "တက်ရောက်မှုဆု (အပြည့်တက်ရောက်)" },
+  label_advance_repayment_note: { en: "Advance repayment{note}",           my: "ကြိုတင်ငွေ ပြန်ဆပ်မှု{note}" },
+  label_fine_reason:            { en: "Fine: {reason}",                    my: "ဒဏ်ကြေး: {reason}" },
+
+  // ── Inventory delivery — cashier invoice forms ───────────────────────────
+  label_payment_method_full:   { en: "Payment Method",                     my: "ငွေပေးချေနည်း" },
+  placeholder_office_supplies_example: { en: "e.g. Office supplies",       my: "ဉပမာ: ရုံးသုံးပစ္စည်း" },
+  placeholder_weekly_grocery_example:  { en: "e.g. Weekly grocery delivery", my: "ဉပမာ: အပတ်စဉ်ကုန်ပစ္စည်းပို့ဆောင်မှု" },
+  heading_invoice_line_items:  { en: "Invoice Line Items",                 my: "ဘောင်ချာပစ္စည်းစာရင်း" },
+  placeholder_qty_required:    { en: "Qty *",                              my: "ပမာဏ *" },
+  placeholder_kg_box_example:  { en: "kg / box",                           my: "kg / box" },
+  label_unit_cost_mmk:         { en: "Unit Cost (MMK)",                    my: "တစ်ခုချင်းစျေး (ကျပ်)" },
+  label_total_amount_mmk:      { en: "Total: {amount} MMK",                my: "စုစုပေါင်း: {amount} ကျပ်" },
+  hint_non_stock_cashier_only: { en: "Non-stock invoices are cashier-only — no counter count required. Submitted immediately as complete.", my: "ကုန်ပစ္စည်းမဟုတ်သော ဘောင်ချာများသည် ငွေကောက်သီးသန့်ဖြစ်ပြီး ရေတွက်ရန် မလိုပါ — ချက်ချင်းပြီးဆုံးသည်" },
+  btn_clear:                    { en: "Clear",                             my: "ရှင်းလင်းရန်" },
+  hint_leave_blank_not_in_delivery: { en: "Leave blank for items not in this delivery.", my: "ဤပို့ဆောင်မှုတွင်မပါသော ပစ္စည်းများအတွက် အလွတ်ထားပါ" },
+
+  // ── Manager — Live Attendance ─────────────────────────────────────────────
+  label_break_count:            { en: "{n} break(s)",                     my: "{n} ကြိမ် အနားယူ" },
+  label_total_suffix:           { en: "total",                            my: "စုစုပေါင်း" },
+  label_break_since:            { en: "Break since {time} · {summary}",  my: "{time} မှစ၍ အနားယူနေသည် · {summary}" },
+  label_since_time:             { en: "Since {time} ·",                  my: "{time} မှစ၍ ·" },
+  heading_eod_review_statuses:  { en: "End-of-day review statuses:",     my: "နေ့ပိတ်စစ်ဆေးမှု အနေအထားများ:" },
+  legend_desc_present:          { en: "— worked a normal shift, counts toward monthly working days", my: "— ပုံမှန်အလုပ်ဆင်း၊ လစဉ်အလုပ်ရက်တွင် ပါဝင်သည်" },
+  legend_desc_ot:                { en: "— worked an extra day beyond required days — earns OT premium", my: "— သတ်မှတ်ရက်ထက် ပိုအလုပ်ဆင်း — OT ဆောင်ကြေးရမည်" },
+  legend_desc_absent:            { en: "— did not come in — daily rate deducted", my: "— မလာရောက် — တစ်နေ့စာနှုန်း နုတ်မည်" },
+  legend_desc_leave:             { en: "— on approved leave — daily rate deducted (same as absent)", my: "— ခွင့်ရသည် — တစ်နေ့စာနှုန်း နုတ်မည် (ပျက်ကွက်ကဲ့သို့)" },
+  legend_desc_rest_day:          { en: "— scheduled off, excluded from working-day count", my: "— သတ်မှတ်အနားရက်၊ အလုပ်ရက်တွက်ချက်မှုမှ ချန်လှပ်သည်" },
+  legend_key_present:            { en: "PRESENT",                          my: "တက်ရောက်" },
+  legend_key_ot:                 { en: "OT",                               my: "OT" },
+  legend_key_absent:             { en: "ABSENT",                           my: "ပျက်ကွက်" },
+  legend_key_leave:              { en: "LEAVE",                            my: "ခွင့်" },
+  legend_key_rest_day:           { en: "REST DAY",                         my: "အနားရက်" },
+
+  // ── Reports — Movements table ─────────────────────────────────────────────
+  label_diners_ac:              { en: "Diners (A / C)",                   my: "ဧည့်သည် (လူကြီး/ကလေး)" },
+  label_revenue:                { en: "Revenue",                          my: "ဝင်ငွေ" },
+  empty_no_tables_settled:      { en: "No tables settled on this day.",   my: "ဤနေ့တွင် ရှင်းလင်းပြီးသောစားပွဲ မရှိပါ" },
+  empty_no_line_items:          { en: "No line items.",                   my: "ပစ္စည်းစာရင်း မရှိပါ" },
+  label_bill_total:             { en: "Bill total",                       my: "ဘေလ်စုစုပေါင်း" },
+
+  // ── Kitchen (extra) ───────────────────────────────────────────────────────
+  label_n_pending:              { en: "{n} pending",                      my: "{n} စောင့်ဆိုင်းနေ" },
+  label_addon_suffix:           { en: "(add-on)",                         my: "(ထပ်တိုး)" },
+  label_ordered_prefix:         { en: "ordered",                          my: "မှာယူချိန်" },
 };
 
 export function tKey(key: string, lang: Lang, vars?: Record<string, string>): string {

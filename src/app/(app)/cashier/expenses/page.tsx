@@ -130,6 +130,31 @@ export default async function ExpensesPage() {
               amount: t("label_amount"),
               record: t("btn_record_prepayment"),
               cancel: t("btn_cancel"),
+              invoiceType: t("label_invoice_type"),
+              stockInvoiceToggle: t("option_stock_invoice"),
+              nonStockInvoiceToggle: t("option_non_stock_invoice"),
+              category: t("label_category"),
+              categoryStockOnlyHint: t("hint_stock_categories_only"),
+              selectCategoryPlaceholder: `— ${t("label_category")} —`,
+              paidFrom: t("label_paid_from"),
+              radioCashDrawer: t("radio_cash_drawer"),
+              radioBankTransfer: t("radio_bank_transfer"),
+              bankTransferHint: t("hint_bank_transfer_ap"),
+              description: t("placeholder_description"),
+              descriptionPlaceholderPrepay: t("placeholder_advance_payment_example"),
+              dateLabel: t("label_date_colon"),
+              lineItemsHeading: t("heading_line_items_breakdown"),
+              addLine: t("btn_add_line"),
+              selectItemPlaceholder: t("placeholder_select_item"),
+              selectCategoryFirstPlaceholder: t("placeholder_select_category_first"),
+              lineDescPlaceholder: t("placeholder_description_required"),
+              unitPlaceholder: t("label_unit"),
+              qtyPlaceholder: t("col_qty"),
+              price: t("placeholder_price"),
+              total: t("label_total"),
+              receipts: t("label_receipts_optional"),
+              saving: t("pending_saving"),
+              addExpense: t("btn_add_expense"),
             }}
           />
         </section>
@@ -146,7 +171,27 @@ export default async function ExpensesPage() {
             </div>
           </div>
 
-          <ExpenseList expenses={serializedExpenses} currency={settings.currency} />
+          <ExpenseList
+            expenses={serializedExpenses}
+            currency={settings.currency}
+            labels={{
+              heading: t("section_today_expenses"),
+              filterAll: t("tab_filter_all"),
+              filterCash: t("tab_filter_cash"),
+              filterBank: t("tab_filter_bank"),
+              empty: t("empty_no_expenses"),
+              badgeStock: t("badge_stock"),
+              badgeNonStock: t("badge_non_stock"),
+              badgeRejected: t("badge_expense_rejected"),
+              badgeConfirmed: t("badge_expense_confirmed"),
+              badgeAwaiting: t("badge_expense_awaiting"),
+              sourceCashDrawer: t("source_cash_drawer"),
+              sourceBankTransfer: t("source_bank_transfer"),
+              rejectedReasonTemplate: t("label_rejected_reason"),
+              rejectedByManager: t("label_rejected_by_manager"),
+              altReceipt: t("btn_receipt"),
+            }}
+          />
         </section>
       </div>
     </div>

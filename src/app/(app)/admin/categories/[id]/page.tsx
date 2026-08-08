@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAnyRole } from "@/lib/auth";
+import { getT } from "@/lib/lang";
 import SubmitButton from "@/components/SubmitButton";
 import type { StockUnit } from "@prisma/client";
 import { mkdirSync, writeFileSync, existsSync, unlinkSync } from "fs";
@@ -204,6 +205,7 @@ export default async function CategoryItemsPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   await requireAnyRole(["ADMIN"]);
+  const t = await getT();
   const { id } = await params;
   const { edit } = await searchParams;
 
@@ -233,40 +235,39 @@ export default async function CategoryItemsPage({
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center gap-3">
         <Link href="/admin/categories" className="text-sm text-brand hover:underline">
-          ← Expense Categories
+          {t("link_back_expense_categories")}
         </Link>
         <h2 className="text-base font-semibold text-gray-800">
-          {category.name} — Items
+          {t("heading_category_items", { name: category.name })}
         </h2>
         {category.isStock && (
           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-            Stock
+            {t("col_stock_level")}
           </span>
         )}
       </div>
 
       {!category.isStock && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          This category is not marked as Stock. Items here appear as description dropdowns in the expense form.
-          Min/Optimal stock fields are only active for Stock categories.
+          {t("warning_category_not_stock")}
         </div>
       )}
 
       {/* Edit panel */}
       {editing && (
         <section className="rounded-xl bg-white p-4 shadow-sm border border-blue-100">
-          <h3 className="mb-3 text-sm font-semibold text-gray-700">Edit: {editing.name}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("label_edit_prefix")} {editing.name}</h3>
           <form action={updateItem} className="space-y-2 text-sm" encType="multipart/form-data">
             <input type="hidden" name="id" value={editing.id} />
             <input type="hidden" name="categoryId" value={id} />
             <input name="name" required defaultValue={editing.name}
-              placeholder="Item name"
+              placeholder={t("label_item_name")}
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
             <input name="defaultUnit" defaultValue={editing.defaultUnit ?? ""}
-              placeholder="Default unit in expense form (e.g. kg, box)"
+              placeholder={t("placeholder_default_unit")}
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Item Image (optional)</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">{t("label_item_image_optional")}</label>
               {editing.imageUrl && (
                 <img src={`/api/uploads/${editing.imageUrl}`} alt={editing.name}
                   className="mb-1.5 h-20 w-20 rounded-lg border object-cover" />
@@ -277,13 +278,13 @@ export default async function CategoryItemsPage({
             {category.isStock && (
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Min Stock</label>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">{t("label_min_stock")}</label>
                   <input name="minStock" type="number" min="0" defaultValue={editing.minStock ?? ""}
                     placeholder="—"
                     className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Optimal Stock</label>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">{t("label_optimal_stock")}</label>
                   <input name="optimalStock" type="number" min="0" defaultValue={editing.optimalStock ?? ""}
                     placeholder="—"
                     className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
@@ -292,11 +293,11 @@ export default async function CategoryItemsPage({
             )}
             <div className="flex gap-2">
               <SubmitButton className="flex-1 rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-                Save
+                {t("btn_save")}
               </SubmitButton>
               <a href={`/admin/categories/${id}`}
                 className="flex-1 rounded-lg border border-gray-300 py-2 text-center text-sm text-gray-600 hover:bg-gray-50">
-                Cancel
+                {t("btn_cancel")}
               </a>
             </div>
           </form>
@@ -306,23 +307,23 @@ export default async function CategoryItemsPage({
       {/* Existing items */}
       <section className="rounded-xl bg-white shadow-sm">
         <h3 className="border-b border-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
-          Items ({category.items.length})
+          {t("col_items")} ({category.items.length})
         </h3>
         {category.items.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-gray-400">No items yet. Add one below.</p>
+          <p className="px-4 py-3 text-sm text-gray-400">{t("empty_no_items_add_below")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500">
-                <th className="px-4 py-2 text-left font-medium">Name</th>
-                <th className="px-4 py-2 text-left font-medium">Unit</th>
+                <th className="px-4 py-2 text-left font-medium">{t("col_name")}</th>
+                <th className="px-4 py-2 text-left font-medium">{t("label_unit")}</th>
                 {category.isStock && (
                   <>
-                    <th className="px-4 py-2 text-center font-medium">Stock</th>
-                    <th className="px-4 py-2 text-center font-medium">Min / Optimal</th>
+                    <th className="px-4 py-2 text-center font-medium">{t("col_stock_level")}</th>
+                    <th className="px-4 py-2 text-center font-medium">{t("col_min_optimal")}</th>
                   </>
                 )}
-                <th className="px-4 py-2 text-right font-medium">Actions</th>
+                <th className="px-4 py-2 text-right font-medium">{t("col_actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -353,18 +354,18 @@ export default async function CategoryItemsPage({
                     )}
                     <td className="px-4 py-2 text-right space-x-3">
                       <a href={`/admin/categories/${id}?edit=${item.id}`}
-                        className="text-xs text-blue-600 hover:underline">Edit</a>
+                        className="text-xs text-blue-600 hover:underline">{t("btn_edit")}</a>
                       <form action={toggleItem} className="inline">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="categoryId" value={id} />
                         <button className="text-xs text-gray-500 hover:underline">
-                          {item.isActive ? "Hide" : "Show"}
+                          {item.isActive ? t("btn_hide") : t("btn_show")}
                         </button>
                       </form>
                       <form action={deleteItem} className="inline">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="categoryId" value={id} />
-                        <button className="text-xs text-red-500 hover:underline">Delete</button>
+                        <button className="text-xs text-red-500 hover:underline">{t("btn_delete")}</button>
                       </form>
                     </td>
                   </tr>
@@ -377,35 +378,35 @@ export default async function CategoryItemsPage({
 
       {/* Add new item */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Add Item</h3>
+        <h3 className="mb-3 text-sm font-semibold text-gray-700">{t("btn_add_item")}</h3>
         <form action={addItem} className="space-y-2 text-sm" encType="multipart/form-data">
           <input type="hidden" name="categoryId" value={id} />
-          <input name="name" required placeholder="Item name (e.g. Pork Belly)"
+          <input name="name" required placeholder={t("placeholder_item_name_example")}
             className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           <input name="defaultUnit"
-            placeholder="Default unit in expense form (e.g. kg, box)"
+            placeholder={t("placeholder_default_unit")}
             className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Item Image (optional)</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">{t("label_item_image_optional")}</label>
             <input name="image" type="file" accept="image/*"
               className="w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-brand" />
           </div>
           {category.isStock && (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">Min Stock (alert)</label>
+                <label className="mb-1 block text-xs font-medium text-gray-500">{t("label_min_stock_alert")}</label>
                 <input name="minStock" type="number" min="0" placeholder="—"
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">Optimal Stock</label>
+                <label className="mb-1 block text-xs font-medium text-gray-500">{t("label_optimal_stock")}</label>
                 <input name="optimalStock" type="number" min="0" placeholder="—"
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5" />
               </div>
             </div>
           )}
           <SubmitButton className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-            Add Item
+            {t("btn_add_item")}
           </SubmitButton>
         </form>
       </section>

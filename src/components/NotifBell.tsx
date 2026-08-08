@@ -14,9 +14,11 @@ interface Notif {
 export default function NotifBell({
   initialNotifs,
   markReadAction,
+  labels,
 }: {
   initialNotifs: Notif[];
   markReadAction: (id: string) => Promise<void>;
+  labels: { title: string; markAllRead: string; empty: string };
 }) {
   const [notifs, setNotifs] = useState<Notif[]>(initialNotifs);
   const [open, setOpen] = useState(false);
@@ -55,7 +57,7 @@ export default function NotifBell({
       <button
         onClick={handleOpen}
         className="relative rounded-lg bg-white/15 p-1.5 hover:bg-white/25"
-        aria-label="Notifications"
+        aria-label={labels.title}
       >
         <span className="text-lg">🔔</span>
         {unread > 0 && (
@@ -68,19 +70,19 @@ export default function NotifBell({
       {open && (
         <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-200 bg-white shadow-xl">
           <div className="flex items-center justify-between border-b px-4 py-2">
-            <span className="font-semibold text-gray-800">Notifications</span>
+            <span className="font-semibold text-gray-800">{labels.title}</span>
             {unread > 0 && (
               <button
                 onClick={() => notifs.filter((n) => !n.isRead).forEach((n) => handleMarkRead(n.id))}
                 className="text-xs text-brand hover:underline"
               >
-                Mark all read
+                {labels.markAllRead}
               </button>
             )}
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifs.length === 0 ? (
-              <p className="p-4 text-center text-sm text-gray-500">No notifications</p>
+              <p className="p-4 text-center text-sm text-gray-500">{labels.empty}</p>
             ) : (
               notifs.slice(0, 20).map((n) => (
                 <div

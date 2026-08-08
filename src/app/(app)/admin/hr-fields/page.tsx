@@ -42,7 +42,7 @@ export default async function HRFieldsPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="label">{t("col_name")}</label>
-            <input name="label" required className="input" placeholder="e.g. NRC Number" />
+            <input name="label" required className="input" placeholder={t("placeholder_nrc_number_example")} />
           </div>
           <div>
             <label className="label">{t("col_type")}</label>
@@ -55,7 +55,7 @@ export default async function HRFieldsPage() {
           </div>
           <div>
             <label className="label">{t("label_options_csv")}</label>
-            <input name="options" className="input" placeholder="Option A, Option B" />
+            <input name="options" className="input" placeholder={t("placeholder_option_a_b_example")} />
           </div>
           <div className="flex items-end gap-3">
             <label className="flex items-center gap-2 text-sm">

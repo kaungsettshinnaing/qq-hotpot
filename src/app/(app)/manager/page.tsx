@@ -138,7 +138,40 @@ export default async function ManagerDashboard() {
           <h2 className="text-base font-semibold text-gray-800">{t("heading_live_attendance")}</h2>
           <Link href="/manager/attendance" className="text-xs text-brand hover:underline">{t("link_full_view")} →</Link>
         </div>
-        <LiveAttendance entries={serialised} />
+        <LiveAttendance
+          entries={serialised}
+          labels={{
+            statusNotStarted: t("status_not_started"),
+            statusWorking: t("status_working"),
+            statusOnBreak: t("status_on_break"),
+            statusClockedOut: t("status_clocked_out"),
+            statusOnLeave: t("status_on_leave"),
+            statusRestDay: t("status_rest_day"),
+            noActiveEmployees: t("empty_no_active_employees"),
+            colEmployee: t("col_employee"),
+            colStatus: t("col_status"),
+            colClockIn: t("col_clock_in"),
+            colBreakTime: t("col_break_time"),
+            colClockOut: t("col_clock_out"),
+            clockInPrefix: t("attendance_clock_in"),
+            clockOutPrefix: t("attendance_clock_out"),
+            breakSinceTemplate: t("label_break_since"),
+            sinceTimeTemplate: t("label_since_time"),
+            breakCountTemplate: t("label_break_count"),
+            totalSuffix: t("label_total_suffix"),
+            eodReviewHeading: t("heading_eod_review_statuses"),
+            legendPresent: t("legend_desc_present"),
+            legendOt: t("legend_desc_ot"),
+            legendAbsent: t("legend_desc_absent"),
+            legendLeave: t("legend_desc_leave"),
+            legendRestDay: t("legend_desc_rest_day"),
+            legendKeyPresent: t("legend_key_present"),
+            legendKeyOt: t("legend_key_ot"),
+            legendKeyAbsent: t("legend_key_absent"),
+            legendKeyLeave: t("legend_key_leave"),
+            legendKeyRestDay: t("legend_key_rest_day"),
+          }}
+        />
       </div>
     </div>
   );

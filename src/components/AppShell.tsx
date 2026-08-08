@@ -2,17 +2,20 @@ import { modulesFor, hasAnyRole } from "@/lib/rbac";
 import type { SessionUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/session-actions";
 import { prisma } from "@/lib/db";
+import { getT } from "@/lib/lang";
 import NavBar from "./NavBar";
 import NotifBell from "./NotifBell";
 
 const ROLE_PRIORITY = ["ADMIN", "MANAGER", "HR", "CASHIER", "KITCHEN", "WAITER", "MARKETING"] as const;
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: "Admin", MANAGER: "Manager", HR: "HR",
-  CASHIER: "Cashier", KITCHEN: "Kitchen", WAITER: "Waiter", MARKETING: "Marketing",
-};
-function primaryRole(roles: string[]): string {
-  for (const r of ROLE_PRIORITY) if (roles.includes(r)) return ROLE_LABEL[r] ?? r;
-  return roles[0] ?? "Staff";
+function roleLabel(t: Awaited<ReturnType<typeof getT>>): Record<string, string> {
+  return {
+    ADMIN: t("role_admin"), MANAGER: t("role_manager"), HR: t("role_hr"),
+    CASHIER: t("role_cashier"), KITCHEN: t("role_kitchen"), WAITER: t("role_waiter"), MARKETING: t("role_marketing"),
+  };
+}
+function primaryRole(roles: string[], labels: Record<string, string>, staffFallback: string): string {
+  for (const r of ROLE_PRIORITY) if (roles.includes(r)) return labels[r] ?? r;
+  return roles[0] ?? staffFallback;
 }
 
 async function markReadAction(id: string): Promise<void> {
@@ -29,7 +32,9 @@ export default async function AppShell({
   title: string;
   children: React.ReactNode;
 }) {
+  const t = await getT();
   const mods = modulesFor(user.roles);
+  const roleLabels = roleLabel(t);
 
   const showBell = hasAnyRole(user.roles, ["MANAGER", "ADMIN", "HR"]);
   const notifs = showBell
@@ -46,6 +51,12 @@ export default async function AppShell({
     createdAt: n.createdAt.toISOString(),
   }));
 
+  const notifLabels = {
+    title: t("notifications_title"),
+    markAllRead: t("btn_mark_all_read"),
+    empty: t("empty_notifications"),
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header className="sticky top-0 z-20 shadow-md"
@@ -59,7 +70,7 @@ export default async function AppShell({
             </div>
             <div className="hidden sm:block leading-tight">
               <div className="text-sm font-bold text-gold tracking-wide">{title}</div>
-              <div className="text-[10px] text-white/60 uppercase tracking-widest">Management</div>
+              <div className="text-[10px] text-white/60 uppercase tracking-widest">{t("shell_management")}</div>
             </div>
           </div>
 
@@ -71,18 +82,18 @@ export default async function AppShell({
           {/* Right: bell + user + logout */}
           <div className="order-2 ml-auto flex items-center gap-3 sm:order-3">
             {showBell && (
-              <NotifBell initialNotifs={serialised} markReadAction={markReadAction} />
+              <NotifBell initialNotifs={serialised} markReadAction={markReadAction} labels={notifLabels} />
             )}
             <div className="text-right leading-tight">
               <div className="text-sm font-semibold text-white">{user.name}</div>
-              <div className="text-[10px] text-white/60">{primaryRole(user.roles)}</div>
+              <div className="text-[10px] text-white/60">{primaryRole(user.roles, roleLabels, t("role_staff"))}</div>
             </div>
             <form action={logoutAction}>
               <button
                 type="submit"
                 className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors"
               >
-                Logout
+                {t("btn_logout")}
               </button>
             </form>
           </div>

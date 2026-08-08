@@ -20,12 +20,35 @@ function newRow(): Row {
   return { key: Math.random().toString(36).slice(2), description: "", qty: "", unitLabel: "", unitCost: "" };
 }
 
+export interface NonStockInvoiceLabels {
+  expenseCategory: string;
+  selectPlaceholder: string;
+  paymentMethod: string;
+  cash: string;
+  bank: string;
+  description: string;
+  descriptionPlaceholder: string;
+  lineItemsHeading: string;
+  addLine: string;
+  descRequired: string;
+  itemNamePlaceholder: string;
+  qtyRequired: string;
+  unit: string;
+  kgBoxPlaceholder: string;
+  unitCostMmk: string;
+  totalTemplate: string; // contains "{amount}"
+  nonStockHint: string;
+  submitInvoice: string;
+}
+
 export default function NonStockInvoiceForm({
   deliveryId,
   expenseCategories,
+  labels,
 }: {
   deliveryId: string;
   expenseCategories: ExpenseCategory[];
+  labels: NonStockInvoiceLabels;
 }) {
   const [rows, setRows] = useState<Row[]>([newRow()]);
 
@@ -53,37 +76,37 @@ export default function NonStockInvoiceForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Expense Category</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">{labels.expenseCategory}</label>
           <select name="categoryId" required className="w-full rounded-lg border border-gray-300 px-3 py-2">
-            <option value="">— Select —</option>
+            <option value="">{labels.selectPlaceholder}</option>
             {expenseCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Payment Method</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">{labels.paymentMethod}</label>
           <div className="flex gap-4 pt-2">
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> Cash
+              <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> {labels.cash}
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> Bank
+              <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> {labels.bank}
             </label>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-600">Description</label>
-        <input name="description" placeholder="e.g. Office supplies" maxLength={300}
+        <label className="mb-1 block text-xs font-medium text-gray-600">{labels.description}</label>
+        <input name="description" placeholder={labels.descriptionPlaceholder} maxLength={300}
           className="w-full rounded-lg border border-gray-300 px-3 py-2" />
       </div>
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Invoice Line Items</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">{labels.lineItemsHeading}</h3>
           <button type="button" onClick={addRow}
             className="text-xs font-medium text-brand hover:underline">
-            + Add Line
+            + {labels.addLine}
           </button>
         </div>
 
@@ -91,18 +114,18 @@ export default function NonStockInvoiceForm({
           {rows.map((row, i) => (
             <div key={row.key} className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-4">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Description *</div>}
+                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">{labels.descRequired}</div>}
                 <input
                   name="lineDesc"
                   value={row.description}
                   onChange={(e) => update(row.key, "description", e.target.value)}
-                  placeholder="Item name"
+                  placeholder={labels.itemNamePlaceholder}
                   required
                   className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
                 />
               </div>
               <div className="col-span-2">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Qty *</div>}
+                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">{labels.qtyRequired}</div>}
                 <input
                   name="lineQty"
                   value={row.qty}
@@ -116,17 +139,17 @@ export default function NonStockInvoiceForm({
                 />
               </div>
               <div className="col-span-2">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Unit</div>}
+                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">{labels.unit}</div>}
                 <input
                   name="lineUnit"
                   value={row.unitLabel}
                   onChange={(e) => update(row.key, "unitLabel", e.target.value)}
-                  placeholder="kg / box"
+                  placeholder={labels.kgBoxPlaceholder}
                   className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
                 />
               </div>
               <div className="col-span-3">
-                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">Unit Cost (MMK)</div>}
+                {i === 0 && <div className="mb-1 text-[10px] font-medium text-gray-400">{labels.unitCostMmk}</div>}
                 <input
                   name="lineUnitCost"
                   value={row.unitCost}
@@ -154,18 +177,18 @@ export default function NonStockInvoiceForm({
 
         {total > 0 && (
           <div className="mt-3 text-right text-sm font-bold text-gray-700">
-            Total: {Math.round(total).toLocaleString()} MMK
+            {labels.totalTemplate.replace("{amount}", Math.round(total).toLocaleString())}
           </div>
         )}
       </div>
 
       <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
-        Non-stock invoices are cashier-only — no counter count required. Submitted immediately as complete.
+        {labels.nonStockHint}
       </div>
 
       <button type="submit"
         className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-        Submit Invoice
+        {labels.submitInvoice}
       </button>
     </form>
   );

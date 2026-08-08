@@ -6,6 +6,7 @@ import { netCashChange } from "@/lib/pricing";
 import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
 import { mmToday, mmDayOf, mmDayRange } from "@/lib/business-day";
 import { revalidatePath } from "next/cache";
+import { getT } from "@/lib/lang";
 import CollectionCard from "./CollectionCard";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function CashCollectionPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   await requireAnyRole(["ADMIN"]);
+  const t = await getT();
   const settings = await getSettings();
   const c = settings.currency;
 
@@ -143,43 +145,68 @@ export default async function CashCollectionPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Cash Collection</h1>
+        <h1 className="text-xl font-bold">{t("heading_cash_collection")}</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          Record cash taken from or added to the drawer. The cashier&apos;s opening float is auto-calculated from this ledger.
+          {t("label_cash_collection_desc")}
         </p>
         <p className="mt-1 text-xs text-amber-600">
-          Only record money that physically moves right now. To leave a float for tomorrow, collect just the
-          excess — do not inject tomorrow&apos;s float in advance.
+          {t("hint_cash_collection_warning")}
         </p>
       </div>
 
       {/* Cash standing card */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="sm:col-span-1 rounded-xl bg-brand p-5 text-white shadow-sm">
-          <div className="text-xs uppercase tracking-wide opacity-70">Current cash standing</div>
+          <div className="text-xs uppercase tracking-wide opacity-70">{t("label_current_cash_standing")}</div>
           <div className="mt-1 text-3xl font-bold tabular-nums">{formatMoney(cashStanding, c)}</div>
           {lastShift?.closedAt && (
             <div className="mt-2 text-xs opacity-60">
-              Based on last shift closed {fmtDate(lastShift.closedAt)}
+              {t("label_based_on_last_shift", { date: fmtDate(lastShift.closedAt) })}
               {lastShift.countedCash != null && (
-                <span> ({formatMoney(lastShift.countedCash, c)} counted)</span>
+                <span> {t("label_amount_counted", { amount: formatMoney(lastShift.countedCash, c) })}</span>
               )}
             </div>
           )}
           {!lastShift && (
-            <div className="mt-2 text-xs opacity-60">No closed shifts yet — based on injections only</div>
+            <div className="mt-2 text-xs opacity-60">{t("label_no_closed_shifts_injections_only")}</div>
           )}
         </div>
 
-        <CollectionCard type="COLLECT" standing={cashStanding} currency={c} action={recordCollection} />
-        <CollectionCard type="INJECT" standing={cashStanding} currency={c} action={recordCollection} />
+        <CollectionCard
+          type="COLLECT"
+          standing={cashStanding}
+          currency={c}
+          action={recordCollection}
+          title={t("label_collect_title")}
+          subtitle={t("label_collect_subtitle")}
+          notePlaceholder={t("placeholder_collect_note")}
+          submitLabel={t("btn_collect_submit")}
+          standingLabel={t("label_expected_after")}
+          overLabel={t("label_over_standing")}
+          labelAmount={t("col_amount")}
+          labelNote={t("label_note")}
+        />
+        <CollectionCard
+          type="INJECT"
+          standing={cashStanding}
+          currency={c}
+          action={recordCollection}
+          title={t("label_inject_title")}
+          subtitle={t("label_inject_subtitle")}
+          notePlaceholder={t("placeholder_inject_note")}
+          submitLabel={t("btn_inject_submit")}
+          standingLabel={t("label_expected_after")}
+          overLabel={t("label_over_standing")}
+          labelAmount={t("col_amount")}
+          labelNote={t("label_note")}
+        />
       </div>
 
       {/* Daily cash report */}
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Daily cash on hand
+            {t("heading_daily_cash_on_hand")}
           </h2>
           <form method="GET" className="flex items-center gap-2">
             <input
@@ -196,19 +223,17 @@ export default async function CashCollectionPage({
               className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
             />
             <button className="rounded-lg bg-gray-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-900">
-              Apply
+              {t("btn_apply")}
             </button>
           </form>
         </div>
         <p className="mb-2 text-xs text-gray-400">
-          Start = opening float of the first shift that day. End = counted cash at the close of the last shift
-          that day (a shift spanning midnight counts toward the day it opened). Cash income/expense are scoped to
-          the calendar day itself, not to a shift — so an expense entered after the shift closes still counts.
+          {t("hint_daily_cash_explain")}
         </p>
 
         {dailyCash.length === 0 ? (
           <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
-            No shifts or cash-drawer activity in this range.
+            {t("empty_no_shift_cash_activity")}
           </p>
         ) : (
           <>
@@ -218,33 +243,33 @@ export default async function CashCollectionPage({
                 <div key={d.day} className="rounded-xl border bg-white p-3.5 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">{fmtDate(new Date(d.day))}</span>
-                    <span className="text-xs text-gray-400">{d.shiftCount} shift{d.shiftCount > 1 ? "s" : ""}</span>
+                    <span className="text-xs text-gray-400">{t("label_n_shifts", { n: String(d.shiftCount) })}</span>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between text-sm">
                     <span className="text-gray-500">
-                      Start{d.startTime ? ` (${formatTime(d.startTime)})` : ""}
+                      {t("col_start")}{d.startTime ? ` (${formatTime(d.startTime)})` : ""}
                     </span>
                     <span className="tabular-nums font-medium">
                       {d.startCash != null ? formatMoney(d.startCash, c) : "—"}
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Cash income</span>
+                    <span className="text-gray-500">{t("label_cash_income")}</span>
                     <span className="tabular-nums font-medium text-emerald-600">+{formatMoney(d.cashIncome, c)}</span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Cash expense</span>
+                    <span className="text-gray-500">{t("label_cash_expense")}</span>
                     <span className="tabular-nums font-medium text-red-500">−{formatMoney(d.cashExpense, c)}</span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-sm">
                     <span className="text-gray-500">
-                      End{d.endTime ? ` (${formatTime(d.endTime)})` : ""}
+                      {t("label_end")}{d.endTime ? ` (${formatTime(d.endTime)})` : ""}
                     </span>
                     <span className="tabular-nums font-medium">
                       {d.shiftCount === 0 ? (
                         "—"
                       ) : d.endInProgress ? (
-                        <span className="text-amber-600">shift in progress</span>
+                        <span className="text-amber-600">{t("label_shift_in_progress")}</span>
                       ) : (
                         formatMoney(d.endCash ?? 0, c)
                       )}
@@ -259,14 +284,14 @@ export default async function CashCollectionPage({
               <table className="w-full text-sm">
                 <thead className="text-left text-xs uppercase text-gray-400 border-b">
                   <tr>
-                    <th className="px-4 py-2">Date</th>
-                    <th className="px-4 py-2 text-right">Shifts</th>
-                    <th className="px-4 py-2 text-right">Start of day (time)</th>
-                    <th className="px-4 py-2 text-right">Cash at start</th>
-                    <th className="px-4 py-2 text-right">Cash income</th>
-                    <th className="px-4 py-2 text-right">Cash expense</th>
-                    <th className="px-4 py-2 text-right">End of day (time)</th>
-                    <th className="px-4 py-2 text-right">Cash at end</th>
+                    <th className="px-4 py-2">{t("col_date")}</th>
+                    <th className="px-4 py-2 text-right">{t("col_shifts")}</th>
+                    <th className="px-4 py-2 text-right">{t("label_start_of_day_time")}</th>
+                    <th className="px-4 py-2 text-right">{t("label_cash_at_start")}</th>
+                    <th className="px-4 py-2 text-right">{t("label_cash_income")}</th>
+                    <th className="px-4 py-2 text-right">{t("label_cash_expense")}</th>
+                    <th className="px-4 py-2 text-right">{t("label_end_of_day_time")}</th>
+                    <th className="px-4 py-2 text-right">{t("label_cash_at_end")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -293,7 +318,7 @@ export default async function CashCollectionPage({
                         {d.shiftCount === 0 ? (
                           "—"
                         ) : d.endInProgress ? (
-                          <span className="text-amber-600">in progress</span>
+                          <span className="text-amber-600">{t("label_in_progress")}</span>
                         ) : (
                           formatMoney(d.endCash ?? 0, c)
                         )}
@@ -310,13 +335,13 @@ export default async function CashCollectionPage({
       {/* History */}
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Collection history
+          {t("heading_collection_history")}
         </h2>
 
         {/* Mobile cards */}
         <div className="space-y-2 sm:hidden">
           {recent.length === 0 && (
-            <p className="text-sm text-gray-400">No records yet.</p>
+            <p className="text-sm text-gray-400">{t("empty_no_records")}</p>
           )}
           {recent.map((r) => (
             <div
@@ -332,7 +357,7 @@ export default async function CashCollectionPage({
                       ? "bg-red-100 text-red-700"
                       : "bg-green-100 text-green-700"
                   }`}>
-                    {r.type === "COLLECT" ? "↓ Collect" : "↑ Inject"}
+                    {r.type === "COLLECT" ? t("badge_collect") : t("badge_inject")}
                   </span>
                   <span className="text-xs text-gray-400">{r.recordedBy.name}</span>
                 </div>
@@ -355,18 +380,18 @@ export default async function CashCollectionPage({
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase text-gray-400 border-b">
               <tr>
-                <th className="px-4 py-2">Date / Time</th>
-                <th className="px-4 py-2">Type</th>
-                <th className="px-4 py-2">Note</th>
-                <th className="px-4 py-2">By</th>
-                <th className="px-4 py-2 text-right">Amount</th>
+                <th className="px-4 py-2">{t("col_date_time")}</th>
+                <th className="px-4 py-2">{t("col_type")}</th>
+                <th className="px-4 py-2">{t("col_note")}</th>
+                <th className="px-4 py-2">{t("col_by")}</th>
+                <th className="px-4 py-2 text-right">{t("col_amount")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {recent.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
-                    No records yet.
+                    {t("empty_no_records")}
                   </td>
                 </tr>
               )}
@@ -379,7 +404,7 @@ export default async function CashCollectionPage({
                         ? "bg-red-100 text-red-700"
                         : "bg-green-100 text-green-700"
                     }`}>
-                      {r.type === "COLLECT" ? "↓ Collect" : "↑ Inject"}
+                      {r.type === "COLLECT" ? t("badge_collect") : t("badge_inject")}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-gray-500">{r.note ?? "—"}</td>

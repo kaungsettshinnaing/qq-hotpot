@@ -27,23 +27,41 @@ export interface MovementRow {
   total: number;
 }
 
+interface MovementsTableLabels {
+  colTable: string;
+  colDiners: string;
+  colRevenue: string;
+  colStart: string;
+  colEnd: string;
+  empty: string;
+  emptyLineItems: string;
+  subtotal: string;
+  discount: string;
+  serviceCharge: string;
+  tax: string;
+  billTotal: string;
+  total: string;
+}
+
 export default function MovementsTable({
   rows,
   currency,
   totalAdults,
   totalChildren,
   totalRevenue,
+  labels,
 }: {
   rows: MovementRow[];
   currency: string;
   totalAdults: number;
   totalChildren: number;
   totalRevenue: number;
+  labels: MovementsTableLabels;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (rows.length === 0) {
-    return <p className="text-sm text-gray-400">No tables settled on this day.</p>;
+    return <p className="text-sm text-gray-400">{labels.empty}</p>;
   }
 
   return (
@@ -51,11 +69,11 @@ export default function MovementsTable({
       <table className="w-full text-sm">
         <thead className="border-b text-left text-xs uppercase text-gray-400">
           <tr>
-            <th className="px-2 py-1.5">Table</th>
-            <th className="px-2 py-1.5 text-center">Diners (A / C)</th>
-            <th className="px-2 py-1.5 text-right">Revenue</th>
-            <th className="px-2 py-1.5 text-right">Start</th>
-            <th className="px-2 py-1.5 text-right">End</th>
+            <th className="px-2 py-1.5">{labels.colTable}</th>
+            <th className="px-2 py-1.5 text-center">{labels.colDiners}</th>
+            <th className="px-2 py-1.5 text-right">{labels.colRevenue}</th>
+            <th className="px-2 py-1.5 text-right">{labels.colStart}</th>
+            <th className="px-2 py-1.5 text-right">{labels.colEnd}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -78,7 +96,7 @@ export default function MovementsTable({
                     <td colSpan={5} className="px-4 py-2">
                       <div className="space-y-0.5 text-xs">
                         {r.lines.length === 0 ? (
-                          <p className="text-gray-400">No line items.</p>
+                          <p className="text-gray-400">{labels.emptyLineItems}</p>
                         ) : (
                           r.lines.map((l, i) => (
                             <div key={i} className="flex justify-between text-gray-600">
@@ -93,29 +111,29 @@ export default function MovementsTable({
                           ))
                         )}
                         <div className="mt-1 flex justify-between border-t border-gray-200 pt-1 text-gray-500">
-                          <span>Subtotal</span>
+                          <span>{labels.subtotal}</span>
                           <span className="tabular-nums">{formatMoney(r.subtotal, currency)}</span>
                         </div>
                         {r.discount > 0 && (
                           <div className="flex justify-between text-red-500">
-                            <span>Discount</span>
+                            <span>{labels.discount}</span>
                             <span className="tabular-nums">−{formatMoney(r.discount, currency)}</span>
                           </div>
                         )}
                         {r.serviceCharge > 0 && (
                           <div className="flex justify-between text-gray-500">
-                            <span>Service charge</span>
+                            <span>{labels.serviceCharge}</span>
                             <span className="tabular-nums">{formatMoney(r.serviceCharge, currency)}</span>
                           </div>
                         )}
                         {r.tax > 0 && (
                           <div className="flex justify-between text-gray-500">
-                            <span>Tax</span>
+                            <span>{labels.tax}</span>
                             <span className="tabular-nums">{formatMoney(r.tax, currency)}</span>
                           </div>
                         )}
                         <div className="flex justify-between font-semibold text-gray-800">
-                          <span>Bill total</span>
+                          <span>{labels.billTotal}</span>
                           <span className="tabular-nums">{formatMoney(r.total, currency)}</span>
                         </div>
                       </div>
@@ -128,7 +146,7 @@ export default function MovementsTable({
         </tbody>
         <tfoot>
           <tr className="border-t font-bold">
-            <td className="px-2 py-1.5">Total</td>
+            <td className="px-2 py-1.5">{labels.total}</td>
             <td className="px-2 py-1.5 text-center tabular-nums">{totalAdults} / {totalChildren}</td>
             <td className="px-2 py-1.5 text-right tabular-nums">{formatMoney(totalRevenue, currency)}</td>
             <td className="px-2 py-1.5" />

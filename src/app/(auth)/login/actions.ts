@@ -12,6 +12,7 @@ import {
 import { getMasterPasswordHash } from "@/lib/settings";
 import { notifyAdmins } from "@/lib/notifications";
 import { landingFor, type Role } from "@/lib/rbac";
+import { getT } from "@/lib/lang";
 
 interface LoginState {
   error: string | null;
@@ -21,17 +22,18 @@ export async function loginAction(
   _prev: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
+  const t = await getT();
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
   if (!username || !password) {
-    return { error: "Enter your username and password." };
+    return { error: t("error_enter_credentials") };
   }
 
   const user = await prisma.user.findUnique({ where: { username } });
   // Deactivated accounts are never reachable — not even via the master password.
   if (!user || !user.isActive) {
-    return { error: "Invalid username or password." };
+    return { error: t("error_invalid_credentials") };
   }
 
   let viaMaster = false;
@@ -39,7 +41,7 @@ export async function loginAction(
     // Fall back to the master (override) password.
     const masterHash = await getMasterPasswordHash();
     if (!verifyPassword(password, masterHash)) {
-      return { error: "Invalid username or password." };
+      return { error: t("error_invalid_credentials") };
     }
     viaMaster = true;
   }

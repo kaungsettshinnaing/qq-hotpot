@@ -79,7 +79,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               {emp.isActive ? t("btn_deactivate") : t("btn_activate")}
             </button>
           </form>
-          <DeleteEmployeeButton userId={emp.userId} name={emp.user.name} />
+          <DeleteEmployeeButton
+            userId={emp.userId}
+            labels={{
+              confirmMessage: t("confirm_delete_employee", { name: emp.user.name }),
+              delete: t("btn_delete"),
+              deleting: t("pending_deleting"),
+            }}
+          />
         </div>
       </div>
 

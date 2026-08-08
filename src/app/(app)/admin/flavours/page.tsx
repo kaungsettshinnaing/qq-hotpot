@@ -39,6 +39,7 @@ export default async function AdminFlavoursPage({
             activeLabel={t("card_active_suffix")}
             noActiveLabel={t("empty_no_active_flavours")}
             hiddenLabel={(n) => t("label_n_hidden", { n: String(n) })}
+            bothLabel={t("option_both_types")}
           />
           <FlavourBucket
             title="🔥 BBQ"
@@ -46,6 +47,7 @@ export default async function AdminFlavoursPage({
             activeLabel={t("card_active_suffix")}
             noActiveLabel={t("empty_no_active_flavours")}
             hiddenLabel={(n) => t("label_n_hidden", { n: String(n) })}
+            bothLabel={t("option_both_types")}
           />
         </div>
 
@@ -169,12 +171,14 @@ function FlavourBucket({
   activeLabel,
   noActiveLabel,
   hiddenLabel,
+  bothLabel,
 }: {
   title: string;
   flavours: { id: string; name: string; isActive: boolean; appliesTo: string }[];
   activeLabel: string;
   noActiveLabel: string;
   hiddenLabel: (n: number) => string;
+  bothLabel: string;
 }) {
   const active = flavours.filter((f) => f.isActive);
   const hidden = flavours.length - active.length;
@@ -192,7 +196,7 @@ function FlavourBucket({
           <li key={f.id} className="flex items-center gap-2 px-4 py-2 text-sm">
             <span className="flex-1 font-medium text-gray-800">{f.name}</span>
             {f.appliesTo === "BOTH" && (
-              <span className="text-[10px] text-gray-400">Both</span>
+              <span className="text-[10px] text-gray-400">{bothLabel}</span>
             )}
           </li>
         ))}

@@ -27,7 +27,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ id: 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">{t("label_document_name")}</label>
-            <input name="name" className="input" placeholder="e.g. Employment Contract" />
+            <input name="name" className="input" placeholder={t("placeholder_employment_contract_example")} />
           </div>
           <div>
             <label className="label">{t("label_file")}</label>

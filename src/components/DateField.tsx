@@ -17,7 +17,7 @@ export default function DateField({
   label,
   required,
   defaultValue,
-  placeholder = "Select date",
+  placeholder,
   min,
   max,
 }: {
@@ -25,7 +25,7 @@ export default function DateField({
   label?: string;
   required?: boolean;
   defaultValue?: string; // ISO yyyy-mm-dd
-  placeholder?: string;
+  placeholder: string;
   min?: string;
   max?: string;
 }) {

@@ -166,6 +166,8 @@ export default async function CashierHome({
                     submitLabel={t("btn_inject_submit")}
                     standingLabel={t("label_expected_after")}
                     overLabel={t("label_over_standing")}
+                    labelAmount={t("col_amount")}
+                    labelNote={t("label_note")}
                   />
                   <CollectionCard
                     type="COLLECT"
@@ -178,6 +180,8 @@ export default async function CashierHome({
                     submitLabel={t("btn_collect_submit")}
                     standingLabel={t("label_expected_after")}
                     overLabel={t("label_over_standing")}
+                    labelAmount={t("col_amount")}
+                    labelNote={t("label_note")}
                   />
                 </div>
               </section>
@@ -250,6 +254,8 @@ export default async function CashierHome({
                   submitLabel={t("btn_inject_submit")}
                   standingLabel={t("label_expected_after")}
                   overLabel={t("label_over_standing")}
+                  labelAmount={t("col_amount")}
+                  labelNote={t("label_note")}
                 />
                 <CollectionCard
                   type="COLLECT"
@@ -262,6 +268,8 @@ export default async function CashierHome({
                   submitLabel={t("btn_collect_submit")}
                   standingLabel={t("label_expected_after")}
                   overLabel={t("label_over_standing")}
+                  labelAmount={t("col_amount")}
+                  labelNote={t("label_note")}
                 />
               </div>
             </section>

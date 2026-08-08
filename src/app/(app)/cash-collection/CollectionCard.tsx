@@ -14,42 +14,39 @@ export default function CollectionCard({
   submitLabel,
   standingLabel,
   overLabel,
+  labelAmount,
+  labelNote,
 }: {
   type: "COLLECT" | "INJECT";
   standing: number;
   currency: string;
   action: (fd: FormData) => Promise<void>;
-  title?: string;
-  subtitle?: string;
-  notePlaceholder?: string;
-  submitLabel?: string;
-  standingLabel?: string;
-  overLabel?: string;
+  title: string;
+  subtitle: string;
+  notePlaceholder: string;
+  submitLabel: string;
+  standingLabel: string;
+  overLabel: string;
+  labelAmount: string;
+  labelNote: string;
 }) {
   const [amount, setAmount] = useState("");
   const isCollect = type === "COLLECT";
   const amt = Math.max(0, Math.round(Number(amount) || 0));
   const after = isCollect ? standing - amt : standing + amt;
 
-  const defaultTitle = isCollect ? "Collect cash from drawer" : "Inject cash into drawer";
-  const defaultSubtitle = isCollect
-    ? "Only for cash you are physically taking OUT of the drawer right now."
-    : "Only for cash you are physically putting INTO the drawer right now.";
-  const defaultNotePlaceholder = isCollect ? "e.g. Daily banking run" : "e.g. Float top-up";
-  const defaultSubmitLabel = isCollect ? "↓ Collect — deduct from standing" : "↑ Inject — add to standing";
-
   return (
     <div className={`rounded-xl border-2 bg-white p-4 shadow-sm ${isCollect ? "border-red-200" : "border-green-200"}`}>
       <h3 className={`text-sm font-semibold ${isCollect ? "text-red-700" : "text-green-700"}`}>
-        {title ?? defaultTitle}
+        {title}
       </h3>
       <p className="mb-3 mt-0.5 text-[11px] leading-snug text-gray-400">
-        {subtitle ?? defaultSubtitle}
+        {subtitle}
       </p>
       <form action={action} className="space-y-2">
         <input type="hidden" name="type" value={type} />
         <label className="block">
-          <span className="mb-1 block text-xs text-gray-500">Amount ({currency})</span>
+          <span className="mb-1 block text-xs text-gray-500">{labelAmount} ({currency})</span>
           <input
             name="amount"
             type="number"
@@ -62,22 +59,22 @@ export default function CollectionCard({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs text-gray-500">Note (optional)</span>
+          <span className="mb-1 block text-xs text-gray-500">{labelNote}</span>
           <input
             name="note"
             type="text"
-            placeholder={notePlaceholder ?? defaultNotePlaceholder}
+            placeholder={notePlaceholder}
             className="w-full rounded-lg border border-gray-300 px-3 py-2"
           />
         </label>
 
         {amt > 0 && (
           <div className={`rounded-lg px-3 py-2 text-xs ${after < 0 ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-600"}`}>
-            {standingLabel ?? "Standing after this entry:"}{" "}
+            {standingLabel}{" "}
             <span className="font-bold tabular-nums">{formatMoney(after, currency)}</span>
             {after < 0 && (
               <span className="mt-0.5 block font-medium">
-                {overLabel ?? "That is more than the drawer holds — check the amount."}
+                {overLabel}
               </span>
             )}
           </div>
@@ -89,7 +86,7 @@ export default function CollectionCard({
             isCollect ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
           }`}
         >
-          {submitLabel ?? defaultSubmitLabel}
+          {submitLabel}
         </button>
       </form>
     </div>

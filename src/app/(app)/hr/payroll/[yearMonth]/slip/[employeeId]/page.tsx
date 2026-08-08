@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { requireAnyRole } from "@/lib/auth";
-
-const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+import { getT } from "@/lib/lang";
 
 export default async function PayslipPage({
   params,
@@ -12,6 +11,11 @@ export default async function PayslipPage({
   // Individual payslip has net pay, advance/fine deductions — HR/ADMIN only,
   // same restriction as the payroll list and detail pages.
   await requireAnyRole(["HR", "ADMIN"]);
+  const t = await getT();
+  const MONTHS = [
+    t("month_1"), t("month_2"), t("month_3"), t("month_4"), t("month_5"), t("month_6"),
+    t("month_7"), t("month_8"), t("month_9"), t("month_10"), t("month_11"), t("month_12"),
+  ];
   const { yearMonth, employeeId } = await params;
   const [yearStr, monthStr] = yearMonth.split("-");
   const year = parseInt(yearStr);
@@ -52,37 +56,37 @@ export default async function PayslipPage({
     <div className="mx-auto max-w-lg space-y-0 print:shadow-none">
       {/* Print button — hidden when printing */}
       <div className="mb-4 flex justify-end print:hidden">
-        <button onClick={() => window.print()} className="btn-brand">Print</button>
+        <button onClick={() => window.print()} className="btn-brand">{t("btn_print")}</button>
       </div>
 
       <div className="rounded-xl border bg-white p-8 shadow-sm print:border-0 print:shadow-none">
         {/* Header */}
         <div className="mb-6 text-center">
           <h1 className="text-xl font-bold tracking-wide">QQ Hotpot BBQ</h1>
-          <p className="text-sm text-gray-500">PAYSLIP</p>
+          <p className="text-sm text-gray-500">{t("payslip_title")}</p>
           <p className="text-sm font-medium">{MONTHS[month - 1]} {year}</p>
         </div>
 
         {/* Employee info */}
         <div className="mb-6 border-b pb-4">
           <div className="grid grid-cols-2 gap-1 text-sm">
-            <span className="text-gray-500">Employee</span>
+            <span className="text-gray-500">{t("label_employee")}</span>
             <span className="font-medium">{item.employee.user.name}</span>
             {item.employee.employeeNo && (
               <>
-                <span className="text-gray-500">Employee No.</span>
+                <span className="text-gray-500">{t("label_employee_no")}</span>
                 <span>{item.employee.employeeNo}</span>
               </>
             )}
-            <span className="text-gray-500">Working Days</span>
+            <span className="text-gray-500">{t("field_working_days")}</span>
             <span>{item.workingDays}</span>
-            <span className="text-gray-500">Days Present</span>
+            <span className="text-gray-500">{t("field_days_present")}</span>
             <span>{item.workingDays - item.absentDays}</span>
-            <span className="text-gray-500">Days Absent</span>
+            <span className="text-gray-500">{t("field_days_absent")}</span>
             <span>{item.absentDays}</span>
             {item.otDays > 0 && (
               <>
-                <span className="text-gray-500">OT Days</span>
+                <span className="text-gray-500">{t("field_ot_days")}</span>
                 <span>{item.otDays}</span>
               </>
             )}
@@ -91,27 +95,27 @@ export default async function PayslipPage({
 
         {/* Earnings */}
         <div className="mb-4">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Earnings</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{t("section_earnings")}</h2>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span>Basic Salary</span>
+              <span>{t("row_basic_salary")}</span>
               <span>{item.basicSalary.toLocaleString()} MMK</span>
             </div>
             {item.absenceDeduction > 0 && (
               <div className="flex justify-between text-red-500">
-                <span>Absence Deduction ({netAbsent} day{netAbsent !== 1 ? "s" : ""} × {item.dailyRate.toLocaleString()})</span>
+                <span>{t("label_absence_deduction_calc", { days: String(netAbsent), s: netAbsent !== 1 ? "s" : "", rate: item.dailyRate.toLocaleString() })}</span>
                 <span>−{item.absenceDeduction.toLocaleString()} MMK</span>
               </div>
             )}
             {item.otPremium > 0 && (
               <div className="flex justify-between text-purple-600">
-                <span>OT Premium ({Math.max(0, item.otDays - item.absentDays)} day × 0.5×)</span>
+                <span>{t("label_ot_premium_calc", { days: String(Math.max(0, item.otDays - item.absentDays)) })}</span>
                 <span>+{item.otPremium.toLocaleString()} MMK</span>
               </div>
             )}
             {earnedBonus && (
               <div className="flex justify-between text-green-600">
-                <span>Attendance Bonus (perfect attendance)</span>
+                <span>{t("label_attendance_bonus_perfect")}</span>
                 <span>+{item.attendanceBonusAmt.toLocaleString()} MMK</span>
               </div>
             )}
@@ -127,17 +131,17 @@ export default async function PayslipPage({
         {/* Deductions */}
         {(advanceInstalments.length > 0 || fines.length > 0) && (
           <div className="mb-4 border-t pt-4">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Deductions</h2>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{t("section_deductions")}</h2>
             <div className="space-y-1 text-sm">
               {advanceInstalments.map((inst) => (
                 <div key={inst.id} className="flex justify-between text-red-500">
-                  <span>Advance repayment{inst.advance.note ? ` (${inst.advance.note})` : ""}</span>
+                  <span>{t("label_advance_repayment_note", { note: inst.advance.note ? ` (${inst.advance.note})` : "" })}</span>
                   <span>−{inst.amount.toLocaleString()} MMK</span>
                 </div>
               ))}
               {fines.map((f) => (
                 <div key={f.id} className="flex justify-between text-red-500">
-                  <span>Fine: {f.reason}</span>
+                  <span>{t("label_fine_reason", { reason: f.reason })}</span>
                   <span>−{f.amount.toLocaleString()} MMK</span>
                 </div>
               ))}
@@ -148,14 +152,14 @@ export default async function PayslipPage({
         {/* Net pay */}
         <div className="border-t pt-4">
           <div className="flex items-center justify-between">
-            <span className="font-bold">Net Pay</span>
+            <span className="font-bold">{t("field_net_pay")}</span>
             <span className="text-lg font-bold text-brand">{item.netPay.toLocaleString()} MMK</span>
           </div>
         </div>
 
         {/* Status */}
         <div className="mt-6 text-center text-xs text-gray-400">
-          {payroll.status === "LOCKED" ? "✓ Approved payroll" : "Draft — not yet approved"}
+          {payroll.status === "LOCKED" ? t("payslip_approved") : t("payslip_draft")}
         </div>
       </div>
     </div>

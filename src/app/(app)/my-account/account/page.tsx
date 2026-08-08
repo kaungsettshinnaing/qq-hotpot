@@ -117,16 +117,14 @@ export default async function AccountPage({
       {isAdmin && (
         <div className="rounded-xl border-2 border-amber-200 bg-white p-6 shadow-sm space-y-4">
           <div>
-            <h2 className="text-sm font-semibold text-amber-700">Master login password</h2>
+            <h2 className="text-sm font-semibold text-amber-700">{t("heading_master_password")}</h2>
             <p className="mt-1 text-xs text-gray-500">
-              A single override password that signs into <strong>any active account</strong> alongside each
-              user&apos;s own password. Every use is flagged to admins in the notification bell. Keep it secret
-              and rotate it after sharing.
+              {t("desc_master_password")}
             </p>
           </div>
 
           {msuccess && (
-            <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">Master password updated.</p>
+            <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{t("success_master_password_updated")}</p>
           )}
           {merror && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{ERROR_LABEL[merror] ?? t("error_something_went_wrong")}</p>
@@ -134,19 +132,19 @@ export default async function AccountPage({
 
           <form action={changeMasterPassword} className="space-y-3 text-sm">
             <div>
-              <label className="label">Your current password</label>
+              <label className="label">{t("label_your_current_password")}</label>
               <input name="mCurrent" type="password" required className="input" autoComplete="current-password" />
             </div>
             <div>
-              <label className="label">New master password</label>
+              <label className="label">{t("label_new_master_password")}</label>
               <input name="mNext" type="password" required minLength={6} className="input" autoComplete="new-password" />
             </div>
             <div>
-              <label className="label">Confirm new master password</label>
+              <label className="label">{t("label_confirm_new_master_password")}</label>
               <input name="mConfirm" type="password" required className="input" autoComplete="new-password" />
             </div>
             <SubmitButton className="w-full rounded-lg bg-amber-600 py-2 font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
-              Update master password
+              {t("btn_update_master_password")}
             </SubmitButton>
           </form>
         </div>

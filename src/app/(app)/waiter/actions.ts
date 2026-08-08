@@ -9,6 +9,7 @@ import { freePotsAllowed } from "@/lib/pricing";
 import { emitKitchen, emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
+import { getT } from "@/lib/lang";
 
 const WAITER_ROLES: Role[] = ["WAITER", "MANAGER", "ADMIN"];
 
@@ -52,9 +53,10 @@ export async function updateHeadcount(
   children: number,
 ): Promise<ActionResult> {
   await requireAnyRole(WAITER_ROLES);
-  if (adults < 0 || children < 0) return { ok: false, error: "Invalid count." };
+  const t = await getT();
+  if (adults < 0 || children < 0) return { ok: false, error: t("error_invalid_count") };
   const s = await prisma.tableSession.findUnique({ where: { id: sessionId } });
-  if (!s || s.status !== "OPEN") return { ok: false, error: "Session is not open." };
+  if (!s || s.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
   await prisma.tableSession.update({
     where: { id: sessionId },
     data: { adults: Math.floor(adults), children: Math.floor(children) },
@@ -70,23 +72,24 @@ export async function addPot(
   flavourIds: string[],
 ): Promise<ActionResult> {
   const user = await requireAnyRole(WAITER_ROLES);
+  const t = await getT();
   const session = await prisma.tableSession.findUnique({
     where: { id: sessionId },
     include: { potOrders: { where: { voidedAt: null } } },
   });
-  if (!session || session.status !== "OPEN") return { ok: false, error: "Session is not open." };
+  if (!session || session.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
 
   const need = kind === "HOTPOT" ? 2 : 1;
   const ids = (flavourIds || []).filter(Boolean).slice(0, need);
   if (ids.length !== need) {
-    return { ok: false, error: `Choose ${need} soup flavour${need > 1 ? "s" : ""}.` };
+    return { ok: false, error: t("error_choose_n_flavours", { need: String(need), s: need > 1 ? "s" : "" }) };
   }
   const distinct = [...new Set(ids)];
   const found = await prisma.soupFlavour.findMany({
     where: { id: { in: distinct }, isActive: true },
     select: { id: true },
   });
-  if (found.length !== distinct.length) return { ok: false, error: "Invalid soup flavour." };
+  if (found.length !== distinct.length) return { ok: false, error: t("error_invalid_soup_flavour") };
 
   const settings = await getSettings();
   const diners = session.adults + session.children;
@@ -127,12 +130,13 @@ export async function voidPot(formData: FormData): Promise<void> {
 
 export async function setBeerQty(sessionId: string, qty: number): Promise<ActionResult> {
   const user = await requireAnyRole(WAITER_ROLES);
+  const t = await getT();
   const q = Math.max(0, Math.min(999, Math.floor(qty || 0)));
   const session = await prisma.tableSession.findUnique({
     where: { id: sessionId },
     include: { orderItems: { where: { itemCode: "BEER", voidedAt: null } } },
   });
-  if (!session || session.status !== "OPEN") return { ok: false, error: "Session is not open." };
+  if (!session || session.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
   const price = (await prisma.menuItem.findUnique({ where: { code: "BEER" } }))?.price ?? 0;
 
   const [first, ...rest] = session.orderItems;
@@ -162,12 +166,13 @@ export async function setItemQty(
   qty: number,
 ): Promise<ActionResult> {
   const user = await requireAnyRole(WAITER_ROLES);
+  const t = await getT();
   const q = Math.max(0, Math.min(999, Math.floor(qty || 0)));
   const session = await prisma.tableSession.findUnique({
     where: { id: sessionId },
     include: { orderItems: { where: { itemCode, voidedAt: null } } },
   });
-  if (!session || session.status !== "OPEN") return { ok: false, error: "Session is not open." };
+  if (!session || session.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
   const unitPrice = (await prisma.menuItem.findUnique({ where: { code: itemCode } }))?.price ?? 0;
   const [first, ...rest] = session.orderItems;
   if (rest.length) {
@@ -192,9 +197,10 @@ export async function setItemQty(
 
 export async function setWastage(sessionId: string, grams: number): Promise<ActionResult> {
   await requireAnyRole(WAITER_ROLES);
+  const t = await getT();
   const g = Math.max(0, Math.min(1_000_000, Math.floor(grams || 0)));
   const s = await prisma.tableSession.findUnique({ where: { id: sessionId } });
-  if (!s || s.status !== "OPEN") return { ok: false, error: "Session is not open." };
+  if (!s || s.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
   await prisma.tableSession.update({ where: { id: sessionId }, data: { wastageGrams: g } });
   revalidatePath(`/waiter/session/${sessionId}`);
   return { ok: true };

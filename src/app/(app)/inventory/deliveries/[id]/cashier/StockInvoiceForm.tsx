@@ -32,18 +32,40 @@ interface ExpenseCategory {
   name: string;
 }
 
+export interface StockInvoiceLabels {
+  expenseCategory: string;
+  selectPlaceholder: string;
+  paymentMethod: string;
+  cash: string;
+  bank: string;
+  description: string;
+  descriptionPlaceholder: string;
+  filterByCategory: string;
+  allItems: string;
+  clear: string;
+  lineItemsHeading: string;
+  colItem: string;
+  colOrderedQty: string;
+  colThisBatch: string;
+  unitCostMmk: string;
+  leaveBlankHint: string;
+  submitInvoice: string;
+}
+
 export default function StockInvoiceForm({
   deliveryId,
   stockItems,
   categories,
   expenseCategories,
   existingItems,
+  labels,
 }: {
   deliveryId: string;
   stockItems: StockItem[];
   categories: Category[];
   expenseCategories: ExpenseCategory[];
   existingItems: ExistingItem[];
+  labels: StockInvoiceLabels;
 }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
 
@@ -57,62 +79,62 @@ export default function StockInvoiceForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Expense Category</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">{labels.expenseCategory}</label>
           <select name="categoryId" required className="w-full rounded-lg border border-gray-300 px-3 py-2">
-            <option value="">— Select —</option>
+            <option value="">{labels.selectPlaceholder}</option>
             {expenseCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Payment Method</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">{labels.paymentMethod}</label>
           <div className="flex gap-4 pt-2">
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> Cash
+              <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> {labels.cash}
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> Bank
+              <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> {labels.bank}
             </label>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-600">Description</label>
-        <input name="description" placeholder="e.g. Weekly grocery delivery" maxLength={300}
+        <label className="mb-1 block text-xs font-medium text-gray-600">{labels.description}</label>
+        <input name="description" placeholder={labels.descriptionPlaceholder} maxLength={300}
           className="w-full rounded-lg border border-gray-300 px-3 py-2" />
       </div>
 
       {/* Category filter */}
       {categories.length > 0 && (
         <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-600">Filter by category:</label>
+          <label className="text-xs font-medium text-gray-600">{labels.filterByCategory}:</label>
           <select
             value={selectedCategoryId}
             onChange={(e) => setSelectedCategoryId(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
           >
-            <option value="">All Items</option>
+            <option value="">{labels.allItems}</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           {selectedCategoryId && (
             <button type="button" onClick={() => setSelectedCategoryId("")}
               className="text-xs text-gray-400 hover:text-gray-600">
-              ✕ Clear
+              ✕ {labels.clear}
             </button>
           )}
         </div>
       )}
 
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Line Items from Invoice</h3>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{labels.lineItemsHeading}</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-xs text-gray-500">
-                <th className="pb-2 text-left font-medium">Item</th>
-                <th className="pb-2 text-center font-medium">Ordered Qty</th>
-                <th className="pb-2 text-center font-medium">This Batch</th>
-                <th className="pb-2 text-right font-medium">Unit Cost (MMK)</th>
+                <th className="pb-2 text-left font-medium">{labels.colItem}</th>
+                <th className="pb-2 text-center font-medium">{labels.colOrderedQty}</th>
+                <th className="pb-2 text-center font-medium">{labels.colThisBatch}</th>
+                <th className="pb-2 text-right font-medium">{labels.unitCostMmk}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -165,12 +187,12 @@ export default function StockInvoiceForm({
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-gray-400">Leave blank for items not in this delivery.</p>
+        <p className="mt-2 text-xs text-gray-400">{labels.leaveBlankHint}</p>
       </div>
 
       <button type="submit"
         className="w-full rounded-lg bg-brand py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
-        Submit Invoice
+        {labels.submitInvoice}
       </button>
     </form>
   );

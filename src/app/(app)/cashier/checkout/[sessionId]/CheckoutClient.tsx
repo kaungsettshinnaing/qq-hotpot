@@ -15,7 +15,7 @@ export interface CheckoutLabels {
   sectionPayment: string; warningOpenShift: string;
   labelMethod: string; methodCash: string; methodKBZ: string; methodOther: string;
   labelAmount: string; labelReference: string; placeholderReference: string;
-  btnAddPayment: string; labelChangeDue: string;
+  btnAddPayment: string; labelChangeDue: string; btnExact: string;
 }
 
 export default function CheckoutClient(props: {
@@ -115,7 +115,7 @@ export default function CheckoutClient(props: {
           </label>
           <button type="button" onClick={() => setAmount(Math.max(0, props.balance))}
             className="rounded-lg border border-gray-300 px-3 py-2 text-xs hover:bg-gray-50">
-            Exact ({props.balance.toLocaleString()})
+            {labels.btnExact} ({props.balance.toLocaleString()})
           </button>
           {method !== "CASH" && (
             <label className="block flex-1">

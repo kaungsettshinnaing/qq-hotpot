@@ -221,7 +221,18 @@ export default async function SessionPage({
 
           <section className="rounded-xl bg-white p-4 shadow-sm">
             <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_running_bill")}</h3>
-            <BillSummary bill={detail.bill} currency={detail.settings.currency} />
+            <BillSummary
+              bill={detail.bill}
+              currency={detail.settings.currency}
+              labels={{
+                noItems: t("bill_no_items"),
+                subtotal: t("bill_subtotal"),
+                discount: t("bill_discount"),
+                serviceCharge: t("bill_service_charge"),
+                tax: t("bill_tax"),
+                total: t("bill_total"),
+              }}
+            />
             <p className="mt-2 text-xs text-gray-400">{t("payment_at_cashier")}</p>
           </section>
         </div>

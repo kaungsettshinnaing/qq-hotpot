@@ -24,10 +24,12 @@ export default function KitchenLive({
   pendingCount,
   labelSoundOn,
   labelSoundOff,
+  labelPendingTemplate,
 }: {
   pendingCount: number;
   labelSoundOn: string;
   labelSoundOff: string;
+  labelPendingTemplate: string; // contains "{n}"
 }) {
   const router = useRouter();
   useRoomRefresh("kitchen", ["pot:new", "pot:void", "pot:delivered"]);
@@ -62,7 +64,7 @@ export default function KitchenLive({
   return (
     <div className="flex items-center gap-3">
       <span className={"rounded-full px-3 py-1 text-sm font-semibold " + (pendingCount > 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")}>
-        {pendingCount} pending
+        {labelPendingTemplate.replace("{n}", String(pendingCount))}
       </span>
       {soundOn ? (
         <button onClick={() => setSoundOn(false)}

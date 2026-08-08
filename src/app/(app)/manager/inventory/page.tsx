@@ -425,7 +425,7 @@ async function SpotCheckTab({ countId }: { countId?: string }) {
             </table>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">{t("col_note")} (optional)</label>
-              <input name="note" maxLength={500} placeholder="Notes on discrepancies found…"
+              <input name="note" maxLength={500} placeholder={t("placeholder_notes_discrepancies")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <button type="submit"
@@ -438,12 +438,12 @@ async function SpotCheckTab({ countId }: { countId?: string }) {
 
       {recentCompleted.length > 0 && (
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Recent spot checks</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{t("heading_recent_spot_checks")}</h3>
           <div className="space-y-1">
             {recentCompleted.map((c) => (
               <div key={c.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm">
                 <span className="text-gray-700">{formatDate(c.completedAt!)}</span>
-                <span className="text-xs text-gray-400">{c._count.items} items · {c.createdBy.name}</span>
+                <span className="text-xs text-gray-400">{t("label_n_items", { n: String(c._count.items) })} · {c.createdBy.name}</span>
               </div>
             ))}
           </div>
@@ -500,7 +500,7 @@ async function WeeklyCountTab({ countId }: { countId?: string }) {
         <section className="rounded-xl bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
             <h3 className="text-sm font-semibold text-gray-800">
-              {t("heading_weekly_count")} — {activeCount.items.length} items
+              {t("heading_weekly_count")} — {t("label_n_items", { n: String(activeCount.items.length) })}
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">{formatDate(activeCount.createdAt)}</p>
           </div>
@@ -510,7 +510,7 @@ async function WeeklyCountTab({ countId }: { countId?: string }) {
             {(() => {
               const grouped = new Map<string, typeof activeCount.items>();
               for (const item of activeCount.items) {
-                const cat = item.stockItem.category?.name ?? "Uncategorized";
+                const cat = item.stockItem.category?.name ?? t("label_uncategorized");
                 if (!grouped.has(cat)) grouped.set(cat, []);
                 grouped.get(cat)!.push(item);
               }
@@ -551,7 +551,7 @@ async function WeeklyCountTab({ countId }: { countId?: string }) {
 
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">{t("col_note")} (optional)</label>
-              <input name="note" maxLength={500} placeholder="Notes…"
+              <input name="note" maxLength={500} placeholder={t("placeholder_notes_ellipsis")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <button type="submit"
@@ -564,12 +564,12 @@ async function WeeklyCountTab({ countId }: { countId?: string }) {
 
       {recentCompleted.length > 0 && (
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Recent weekly counts</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{t("heading_recent_weekly_counts")}</h3>
           <div className="space-y-1">
             {recentCompleted.map((c) => (
               <div key={c.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm">
                 <span className="text-gray-700">{formatDate(c.completedAt!)}</span>
-                <span className="text-xs text-gray-400">{c._count.items} items · {c.createdBy.name}</span>
+                <span className="text-xs text-gray-400">{t("label_n_items", { n: String(c._count.items) })} · {c.createdBy.name}</span>
               </div>
             ))}
           </div>

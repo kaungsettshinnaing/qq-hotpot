@@ -195,12 +195,12 @@ export default async function EmployeesPage({
             <form action={createSystemAccount} className="space-y-3 text-sm">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_display_name")}</label>
-                <input name="name" required placeholder="e.g. POS Terminal"
+                <input name="name" required placeholder={t("placeholder_pos_terminal_example")}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2" />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">{t("label_username_onboard")}</label>
-                <input name="username" required placeholder="e.g. pos_terminal"
+                <input name="username" required placeholder={t("placeholder_pos_terminal_username_example")}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2" />
               </div>
               <div>

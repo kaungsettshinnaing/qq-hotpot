@@ -674,7 +674,7 @@ async function ExpensesTab({ confirmExpense, rejectExpense, dayStr, start, end }
                     <div className="mt-2 flex flex-wrap gap-2">
                       {e.attachments.map((a) => (
                         <a key={a.id} href={`/api/uploads/${a.filePath}`} target="_blank" rel="noopener noreferrer" className="block">
-                          <img src={`/api/uploads/${a.filePath}`} alt="receipt"
+                          <img src={`/api/uploads/${a.filePath}`} alt={t("btn_receipt")}
                             className="h-20 w-20 rounded-lg border object-cover shadow-sm hover:opacity-80 transition" />
                         </a>
                       ))}
@@ -727,7 +727,7 @@ async function ExpensesTab({ confirmExpense, rejectExpense, dayStr, start, end }
         </div>
         {confirmed.length === 0 ? (
           <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-400">
-            No confirmed expenses on this day.
+            {t("empty_no_confirmed_expenses_day")}
           </p>
         ) : (
           <div className="rounded-xl border bg-white divide-y overflow-hidden">
@@ -758,7 +758,7 @@ async function ExpensesTab({ confirmExpense, rejectExpense, dayStr, start, end }
                   <div className="flex gap-1">
                     {e.attachments.slice(0, 3).map((a) => (
                       <a key={a.id} href={`/api/uploads/${a.filePath}`} target="_blank" rel="noopener noreferrer">
-                        <img src={`/api/uploads/${a.filePath}`} alt="receipt"
+                        <img src={`/api/uploads/${a.filePath}`} alt={t("btn_receipt")}
                           className="h-10 w-10 rounded border object-cover hover:opacity-80" />
                       </a>
                     ))}
@@ -891,7 +891,7 @@ async function DailyReportTab({
       {/* Past reports */}
       {pastReports.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Previous reports</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t("heading_previous_reports")}</h3>
           <div className="space-y-2">
             {pastReports.map((r) => (
               <div key={r.id} className="rounded-xl border bg-white px-4 py-3 shadow-sm">
@@ -1107,19 +1107,19 @@ async function DailySummaryTab({
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="rounded-lg bg-green-50 px-3 py-2 text-center">
               <div className="text-xl font-bold text-green-700">{presentCount}</div>
-              <div className="text-xs text-green-600">Present</div>
+              <div className="text-xs text-green-600">{t("legend_key_present")}</div>
             </div>
             <div className="rounded-lg bg-purple-50 px-3 py-2 text-center">
               <div className="text-xl font-bold text-purple-700">{otCount}</div>
-              <div className="text-xs text-purple-600">OT</div>
+              <div className="text-xs text-purple-600">{t("legend_key_ot")}</div>
             </div>
             <div className="rounded-lg bg-blue-50 px-3 py-2 text-center">
               <div className="text-xl font-bold text-blue-700">{leaveCount}</div>
-              <div className="text-xs text-blue-600">Leave</div>
+              <div className="text-xs text-blue-600">{t("legend_key_leave")}</div>
             </div>
             <div className="rounded-lg bg-red-50 px-3 py-2 text-center">
               <div className="text-xl font-bold text-red-600">{absentCount}</div>
-              <div className="text-xs text-red-500">Absent</div>
+              <div className="text-xs text-red-500">{t("legend_key_absent")}</div>
             </div>
           </div>
           {attendances.filter((a) => ["PRESENT", "OT"].includes(a.status)).length > 0 && (
@@ -1141,8 +1141,8 @@ async function DailySummaryTab({
       {/* Movements — every table settled today (click a row for the bill breakdown) */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">Movements ({movementRows.length})</h3>
-          <span className="text-xs text-gray-400">Tap a table for its bill breakdown</span>
+          <h3 className="text-sm font-semibold text-gray-700">{t("heading_movements_count", { n: String(movementRows.length) })}</h3>
+          <span className="text-xs text-gray-400">{t("hint_tap_table_breakdown")}</span>
         </div>
         <MovementsTable
           rows={movementRows}
@@ -1150,14 +1150,29 @@ async function DailySummaryTab({
           totalAdults={adults}
           totalChildren={children}
           totalRevenue={movementsRevenue}
+          labels={{
+            colTable: t("col_table"),
+            colDiners: t("label_diners_ac"),
+            colRevenue: t("label_revenue"),
+            colStart: t("col_start"),
+            colEnd: t("label_end"),
+            empty: t("empty_no_tables_settled"),
+            emptyLineItems: t("empty_no_line_items"),
+            subtotal: t("bill_subtotal"),
+            discount: t("bill_discount"),
+            serviceCharge: t("bill_service_charge"),
+            tax: t("bill_tax"),
+            billTotal: t("label_bill_total"),
+            total: t("col_total"),
+          }}
         />
       </section>
 
       {/* Discounts given */}
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-sm font-semibold text-gray-700">Discounts given ({discountRows.length})</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("heading_discounts_given_count", { n: String(discountRows.length) })}</h3>
         {discountRows.length === 0 ? (
-          <p className="text-sm text-gray-400">No discounts on this day.</p>
+          <p className="text-sm text-gray-400">{t("empty_no_discounts_today")}</p>
         ) : (
           <>
             <ul className="divide-y divide-gray-100 text-sm">
@@ -1171,7 +1186,7 @@ async function DailySummaryTab({
                     {d.discountReason ? (
                       <span className="block whitespace-pre-wrap break-words text-xs text-gray-500">&ldquo;{d.discountReason}&rdquo;</span>
                     ) : (
-                      <span className="block text-xs italic text-gray-300">No note given</span>
+                      <span className="block text-xs italic text-gray-300">{t("label_no_note_given")}</span>
                     )}
                   </span>
                   <span className="flex-shrink-0 text-right font-semibold tabular-nums text-red-600">
@@ -1184,7 +1199,7 @@ async function DailySummaryTab({
               ))}
             </ul>
             <div className="mt-1.5 flex justify-between border-t border-gray-200 pt-1.5 text-sm font-bold">
-              <span>Total discounts</span>
+              <span>{t("label_total_discounts")}</span>
               <span className="tabular-nums text-red-600">−{formatMoney(totalDiscounts, c)}</span>
             </div>
           </>

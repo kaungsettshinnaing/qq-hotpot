@@ -16,14 +16,37 @@ type StatusEntry = {
   isRestDay: boolean;
 };
 
-const STATUS_LABEL: Record<LiveStatus, string> = {
-  not_started: "Not started",
-  working: "Working",
-  on_break: "On break",
-  clocked_out: "Clocked out",
-  on_leave: "On leave",
-  rest: "Rest day",
-};
+export interface LiveAttendanceLabels {
+  statusNotStarted: string;
+  statusWorking: string;
+  statusOnBreak: string;
+  statusClockedOut: string;
+  statusOnLeave: string;
+  statusRestDay: string;
+  noActiveEmployees: string;
+  colEmployee: string;
+  colStatus: string;
+  colClockIn: string;
+  colBreakTime: string;
+  colClockOut: string;
+  clockInPrefix: string;
+  clockOutPrefix: string;
+  breakSinceTemplate: string; // "{time}" and "{summary}"
+  sinceTimeTemplate: string; // "{time}"
+  breakCountTemplate: string; // "{n}"
+  totalSuffix: string;
+  eodReviewHeading: string;
+  legendPresent: string;
+  legendOt: string;
+  legendAbsent: string;
+  legendLeave: string;
+  legendRestDay: string;
+  legendKeyPresent: string;
+  legendKeyOt: string;
+  legendKeyAbsent: string;
+  legendKeyLeave: string;
+  legendKeyRestDay: string;
+}
 
 const STATUS_COLOR: Record<LiveStatus, string> = {
   not_started: "bg-gray-100 text-gray-500",
@@ -54,21 +77,30 @@ function fmtMins(mins: number) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
-function fmtBreakSummary(count: number, mins: number) {
-  const countStr = count === 1 ? "1 break" : `${count} breaks`;
+function fmtBreakSummary(count: number, mins: number, labels: LiveAttendanceLabels) {
+  const countStr = labels.breakCountTemplate.replace("{n}", String(count));
   const timeStr = fmtMins(mins);
-  return timeStr ? `${countStr}; ${timeStr} total` : countStr;
+  return timeStr ? `${countStr}; ${timeStr} ${labels.totalSuffix}` : countStr;
 }
 
-export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) {
+export default function LiveAttendance({ entries, labels }: { entries: StatusEntry[]; labels: LiveAttendanceLabels }) {
   useRoomRefresh("hr", ["attendance:update", "break:out", "break:in"]);
+
+  const STATUS_LABEL: Record<LiveStatus, string> = {
+    not_started: labels.statusNotStarted,
+    working: labels.statusWorking,
+    on_break: labels.statusOnBreak,
+    clocked_out: labels.statusClockedOut,
+    on_leave: labels.statusOnLeave,
+    rest: labels.statusRestDay,
+  };
 
   const sorted = [...entries].sort(
     (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
   );
 
   if (sorted.length === 0) {
-    return <p className="py-6 text-center text-sm text-gray-400">No active employees</p>;
+    return <p className="py-6 text-center text-sm text-gray-400">{labels.noActiveEmployees}</p>;
   }
 
   return (
@@ -91,13 +123,15 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
             </div>
             {e.status !== "rest" && e.status !== "on_leave" && (
               <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-500">
-                <span>In: <span className="font-medium text-gray-700">{fmtTime(e.clockInAt)}</span></span>
-                <span>Out: <span className="font-medium text-gray-700">{fmtTime(e.clockOutAt)}</span></span>
+                <span>{labels.clockInPrefix} <span className="font-medium text-gray-700">{fmtTime(e.clockInAt)}</span></span>
+                <span>{labels.clockOutPrefix} <span className="font-medium text-gray-700">{fmtTime(e.clockOutAt)}</span></span>
                 {e.breakCount > 0 ? (
                   <span className={e.currentBreakStartAt ? "text-yellow-700 font-medium" : "text-gray-500"}>
                     {e.currentBreakStartAt
-                      ? `Break since ${fmtTime(e.currentBreakStartAt)} · ${fmtBreakSummary(e.breakCount, e.totalBreakMins)}`
-                      : fmtBreakSummary(e.breakCount, e.totalBreakMins)}
+                      ? labels.breakSinceTemplate
+                          .replace("{time}", fmtTime(e.currentBreakStartAt))
+                          .replace("{summary}", fmtBreakSummary(e.breakCount, e.totalBreakMins, labels))
+                      : fmtBreakSummary(e.breakCount, e.totalBreakMins, labels)}
                   </span>
                 ) : null}
               </div>
@@ -111,11 +145,11 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
         <table className="w-full text-sm">
           <thead className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2">Employee</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Clock In</th>
-              <th className="px-4 py-2">Break time</th>
-              <th className="px-4 py-2">Clock Out</th>
+              <th className="px-4 py-2">{labels.colEmployee}</th>
+              <th className="px-4 py-2">{labels.colStatus}</th>
+              <th className="px-4 py-2">{labels.colClockIn}</th>
+              <th className="px-4 py-2">{labels.colBreakTime}</th>
+              <th className="px-4 py-2">{labels.colClockOut}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -137,8 +171,8 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
                 <td className="px-4 py-2.5 text-xs">
                   {e.breakCount > 0 ? (
                     <span className={e.currentBreakStartAt ? "font-medium text-yellow-700" : "text-gray-600"}>
-                      {e.currentBreakStartAt && `Since ${fmtTime(e.currentBreakStartAt)} · `}
-                      {fmtBreakSummary(e.breakCount, e.totalBreakMins)}
+                      {e.currentBreakStartAt && `${labels.sinceTimeTemplate.replace("{time}", fmtTime(e.currentBreakStartAt))} `}
+                      {fmtBreakSummary(e.breakCount, e.totalBreakMins, labels)}
                     </span>
                   ) : (
                     <span className="text-gray-400">—</span>
@@ -153,13 +187,13 @@ export default function LiveAttendance({ entries }: { entries: StatusEntry[] }) 
 
       {/* Legend */}
       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600">
-        <div className="mb-1.5 font-semibold text-gray-700">End-of-day review statuses:</div>
+        <div className="mb-1.5 font-semibold text-gray-700">{labels.eodReviewHeading}</div>
         <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
-          <div><span className="font-semibold text-green-700">PRESENT</span> — worked a normal shift, counts toward monthly working days</div>
-          <div><span className="font-semibold text-purple-700">OT</span> — worked an extra day beyond required days — earns OT premium</div>
-          <div><span className="font-semibold text-red-700">ABSENT</span> — did not come in — daily rate deducted</div>
-          <div><span className="font-semibold text-blue-700">LEAVE</span> — on approved leave — daily rate deducted (same as absent)</div>
-          <div><span className="font-semibold text-gray-500">REST DAY</span> — scheduled off, excluded from working-day count</div>
+          <div><span className="font-semibold text-green-700">{labels.legendKeyPresent}</span> {labels.legendPresent}</div>
+          <div><span className="font-semibold text-purple-700">{labels.legendKeyOt}</span> {labels.legendOt}</div>
+          <div><span className="font-semibold text-red-700">{labels.legendKeyAbsent}</span> {labels.legendAbsent}</div>
+          <div><span className="font-semibold text-blue-700">{labels.legendKeyLeave}</span> {labels.legendLeave}</div>
+          <div><span className="font-semibold text-gray-500">{labels.legendKeyRestDay}</span> {labels.legendRestDay}</div>
         </div>
       </div>
     </div>

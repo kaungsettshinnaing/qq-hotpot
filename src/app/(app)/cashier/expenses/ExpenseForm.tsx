@@ -34,6 +34,31 @@ interface Labels {
   amount: string;
   record: string;
   cancel: string;
+  invoiceType: string;
+  stockInvoiceToggle: string;
+  nonStockInvoiceToggle: string;
+  category: string;
+  categoryStockOnlyHint: string;
+  selectCategoryPlaceholder: string;
+  paidFrom: string;
+  radioCashDrawer: string;
+  radioBankTransfer: string;
+  bankTransferHint: string;
+  description: string;
+  descriptionPlaceholderPrepay: string;
+  dateLabel: string;
+  lineItemsHeading: string;
+  addLine: string;
+  selectItemPlaceholder: string;
+  selectCategoryFirstPlaceholder: string;
+  lineDescPlaceholder: string;
+  unitPlaceholder: string;
+  qtyPlaceholder: string;
+  price: string;
+  total: string;
+  receipts: string;
+  saving: string;
+  addExpense: string;
 }
 
 type Mode = "NON_STOCK" | "STOCK" | "PREPAYMENT";
@@ -152,7 +177,7 @@ export default function ExpenseForm({
     <div className="space-y-4">
       {/* Mode toggle */}
       <div>
-        <span className="mb-1.5 block text-xs font-medium text-gray-600">Invoice type</span>
+        <span className="mb-1.5 block text-xs font-medium text-gray-600">{labels.invoiceType}</span>
         <div className="flex gap-2">
           {(["NON_STOCK", "STOCK", "PREPAYMENT"] as const).map((m) => (
             <button
@@ -166,7 +191,7 @@ export default function ExpenseForm({
                   : "border-gray-200 text-gray-500 hover:border-gray-300")
               }
             >
-              {m === "STOCK" ? "Stock Invoice" : m === "NON_STOCK" ? "Non-Stock Invoice" : labels.prepaymentToggle}
+              {m === "STOCK" ? labels.stockInvoiceToggle : m === "NON_STOCK" ? labels.nonStockInvoiceToggle : labels.prepaymentToggle}
             </button>
           ))}
         </div>
@@ -186,11 +211,11 @@ export default function ExpenseForm({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Category</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600">{labels.category}</label>
             <select name="categoryId" required value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2">
-              <option value="">— Select category —</option>
+              <option value="">{labels.selectCategoryPlaceholder}</option>
               {stockCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
@@ -200,24 +225,24 @@ export default function ExpenseForm({
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           </div>
           <div>
-            <span className="mb-1 block text-xs font-medium text-gray-600">Paid from</span>
+            <span className="mb-1 block text-xs font-medium text-gray-600">{labels.paidFrom}</span>
             <div className="flex gap-4">
               <label className="flex items-center gap-1.5">
-                <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> Cash drawer
+                <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> {labels.radioCashDrawer}
               </label>
               <label className="flex items-center gap-1.5">
-                <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> Bank transfer
+                <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> {labels.radioBankTransfer}
               </label>
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Description</label>
-            <input name="description" maxLength={300} placeholder="e.g. Advance payment for beer order"
+            <label className="mb-1 block text-xs font-medium text-gray-600">{labels.description}</label>
+            <input name="description" maxLength={300} placeholder={labels.descriptionPlaceholderPrepay}
               className="w-full rounded-lg border border-gray-300 px-3 py-2" />
           </div>
           <button type="submit" disabled={pending || !categoryId}
             className="w-full rounded-lg bg-yellow-500 py-2.5 font-semibold text-white hover:bg-yellow-600 disabled:opacity-60">
-            {pending ? "Saving…" : labels.record}
+            {pending ? labels.saving : labels.record}
           </button>
         </form>
       ) : (
@@ -227,7 +252,7 @@ export default function ExpenseForm({
           {/* Category */}
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
-              Category {isStock && <span className="text-gray-400">(stock categories only)</span>}
+              {labels.category} {isStock && <span className="text-gray-400">{labels.categoryStockOnlyHint}</span>}
             </label>
             <select
               name="categoryId"
@@ -236,7 +261,7 @@ export default function ExpenseForm({
               onChange={(e) => handleCategoryChange(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2"
             >
-              <option value="">— Select category —</option>
+              <option value="">{labels.selectCategoryPlaceholder}</option>
               {shownCategories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -285,32 +310,32 @@ export default function ExpenseForm({
             </div>
           ) : (
             <div>
-              <span className="mb-1 block text-xs font-medium text-gray-600">Paid from</span>
+              <span className="mb-1 block text-xs font-medium text-gray-600">{labels.paidFrom}</span>
               <div className="flex gap-4">
                 <label className="flex items-center gap-1.5">
-                  <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> Cash drawer
+                  <input type="radio" name="paymentSource" value="CASH_DRAWER" defaultChecked /> {labels.radioCashDrawer}
                 </label>
                 <label className="flex items-center gap-1.5">
-                  <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> Bank transfer
+                  <input type="radio" name="paymentSource" value="BANK_TRANSFER" /> {labels.radioBankTransfer}
                 </label>
               </div>
-              <p className="mt-1 text-[11px] text-gray-400">Bank transfer goes to AP — does not affect drawer cash.</p>
+              <p className="mt-1 text-[11px] text-gray-400">{labels.bankTransferHint}</p>
             </div>
           )}
 
           {/* Date (read-only) */}
           <div className="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-500">
-            <span className="font-medium">Date:</span> {nowStr}
+            <span className="font-medium">{labels.dateLabel}</span> {nowStr}
           </div>
 
           {/* Line items */}
           <div>
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Line Items (breakdown)
+                {labels.lineItemsHeading}
               </h3>
               <button type="button" onClick={addRow} className="text-xs font-medium text-brand hover:underline">
-                + Add Line
+                + {labels.addLine}
               </button>
             </div>
 
@@ -327,7 +352,7 @@ export default function ExpenseForm({
                         required
                         className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
                       >
-                        <option value="">— Select item —</option>
+                        <option value="">{labels.selectItemPlaceholder}</option>
                         {items.map((item) => (
                           <option key={item.id} value={item.id}>{item.name}</option>
                         ))}
@@ -337,7 +362,7 @@ export default function ExpenseForm({
                     <input
                       value=""
                       readOnly
-                      placeholder="Select category first"
+                      placeholder={labels.selectCategoryFirstPlaceholder}
                       className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-400"
                     />
                   ) : (
@@ -345,7 +370,7 @@ export default function ExpenseForm({
                       name="lineDesc"
                       value={row.description}
                       onChange={(e) => updateRow(row.key, "description", e.target.value)}
-                      placeholder="Description *"
+                      placeholder={labels.lineDescPlaceholder}
                       required
                       className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
                     />
@@ -357,7 +382,7 @@ export default function ExpenseForm({
                       name="lineUnit"
                       value={row.unit}
                       onChange={(e) => updateRow(row.key, "unit", e.target.value)}
-                      placeholder="Unit"
+                      placeholder={labels.unitPlaceholder}
                       className="w-20 rounded border border-gray-200 bg-white px-2 py-1.5 text-sm"
                     />
                     <input
@@ -367,7 +392,7 @@ export default function ExpenseForm({
                       type="number"
                       min="0"
                       step="any"
-                      placeholder="Qty"
+                      placeholder={labels.qtyPlaceholder}
                       required
                       className="w-16 rounded border border-gray-200 bg-white px-2 py-1.5 text-center text-sm"
                     />
@@ -377,7 +402,7 @@ export default function ExpenseForm({
                       onChange={(e) => updateRow(row.key, "price", e.target.value)}
                       type="number"
                       min="0"
-                      placeholder={isStock ? `${labels.unitCost} (${currency})` : `Price (${currency})`}
+                      placeholder={isStock ? `${labels.unitCost} (${currency})` : `${labels.price} (${currency})`}
                       required
                       className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1.5 text-right text-sm"
                     />
@@ -399,7 +424,7 @@ export default function ExpenseForm({
               "mt-3 rounded-lg p-3 flex items-center justify-between " +
               (total > 0 ? "bg-brand/5 border border-brand/20" : "bg-gray-50")
             }>
-              <span className="text-xs font-medium text-gray-600">Total</span>
+              <span className="text-xs font-medium text-gray-600">{labels.total}</span>
               <span className={`text-base font-bold tabular-nums ${total > 0 ? "text-brand-dark" : "text-gray-400"}`}>
                 {total.toLocaleString()} {currency}
               </span>
@@ -412,7 +437,7 @@ export default function ExpenseForm({
 
           {/* Receipt upload */}
           <div>
-            <span className="mb-1 block text-xs font-medium text-gray-600">Receipts (optional)</span>
+            <span className="mb-1 block text-xs font-medium text-gray-600">{labels.receipts}</span>
             <input
               name="receipts"
               type="file"
@@ -427,9 +452,9 @@ export default function ExpenseForm({
             disabled={pending || total === 0 || !categoryId}
             className="w-full rounded-lg bg-brand py-2.5 font-semibold text-white hover:bg-brand-dark active:scale-95 transition disabled:opacity-60"
           >
-            {pending ? "Saving…" : isStock
+            {pending ? labels.saving : isStock
               ? `${labels.submitStockInvoice} — ${total.toLocaleString()} ${currency}`
-              : `Add Expense — ${total.toLocaleString()} ${currency}`}
+              : `${labels.addExpense} — ${total.toLocaleString()} ${currency}`}
           </button>
         </form>
       )}

@@ -71,7 +71,7 @@ export default async function AdminMenuPage() {
               <input
                 name="name"
                 required
-                placeholder="e.g. Soft Drink"
+                placeholder={t("placeholder_soft_drink_example")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2"
               />
             </label>
@@ -79,7 +79,7 @@ export default async function AdminMenuPage() {
               <span className="mb-1 block text-xs font-medium text-gray-500">{t("label_category")}</span>
               <input
                 name="category"
-                placeholder="e.g. Drinks"
+                placeholder={t("placeholder_drinks_example")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2"
               />
             </label>

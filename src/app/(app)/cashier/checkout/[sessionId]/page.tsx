@@ -53,7 +53,9 @@ export default async function CheckoutPage({
             <span className="ml-2 text-sm font-normal text-gray-400">{detail.diners} pax</span>
           </h1>
         </div>
-        <PrintButton className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50" />
+        <PrintButton className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">
+          {t("btn_print_receipt")}
+        </PrintButton>
       </div>
 
       {isSettled && (
@@ -66,7 +68,18 @@ export default async function CheckoutPage({
         <div className="space-y-4">
           <section className="rounded-xl bg-white p-4 shadow-sm">
             <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_bill")}</h3>
-            <BillSummary bill={bill} currency={settings.currency} />
+            <BillSummary
+              bill={bill}
+              currency={settings.currency}
+              labels={{
+                noItems: t("bill_no_items"),
+                subtotal: t("bill_subtotal"),
+                discount: t("bill_discount"),
+                serviceCharge: t("bill_service_charge"),
+                tax: t("bill_tax"),
+                total: t("bill_total"),
+              }}
+            />
           </section>
 
           <section className="rounded-xl bg-white p-4 shadow-sm">
@@ -180,6 +193,7 @@ export default async function CheckoutPage({
                 placeholderReference:  t("placeholder_reference"),
                 btnAddPayment:         t("btn_add_payment"),
                 labelChangeDue:        t("label_change_due"),
+                btnExact:              t("btn_exact"),
               }}
             />
           ) : (

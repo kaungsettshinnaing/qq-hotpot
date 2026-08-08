@@ -66,11 +66,11 @@ export default async function NewEmployeePage({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label">{t("label_full_name")} *</label>
-              <input name="name" required className="input" placeholder="e.g. Ko Aung" />
+              <input name="name" required className="input" placeholder={t("placeholder_ko_aung_example")} />
             </div>
             <div>
               <label className="label">{t("label_username_onboard")} *</label>
-              <input name="username" required className="input" placeholder="e.g. ko_aung" />
+              <input name="username" required className="input" placeholder={t("placeholder_ko_aung_username_example")} />
             </div>
           </div>
           <div>
@@ -86,11 +86,11 @@ export default async function NewEmployeePage({
           </div>
           <div>
             <label className="label">{t("label_start_date")} *</label>
-            <DateField name="startDate" required />
+            <DateField name="startDate" required placeholder={t("placeholder_select_date")} />
           </div>
           <div>
             <label className="label">{t("label_date_of_birth")}</label>
-            <DateField name="dateOfBirth" />
+            <DateField name="dateOfBirth" placeholder={t("placeholder_select_date")} />
           </div>
           <div>
             <label className="label">{t("label_phone")}</label>

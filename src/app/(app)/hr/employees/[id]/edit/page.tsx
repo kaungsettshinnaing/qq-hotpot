@@ -75,11 +75,11 @@ export default async function EditEmployeePage({
           </div>
           <div>
             <label className="label">{t("label_start_date")} *</label>
-            <DateField name="startDate" required defaultValue={toInputDate(emp.startDate)} />
+            <DateField name="startDate" required defaultValue={toInputDate(emp.startDate)} placeholder={t("placeholder_select_date")} />
           </div>
           <div>
             <label className="label">{t("label_date_of_birth")}</label>
-            <DateField name="dateOfBirth" defaultValue={toInputDate(emp.dateOfBirth)} />
+            <DateField name="dateOfBirth" defaultValue={toInputDate(emp.dateOfBirth)} placeholder={t("placeholder_select_date")} />
           </div>
           <div>
             <label className="label">{t("label_phone")}</label>

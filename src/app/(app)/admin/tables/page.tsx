@@ -37,7 +37,7 @@ export default async function AdminTablesPage() {
                   <button
                     type="submit"
                     disabled={idx === 0}
-                    title="Move up"
+                    title={t("title_move_up")}
                     className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     ▲
@@ -50,7 +50,7 @@ export default async function AdminTablesPage() {
                   <button
                     type="submit"
                     disabled={idx === areas.length - 1}
-                    title="Move down"
+                    title={t("title_move_down")}
                     className="rounded px-1.5 py-0.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     ▼

@@ -11,6 +11,7 @@ import { emitFloor } from "@/lib/realtime";
 import { postSessionClose, postExpenseEntry } from "@/lib/journal-postings";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
+import { getT } from "@/lib/lang";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -41,10 +42,11 @@ export async function applyDiscount(
   reason: string,
 ): Promise<ActionResult> {
   await requireAnyRole(CASHIER_ROLES);
+  const t = await getT();
   const v = Math.max(0, Math.floor(value || 0));
-  if (type === "PERCENT" && v > 100) return { ok: false, error: "Percent cannot exceed 100." };
+  if (type === "PERCENT" && v > 100) return { ok: false, error: t("error_percent_exceeds_100") };
   const s = await prisma.tableSession.findUnique({ where: { id: sessionId } });
-  if (!s || s.status !== "OPEN") return { ok: false, error: "Bill is not open." };
+  if (!s || s.status !== "OPEN") return { ok: false, error: t("error_bill_not_open") };
   await prisma.tableSession.update({
     where: { id: sessionId },
     data: { discountType: type, discountValue: v, discountReason: reason.slice(0, 200) || null },
@@ -74,12 +76,13 @@ export async function addPayment(
   reference: string,
 ): Promise<ActionResult> {
   const user = await requireAnyRole(CASHIER_ROLES);
+  const t = await getT();
   const amt = Math.floor(amount || 0);
-  if (amt <= 0) return { ok: false, error: "Enter a positive amount." };
+  if (amt <= 0) return { ok: false, error: t("error_enter_positive_amount") };
   const shift = await getOpenShift(user.id);
-  if (!shift) return { ok: false, error: "Open a shift before taking payments." };
+  if (!shift) return { ok: false, error: t("error_open_shift_before_payment") };
   const session = await prisma.tableSession.findUnique({ where: { id: sessionId } });
-  if (!session || session.status !== "OPEN") return { ok: false, error: "Bill is not open." };
+  if (!session || session.status !== "OPEN") return { ok: false, error: t("error_bill_not_open") };
 
   await prisma.payment.create({
     data: {

@@ -288,7 +288,7 @@ export default async function AccountingPage({
       {/* Date range filter — applies to AR history, AP history, and P&L */}
       <form method="GET" action="/accounting" className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="tab" value={tab} />
-        <span className="text-xs font-medium text-gray-500">Date range</span>
+        <span className="text-xs font-medium text-gray-500">{t("label_date_range")}</span>
         <input
           type="date"
           name="from"
@@ -306,13 +306,13 @@ export default async function AccountingPage({
           type="submit"
           className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark active:scale-95 transition"
         >
-          Apply
+          {t("btn_apply")}
         </button>
         <a
           href={`/accounting?tab=${tab}&from=${defaultFrom}&to=${defaultTo}`}
           className="text-xs text-gray-400 hover:text-gray-600"
         >
-          This month
+          {t("link_this_month")}
         </a>
       </form>
 
@@ -359,7 +359,7 @@ export default async function AccountingPage({
             </h2>
             {reconciledPayments.length === 0 ? (
               <p className="rounded-xl border bg-white px-4 py-4 text-center text-sm text-gray-400">
-                No reconciled payments in this period.
+                {t("empty_no_reconciled_payments_period")}
               </p>
             ) : (
               <div className="rounded-xl border bg-white divide-y overflow-hidden">
@@ -460,7 +460,7 @@ export default async function AccountingPage({
             </h2>
             {paidExpenses.length === 0 ? (
               <p className="rounded-xl border bg-white px-4 py-4 text-center text-sm text-gray-400">
-                No paid expenses in this period.
+                {t("empty_no_paid_expenses_period")}
               </p>
             ) : (
               <div className="rounded-xl border bg-white divide-y overflow-hidden">
@@ -544,6 +544,21 @@ export default async function AccountingPage({
                     totalAdults={totalAdults}
                     totalChildren={totalChildren}
                     totalRevenue={movementsRevenue}
+                    labels={{
+                      colTable: t("col_table"),
+                      colDiners: t("label_diners_ac"),
+                      colRevenue: t("label_revenue"),
+                      colStart: t("col_start"),
+                      colEnd: t("label_end"),
+                      empty: t("empty_no_tables_settled"),
+                      emptyLineItems: t("empty_no_line_items"),
+                      subtotal: t("bill_subtotal"),
+                      discount: t("bill_discount"),
+                      serviceCharge: t("bill_service_charge"),
+                      tax: t("bill_tax"),
+                      billTotal: t("label_bill_total"),
+                      total: t("col_total"),
+                    }}
                   />
                 </div>
               </details>

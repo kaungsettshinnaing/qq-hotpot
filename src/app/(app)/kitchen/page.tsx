@@ -61,6 +61,7 @@ export default async function KitchenPage() {
           pendingCount={pending.length}
           labelSoundOn={t("btn_sound_on")}
           labelSoundOff={t("btn_enable_sound")}
+          labelPendingTemplate={t("label_n_pending")}
         />
       </div>
 
@@ -83,12 +84,12 @@ export default async function KitchenPage() {
                 </div>
                 <div className="mt-2 text-lg font-bold">
                   {p.kind === "HOTPOT" ? t("pot_kind_hotpot") : t("pot_kind_bbq")}
-                  {isPotFree(p.id) ? "" : " (add-on)"}
+                  {isPotFree(p.id) ? "" : ` ${t("label_addon_suffix")}`}
                 </div>
                 <div className="text-sm text-gray-600">
                   {p.flavours.map((fl) => fl.flavour.name).join(" + ")}
                 </div>
-                <div className="mt-1 text-xs text-gray-400">ordered {formatTime(p.createdAt)}</div>
+                <div className="mt-1 text-xs text-gray-400">{t("label_ordered_prefix")} {formatTime(p.createdAt)}</div>
                 <form action={deliverPot} className="mt-3">
                   <input type="hidden" name="potId" value={p.id} />
                   <button className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700">

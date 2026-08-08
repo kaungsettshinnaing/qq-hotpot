@@ -34,12 +34,32 @@ interface Expense {
 
 type Filter = "ALL" | "CASH_DRAWER" | "BANK_TRANSFER";
 
+interface ExpenseListLabels {
+  heading: string;
+  filterAll: string;
+  filterCash: string;
+  filterBank: string;
+  empty: string;
+  badgeStock: string;
+  badgeNonStock: string;
+  badgeRejected: string;
+  badgeConfirmed: string;
+  badgeAwaiting: string;
+  sourceCashDrawer: string;
+  sourceBankTransfer: string;
+  rejectedReasonTemplate: string; // contains "{reason}"
+  rejectedByManager: string;
+  altReceipt: string;
+}
+
 export default function ExpenseList({
   expenses,
   currency,
+  labels,
 }: {
   expenses: Expense[];
   currency: string;
+  labels: ExpenseListLabels;
 }) {
   const [filter, setFilter] = useState<Filter>("ALL");
 
@@ -50,16 +70,16 @@ export default function ExpenseList({
   const bankCount = expenses.filter((e) => e.paymentSource === "BANK_TRANSFER").length;
 
   const tabs: { key: Filter; label: string; count: number }[] = [
-    { key: "ALL", label: "All", count: expenses.length },
-    { key: "CASH_DRAWER", label: "Cash", count: cashCount },
-    { key: "BANK_TRANSFER", label: "Bank", count: bankCount },
+    { key: "ALL", label: labels.filterAll, count: expenses.length },
+    { key: "CASH_DRAWER", label: labels.filterCash, count: cashCount },
+    { key: "BANK_TRANSFER", label: labels.filterBank, count: bankCount },
   ];
 
   return (
     <div className="rounded-xl bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
         <h3 className="text-sm font-semibold text-gray-700">
-          Today&apos;s expenses ({filtered.length})
+          {labels.heading} ({filtered.length})
         </h3>
         <div className="flex gap-1">
           {tabs.map((tab) => (
@@ -81,7 +101,7 @@ export default function ExpenseList({
 
       <ul className="divide-y divide-gray-100">
         {filtered.length === 0 && (
-          <li className="px-4 py-3 text-sm text-gray-400">No expenses</li>
+          <li className="px-4 py-3 text-sm text-gray-400">{labels.empty}</li>
         )}
         {filtered.map((e) => (
           <li key={e.id} className="px-4 py-2.5 text-sm">
@@ -99,30 +119,32 @@ export default function ExpenseList({
                           : "bg-gray-100 text-gray-600")
                       }
                     >
-                      {e.invoiceType === "STOCK" ? "Stock" : "Non-stock"}
+                      {e.invoiceType === "STOCK" ? labels.badgeStock : labels.badgeNonStock}
                     </span>
                   )}
                   {e.rejectedAt ? (
                     <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                      Rejected
+                      {labels.badgeRejected}
                     </span>
                   ) : e.confirmedAt ? (
                     <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
-                      Confirmed
+                      {labels.badgeConfirmed}
                     </span>
                   ) : (
                     <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                      Awaiting
+                      {labels.badgeAwaiting}
                     </span>
                   )}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {e.paymentSource === "CASH_DRAWER" ? "Cash drawer" : "Bank transfer"}
+                  {e.paymentSource === "CASH_DRAWER" ? labels.sourceCashDrawer : labels.sourceBankTransfer}
                   {e.vendor ? ` · ${e.vendor}` : ""} · {formatTime(new Date(e.createdAt))}
                 </div>
                 {e.rejectedAt && (
                   <div className="mt-0.5 text-xs font-medium text-red-600">
-                    {e.rejectionReason ? `Rejected: ${e.rejectionReason}` : "Rejected by manager"}
+                    {e.rejectionReason
+                      ? labels.rejectedReasonTemplate.replace("{reason}", e.rejectionReason)
+                      : labels.rejectedByManager}
                   </div>
                 )}
 
@@ -161,7 +183,7 @@ export default function ExpenseList({
                       >
                         <img
                           src={`/api/uploads/${a.filePath}`}
-                          alt="receipt"
+                          alt={labels.altReceipt}
                           className="h-12 w-12 rounded border object-cover hover:opacity-80"
                         />
                       </a>
