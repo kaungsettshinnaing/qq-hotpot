@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { requireAnyRole } from "@/lib/auth";
+import { formatDate } from "@/lib/format";
+import { belongsOnPayslip } from "@/lib/hr-payroll";
 import { getT } from "@/lib/lang";
+import PrintButton from "../../PrintButton";
 
 export default async function PayslipPage({
   params,
@@ -40,14 +43,36 @@ export default async function PayslipPage({
     where: { employeeId: employeeId, month, year },
   });
 
-  const advanceInstalments = await prisma.advanceInstalment.findMany({
-    where: { advance: { employeeId: employeeId }, month, year },
-    include: { advance: { select: { note: true } } },
-  });
+  const isLocked = payroll.status === "LOCKED";
 
-  const fines = await prisma.employeeFine.findMany({
-    where: { employeeId: employeeId, deductMonth: month, deductYear: year },
-  });
+  // Deductions are month-scoped, so the candidates are simply the rows booked
+  // against this month; belongsOnPayslip then applies the draft/locked rule so
+  // the slip always reconciles to the Advance / Fines columns on the payroll
+  // table for the same month.
+  const [monthInstalments, monthFines] = await Promise.all([
+    prisma.advanceInstalment.findMany({
+      where: { advance: { employeeId: employeeId }, month, year },
+      include: { advance: { select: { note: true, totalAmount: true, createdAt: true } } },
+      orderBy: { id: "asc" },
+    }),
+    prisma.employeeFine.findMany({
+      where: { employeeId: employeeId, deductMonth: month, deductYear: year },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+
+  const advanceInstalments = monthInstalments.filter((i) =>
+    belongsOnPayslip(
+      { month: i.month, year: i.year, deducted: i.deducted, deductedMonth: i.deductedMonth, deductedYear: i.deductedYear },
+      month, year, isLocked,
+    ),
+  );
+  const fines = monthFines.filter((f) =>
+    belongsOnPayslip(
+      { month: f.deductMonth, year: f.deductYear, deducted: f.deducted, deductedMonth: f.deductedMonth, deductedYear: f.deductedYear },
+      month, year, isLocked,
+    ),
+  );
 
   const netAbsent = Math.max(0, item.absentDays - item.otDays);
   const earnedBonus = netAbsent === 0 && item.attendanceBonusAmt > 0;
@@ -56,7 +81,7 @@ export default async function PayslipPage({
     <div className="mx-auto max-w-lg space-y-0 print:shadow-none">
       {/* Print button — hidden when printing */}
       <div className="mb-4 flex justify-end print:hidden">
-        <button onClick={() => window.print()} className="btn-brand">{t("btn_print")}</button>
+        <PrintButton label={t("btn_print")} />
       </div>
 
       <div className="rounded-xl border bg-white p-8 shadow-sm print:border-0 print:shadow-none">
@@ -134,15 +159,28 @@ export default async function PayslipPage({
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{t("section_deductions")}</h2>
             <div className="space-y-1 text-sm">
               {advanceInstalments.map((inst) => (
-                <div key={inst.id} className="flex justify-between text-red-500">
-                  <span>{t("label_advance_repayment_note", { note: inst.advance.note ? ` (${inst.advance.note})` : "" })}</span>
-                  <span>−{inst.amount.toLocaleString()} MMK</span>
+                <div key={inst.id}>
+                  <div className="flex justify-between text-red-500">
+                    <span>{t("label_advance_repayment_note", { note: inst.advance.note ? ` (${inst.advance.note})` : "" })}</span>
+                    <span>−{inst.amount.toLocaleString()} MMK</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {t("payslip_advance_taken_meta", {
+                      date: formatDate(inst.advance.createdAt),
+                      amount: inst.advance.totalAmount.toLocaleString(),
+                    })}
+                  </p>
                 </div>
               ))}
               {fines.map((f) => (
-                <div key={f.id} className="flex justify-between text-red-500">
-                  <span>{t("label_fine_reason", { reason: f.reason })}</span>
-                  <span>−{f.amount.toLocaleString()} MMK</span>
+                <div key={f.id}>
+                  <div className="flex justify-between text-red-500">
+                    <span>{t("label_fine_reason", { reason: f.reason })}</span>
+                    <span>−{f.amount.toLocaleString()} MMK</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {t("payslip_fine_issued_meta", { date: formatDate(f.createdAt) })}
+                  </p>
                 </div>
               ))}
             </div>
@@ -159,7 +197,7 @@ export default async function PayslipPage({
 
         {/* Status */}
         <div className="mt-6 text-center text-xs text-gray-400">
-          {payroll.status === "LOCKED" ? t("payslip_approved") : t("payslip_draft")}
+          {isLocked ? t("payslip_approved") : t("payslip_draft")}
         </div>
       </div>
     </div>

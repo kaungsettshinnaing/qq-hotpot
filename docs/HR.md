@@ -99,12 +99,25 @@ LeaveRequest {
 
 ```prisma
 SalaryAdvance { id, employeeId, totalAmount, note, createdById }
-AdvanceInstalment { id, advanceId, month, year, amount, deducted Boolean }
+AdvanceInstalment { id, advanceId, month, year, amount, deducted Boolean,
+                    deductedMonth Int?, deductedYear Int? }
 ```
 
 - `createAdvance` creates both the parent `SalaryAdvance` and an `AdvanceInstalment` in one atomic call.
 - Each instalment targets a specific `month/year` for payroll deduction.
+- **Deduction is strictly month-scoped.** Only the payroll for the instalment's own
+  `month/year` collects it. Nothing is ever swept forward into a later month, so a payslip
+  can only ever show deductions belonging to the month printed on it.
+- **Consequence, by design:** if a month's payroll is never locked, its instalments stay
+  outstanding forever — no later payroll picks them up. HR must reschedule them from
+  `/hr/advances` if they still need collecting. (This replaced an earlier roll-forward rule
+  that pulled every outstanding instalment into the current month; it made an August
+  payslip show July advances, which the business rejected.)
 - `deducted = true` once the matching payroll is locked — cannot be deleted after.
+- `deductedMonth`/`deductedYear` record **which payroll run actually collected the row**.
+  Under month-scoping these equal `month`/`year`, but they are the audit trail proving
+  collection happened and in which run. Null on rows collected before the field existed —
+  the payslip falls back to the booked month for those.
 - Deleting an instalment also deletes the parent `SalaryAdvance` if no other instalments remain.
 
 ### EmployeeFine
@@ -183,10 +196,25 @@ ot_premium      = round(extra_ot × daily_rate × 0.5)   // full day already in 
 attendance_bon  = attendanceBonusAmt   if net_absent == 0   else 0
 
 gross = basicSalary − absence_deduct + ot_premium + attendance_bon + Σ(adHocBonuses)
-net   = max(0, gross − Σ(advance_instalments for this month) − Σ(fines for this month))
+net   = max(0, gross − Σ(advance_instalments booked for this month)
+                     − Σ(fines booked for this month))
+        // month-scoped only — nothing carries over from an earlier month
 ```
 
-Lives in `src/lib/hr-payroll.ts` → `computePayrollItem(inputs)` and `workingDaysInMonth(year, month, restDays)`.
+Lives in `src/lib/hr-payroll.ts`:
+- `computePayrollItem(inputs)` — the formula above.
+- `workingDaysInMonth(year, month, restDays)`.
+- `allocateDeductions(grossPay, fines, advances)` — decides what `lockPayroll` can actually
+  collect out of gross pay (fines first, oldest first, each row all-or-nothing).
+- `belongsOnPayslip(row, month, year, locked)` — decides which deduction rows a payslip
+  lists, so a slip always reconciles to the payroll table for the same month.
+
+Unit-tested in `src/lib/hr-payroll.test.ts` (`npm test`).
+
+> **The attendance bonus can only pay what the employee record allows.** `attendance_bon`
+> is `Employee.attendanceBonus`, which is `0` unless HR sets it in HR › Employees. Perfect
+> attendance with a `0` entitlement correctly pays nothing — if a payslip is missing a
+> bonus, check the employee record before suspecting the calculation.
 
 ---
 
@@ -415,14 +443,20 @@ Prefer `toggleEmployeeActive` for normal offboarding — this path permanently e
 ### Payroll lock
 
 - Sets `Payroll.status = LOCKED`.
-- Marks all `AdvanceInstalment` and `EmployeeFine` rows for this month as `deducted = true`.
+- Collects the `AdvanceInstalment` and `EmployeeFine` rows **booked for this month**,
+  via `allocateDeductions()`: fines before advances, oldest first, each row all-or-nothing
+  so gross pay is never overdrawn. Collected rows get `deducted = true` plus a
+  `deductedMonth`/`deductedYear` stamp.
+- A row that gross pay cannot cover stays outstanding. No later payroll sweeps it up —
+  HR reschedules it from `/hr/advances`.
 - Irreversible — no unlock flow exists.
 
 ### Advance instalments + fines lifecycle
 
 - Created by HR/ADMIN/MANAGER with a target `month/year`.
-- Included automatically in `generatePayroll()` for that month.
-- `deducted = true` only after the payroll for that month is locked.
+- Included automatically in `generatePayroll()` for **that month only**.
+- `deducted = true` only after the payroll for that month is locked, and only if gross pay
+  covered it.
 - Cannot delete an instalment or fine once `deducted = true`.
 
 ### Date input format

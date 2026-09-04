@@ -614,9 +614,16 @@ model AdvanceInstalment {
   year      Int
   amount    Int
   deducted  Boolean       @default(false)
+  // Which payroll run actually collected this instalment. Differs from
+  // month/year whenever a shortfall pushed it forward (see lockPayroll).
+  // Null on rows collected before this field existed — the payslip falls
+  // back to the scheduled month for those.
+  deductedMonth Int?
+  deductedYear  Int?
 
   @@index([advanceId])
   @@index([year, month])
+  @@index([deductedYear, deductedMonth])
 }
 
 // Fines
@@ -629,12 +636,16 @@ model EmployeeFine {
   deductMonth Int
   deductYear  Int
   deducted    Boolean  @default(false)
+  // Which payroll run actually collected this fine — see AdvanceInstalment.
+  deductedMonth Int?
+  deductedYear  Int?
   createdBy   User     @relation("fineCreatedBy", fields: [createdById], references: [id])
   createdById String
   createdAt   DateTime @default(now())
 
   @@index([employeeId])
   @@index([deductYear, deductMonth])
+  @@index([deductedYear, deductedMonth])
 }
 
 // Ad-hoc bonuses

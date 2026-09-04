@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import { getT } from "@/lib/lang";
 import { requireAnyRole } from "@/lib/auth";
+import PrintButton from "../PrintButton";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -34,7 +35,7 @@ export default async function PayrollSummaryPage({
   return (
     <div className="mx-auto max-w-2xl print:shadow-none">
       <div className="mb-4 flex justify-end gap-2 print:hidden">
-        <button onClick={() => window.print()} className="btn-brand">{t("btn_print")}</button>
+        <PrintButton label={t("btn_print")} />
       </div>
 
       <div className="rounded-xl border bg-white p-8 shadow-sm print:border-0">

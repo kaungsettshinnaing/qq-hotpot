@@ -1216,6 +1216,8 @@ const dict: Record<string, { en: string; my: string }> = {
   label_attendance_bonus_perfect: { en: "Attendance Bonus (perfect attendance)", my: "တက်ရောက်မှုဆု (အပြည့်တက်ရောက်)" },
   label_advance_repayment_note: { en: "Advance repayment{note}",           my: "ကြိုတင်ငွေ ပြန်ဆပ်မှု{note}" },
   label_fine_reason:            { en: "Fine: {reason}",                    my: "ဒဏ်ကြေး: {reason}" },
+  payslip_advance_taken_meta:  { en: "Taken {date} · advance of {amount} MMK", my: "{date} တွင် ထုတ်ယူခဲ့သည် · ကြိုတင်ငွေ {amount} ကျပ်" },
+  payslip_fine_issued_meta:    { en: "Issued {date}",                     my: "{date} တွင် သတ်မှတ်ခဲ့သည်" },
 
   // ── Inventory delivery — cashier invoice forms ───────────────────────────
   label_payment_method_full:   { en: "Payment Method",                     my: "ငွေပေးချေနည်း" },

@@ -2,7 +2,7 @@
   "name": "qq-app",
   "version": "0.1.0",
   "private": true,
-  "description": "QQ Hotpot BBQ — Restaurant Management (POS)",
+  "description": "QQ Hotpot BBQ \u2014 Restaurant Management (POS)",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch server.ts",
     "build": "prisma generate && next build",
@@ -14,7 +14,9 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -44,7 +46,8 @@
     "eslint-config-next": "^15.1.4",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=18.18.0"
