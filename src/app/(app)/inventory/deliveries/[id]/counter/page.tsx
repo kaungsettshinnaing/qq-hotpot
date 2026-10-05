@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import SubmitButton from "@/components/SubmitButton";
@@ -16,7 +16,7 @@ export default async function CounterEntryPage({
   const { id } = await params;
   const t = await getT();
 
-  const delivery = await prisma.stockDelivery.findUniqueOrThrow({
+  const delivery = await prisma.stockDelivery.findUnique({
     where: { id },
     include: {
       supplier: true,
@@ -27,6 +27,7 @@ export default async function CounterEntryPage({
     },
   });
 
+  if (!delivery) notFound();
   if (delivery.counterSubmittedAt || delivery.invoiceType === "NON_STOCK") {
     redirect(`/inventory/deliveries/${id}`);
   }

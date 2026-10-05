@@ -4,7 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { getCashStanding, createCashMovement } from "@/lib/shift";
 import { netCashChange } from "@/lib/pricing";
 import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
-import { mmToday, mmDayOf, mmDayRange } from "@/lib/business-day";
+import { mmToday, mmDayOf, mmDayRange, dayOr } from "@/lib/business-day";
 import { revalidatePath } from "next/cache";
 import { getT } from "@/lib/lang";
 import CollectionCard from "./CollectionCard";
@@ -45,8 +45,8 @@ export default async function CashCollectionPage({
   const todayStr = mmToday();
   const defaultFrom = new Date(mmDayRange(todayStr).start.getTime() - 13 * 24 * 60 * 60 * 1000)
     .toISOString().slice(0, 10);
-  const fromStr = sp.from ?? defaultFrom;
-  const toStr = sp.to ?? todayStr;
+  const fromStr = dayOr(sp.from, defaultFrom);
+  const toStr = dayOr(sp.to, todayStr);
   const rangeStart = mmDayRange(fromStr).start;
   const rangeEnd = mmDayRange(toStr).end;
 

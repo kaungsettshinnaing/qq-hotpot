@@ -33,6 +33,13 @@ export async function createEmployee(fd: FormData) {
   const accountMode = (fd.get("accountMode") as string) ?? "link";
   let userId: string;
 
+  // Employee No is unique. Check it first: otherwise the login below is created and the
+  // Employee insert then fails, leaving an orphan login and an error page.
+  const wantedNo = ((fd.get("employeeNo") as string | null) ?? "").trim();
+  if (wantedNo && (await prisma.employee.findUnique({ where: { employeeNo: wantedNo }, select: { userId: true } }))) {
+    redirect("/hr/employees/new?error=employee-no-taken");
+  }
+
   if (accountMode === "create") {
     const name = (fd.get("name") as string).trim();
     const username = (fd.get("username") as string).trim().toLowerCase();
@@ -106,6 +113,12 @@ export async function updateEmployee(fd: FormData) {
 
   if (!name) redirect(`/hr/employees/${userId}/edit?error=missing-name`);
   if (!username) redirect(`/hr/employees/${userId}/edit?error=missing-username`);
+
+  const wantedNo = ((fd.get("employeeNo") as string | null) ?? "").trim();
+  if (wantedNo) {
+    const noOwner = await prisma.employee.findUnique({ where: { employeeNo: wantedNo }, select: { userId: true } });
+    if (noOwner && noOwner.userId !== userId) redirect(`/hr/employees/${userId}/edit?error=employee-no-taken`);
+  }
 
   // Check username uniqueness (excluding this user) — reclaims it if the
   // current holder is inactive, otherwise blocks as before.
@@ -233,10 +246,15 @@ export async function uploadDocument(fd: FormData) {
   const name = (fd.get("name") as string).trim();
   const file = fd.get("file") as File | null;
   if (!file || file.size === 0) return;
+  // employeeId becomes a directory name — only accept a real employee's id.
+  if (!/^[A-Za-z0-9_-]+$/.test(employeeId)) return;
+  if (!(await prisma.employee.findUnique({ where: { userId: employeeId }, select: { userId: true } }))) return;
 
   const uploadsDir = path.join(process.cwd(), "uploads", "employees", employeeId);
   await mkdir(uploadsDir, { recursive: true });
-  const ext = file.name.split(".").pop() ?? "bin";
+  // "scan.pdf (1)" must not yield ext "pdf (1)" (the file server rejects it), and the
+  // extension is user input, so keep letters/digits only.
+  const ext = path.extname(file.name).replace(/[^A-Za-z0-9]/g, "").toLowerCase() || "bin";
   const filename = `${Date.now()}.${ext}`;
   const filePath = path.join(uploadsDir, filename);
   await writeFile(filePath, Buffer.from(await file.arrayBuffer()));
@@ -251,7 +269,7 @@ export async function uploadDocument(fd: FormData) {
 export async function deleteDocument(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN"]);
   const id = fd.get("id") as string;
-  await prisma.employeeDocument.delete({ where: { id } });
+  await prisma.employeeDocument.deleteMany({ where: { id } });
   revalidatePath("/hr/employees");
 }
 

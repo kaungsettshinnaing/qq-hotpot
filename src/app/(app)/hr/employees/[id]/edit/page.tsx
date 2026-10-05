@@ -40,6 +40,7 @@ export default async function EditEmployeePage({
 
   const errorMsg =
     error === "username-taken" ? t("error_username_taken_edit") :
+    error === "employee-no-taken" ? t("error_employee_no_taken") :
     error === "missing-name"   ? t("error_missing_name") :
     error === "missing-username" ? t("error_missing_username") : null;
 

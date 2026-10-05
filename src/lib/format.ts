@@ -60,13 +60,18 @@ export function parseInputDate(s: string | null | undefined): Date | null {
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
   if (iso) {
     const [, year, month, day] = iso;
-    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+    const d = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+    // Date.UTC rolls over (month 13 -> next January); reject anything that didn't round-trip.
+    return d.toISOString().slice(0, 10) === trimmed ? d : null;
   }
 
   const parts = trimmed.split("-");
   if (parts.length !== 3) return null;
   const [day, mon, year] = parts;
-  const m = MONTH_MAP[mon];
+  const m = MONTH_MAP[mon] ?? MONTH_MAP[mon.charAt(0).toUpperCase() + mon.slice(1).toLowerCase()];
   if (m === undefined || !day || !year) return null;
-  return new Date(Date.UTC(parseInt(year), m, parseInt(day)));
+  // Two-digit years ("5-Oct-26") mean 20xx, not 1926.
+  const fullYear = parseInt(year) < 100 ? 2000 + parseInt(year) : parseInt(year);
+  const d = new Date(Date.UTC(fullYear, m, parseInt(day)));
+  return Number.isNaN(d.getTime()) ? null : d;
 }

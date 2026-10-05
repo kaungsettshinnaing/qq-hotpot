@@ -3,7 +3,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { formatMoney, formatTime, formatDate } from "@/lib/format";
-import { mmToday, mmDayRange } from "@/lib/business-day";
+import { mmToday, mmDayRange, dayOr } from "@/lib/business-day";
 import { getSessionDetail } from "@/lib/orders";
 import { netCashChange } from "@/lib/pricing";
 import { getT } from "@/lib/lang";
@@ -23,7 +23,7 @@ export default async function CashierHistoryPage({
 
   // Default to today (Myanmar calendar day)
   const todayStr = mmToday();
-  const selectedDate = date ?? todayStr;
+  const selectedDate = dayOr(date, todayStr);
   const { start: dayStart, end: dayEnd } = mmDayRange(selectedDate);
 
   const sessions = await prisma.tableSession.findMany({

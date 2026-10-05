@@ -34,8 +34,13 @@ function PermCheckboxes({ checked = [] }: { checked?: string[] }) {
   );
 }
 
-export default async function AdminRolesPage() {
+export default async function AdminRolesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const t = await getT();
+  const { error } = await searchParams;
   const roles = await prisma.staffRole.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { employees: true } } },
@@ -45,6 +50,9 @@ export default async function AdminRolesPage() {
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
       {/* Roles list */}
       <div className="space-y-4 lg:col-span-2">
+        {error === "duplicate" && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{t("admin_name_taken_error")}</p>
+        )}
         {roles.length === 0 && (
           <div className="rounded-xl bg-white p-6 shadow-sm text-center text-sm text-gray-400">
             {t("empty_no_roles_admin")}

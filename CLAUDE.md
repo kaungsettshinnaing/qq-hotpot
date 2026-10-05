@@ -123,10 +123,40 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
   nothing has ever been collected. As of the month-scoping change, ~565,000 MMK of July
   2026 advances no longer appear on the August payroll — they will only ever be collected
   if July's payroll is locked or HR reschedules them.
-- `docs/HR.md` referenced a `my-account/[yearMonth]/slip` self-service payslip route that
-  does not exist. Left as-is; verify before relying on that section.
+- **Payroll state in prod changed since 2026-09-04.** On 2026-10-05 prod showed Jun/Jul/Aug 2026
+  **LOCKED** (Sep DRAFT) — the "nothing ever locked" note above is out of date. All 12 June
+  items and 1 July + 1 Sep item have `grossPay = 0` (see the stale-`grossPay` gotcha below).
+  **Not yet verified whether June's locked `netPay` was zeroed by it** — check before anyone
+  relies on June figures. Locked rows are immutable, so any correction needs Simon's call.
+- Open items from the 2026-10-05 error audit that need Simon's decision (not fixed): stock
+  invoices/prepayments never post to the journal (`createInvoiceDelivery`,
+  `recordStockPrepayment`); invoice quantities are visible to the counter on the delivery
+  detail page (blind-count leak); `resolveDelivery` can double-credit stock; half-day
+  attendance is truncated (`Attendance.absentDays/otDays` are `Int`); rescheduling an advance
+  double-posts it in the journal; stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` not set, so every
+  deploy invalidates open tabs' server actions (the new `(app)/error.tsx` auto-reloads those).
 
 ## Things I got wrong before
+
+- **A date taken from the URL must go through `dayOr()` / `isDayStr()`** (`src/lib/business-day.ts`).
+  `sp.from ?? default` keeps an empty string (`?from=`), `mmDayRange("")` is an Invalid Date,
+  and Prisma throws → 500 on /accounting, /cash-collection, /cashier/history and the exports.
+- **Never cache an id obtained inside a transaction** (`getCoreAccount`): if the transaction
+  rolls back, the cache points at a row that never existed and every later posting hits an FK
+  error until restart. Only committed ids are cached now.
+- **Stale `PayrollItem.grossPay`.** The column was added with `DEFAULT 0` and never backfilled,
+  so draft items generated before 2026-07-28 have `grossPay = 0`; locking one allocates
+  deductions against 0 and writes `netPay = 0`, irreversibly. `lockPayroll` now refuses and
+  asks HR to Regenerate (a genuine all-absent zero is allowed — it checks the components).
+- **Unique-constraint and double-submit crashes.** A second click on delete / merge / rename
+  used to throw P2025/P2002 and show the blank production error page. Use `deleteMany`,
+  catch via `isPrismaError(e, "P2002")` (`src/lib/prisma-errors.ts`), and redirect with
+  `?error=…` + a banner. There is now an `(app)/error.tsx` boundary as a backstop.
+- **Settle with KBZPay/Other above the bill** produced an unbalanced journal entry and rolled
+  the settle back. `settleSession` now redirects to `?error=overpaid` instead.
+- **Employee documents are served by `/api/uploads/...`**, not `/uploads/...` (nothing serves
+  the latter). `EmployeeDocument.filePath` is stored as `/uploads/employees/<id>/<file>`;
+  links prepend `/api`.
 
 - **`onClick` on a Server Component 500s the page.** Both the payslip and the payroll
   print summary shipped with `<button onClick={() => window.print()}>` inside an `async`

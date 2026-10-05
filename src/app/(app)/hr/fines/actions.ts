@@ -28,8 +28,8 @@ export async function deleteFine(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
   const id = fd.get("id") as string;
   const fine = await prisma.employeeFine.findUnique({ where: { id } });
-  if (fine?.deducted) return;
-  await prisma.employeeFine.delete({ where: { id } });
+  if (!fine || fine.deducted) return;
+  await prisma.employeeFine.deleteMany({ where: { id } });
   revalidatePath("/hr/fines");
   revalidatePath("/manager");
 }

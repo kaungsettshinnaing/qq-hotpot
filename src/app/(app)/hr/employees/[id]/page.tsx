@@ -118,7 +118,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <ul className="space-y-1 text-sm">
             {emp.documents.map((d) => (
               <li key={d.id}>
-                <a href={d.filePath} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                <a href={`/api${d.filePath}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                   {d.name}
                 </a>
                 <span className="ml-2 text-xs text-gray-400">{formatDate(d.uploadedAt)}</span>

@@ -188,7 +188,8 @@ async function deleteItem(fd: FormData) {
   const id = fd.get("id") as string;
   const categoryId = fd.get("categoryId") as string;
   const item = await prisma.expenseCategoryItem.findUnique({ where: { id } });
-  await prisma.expenseCategoryItem.delete({ where: { id } });
+  // deleteMany: a double-click or stale tab must not throw "record not found".
+  await prisma.expenseCategoryItem.deleteMany({ where: { id } });
   if (item?.stockItemId) {
     await prisma.stockItem.update({ where: { id: item.stockItemId }, data: { isActive: false } });
   }

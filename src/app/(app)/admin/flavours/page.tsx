@@ -12,7 +12,7 @@ export default async function AdminFlavoursPage({
   searchParams: Promise<{ edit?: string; error?: string }>;
 }) {
   const t = await getT();
-  const { edit: editId } = await searchParams;
+  const { edit: editId, error } = await searchParams;
 
   const flavours = await prisma.soupFlavour.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -31,6 +31,9 @@ export default async function AdminFlavoursPage({
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
+        {error === "duplicate" && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{t("admin_name_taken_error")}</p>
+        )}
         {/* Preview buckets */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FlavourBucket

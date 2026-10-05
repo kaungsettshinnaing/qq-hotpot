@@ -8,6 +8,7 @@ import { setSetting } from "@/lib/settings";
 import { ALL_ROLES, type Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
 import { getT } from "@/lib/lang";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 const ADMIN: Role[] = ["ADMIN"];
 
@@ -209,7 +210,13 @@ export async function updateFlavour(formData: FormData): Promise<void> {
   const appliesTo =
     appliesToRaw === "HOTPOT" || appliesToRaw === "BBQ" ? appliesToRaw : "BOTH";
   if (!name || !id) redirect("/admin/flavours?error=missing");
-  await prisma.soupFlavour.update({ where: { id }, data: { name, appliesTo } });
+  try {
+    await prisma.soupFlavour.update({ where: { id }, data: { name, appliesTo } });
+  } catch (e) {
+    // SoupFlavour.name is unique — renaming onto an existing flavour is a user error, not a crash.
+    if (isPrismaError(e, "P2002")) redirect(`/admin/flavours?edit=${encodeURIComponent(id)}&error=duplicate`);
+    throw e;
+  }
   revalidatePath("/admin/flavours");
   revalidatePath("/waiter");
   redirect("/admin/flavours");
@@ -291,7 +298,12 @@ export async function updateStaffRole(formData: FormData): Promise<void> {
   const name = str(formData.get("name"), 100);
   const permissions = rolesFromForm(formData);
   if (!name || !id) return;
-  await prisma.staffRole.update({ where: { id }, data: { name, permissions } });
+  try {
+    await prisma.staffRole.update({ where: { id }, data: { name, permissions } });
+  } catch (e) {
+    if (isPrismaError(e, "P2002")) redirect("/admin/roles?error=duplicate");
+    throw e;
+  }
   revalidatePath("/admin/roles");
 }
 

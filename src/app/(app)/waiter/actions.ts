@@ -10,6 +10,7 @@ import { emitKitchen, emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
 import { getT } from "@/lib/lang";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 const WAITER_ROLES: Role[] = ["WAITER", "MANAGER", "ADMIN"];
 
@@ -54,7 +55,7 @@ export async function updateHeadcount(
 ): Promise<ActionResult> {
   await requireAnyRole(WAITER_ROLES);
   const t = await getT();
-  if (adults < 0 || children < 0) return { ok: false, error: t("error_invalid_count") };
+  if (!(adults >= 0) || !(children >= 0) || adults > 1000 || children > 1000) return { ok: false, error: t("error_invalid_count") };
   const s = await prisma.tableSession.findUnique({ where: { id: sessionId } });
   if (!s || s.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
   await prisma.tableSession.update({
@@ -248,7 +249,15 @@ export async function mergeTable(formData: FormData): Promise<void> {
   if (!session || session.status !== "OPEN") redirect("/waiter");
   if (taken) { revalidatePath(`/waiter/session/${sessionId}`); redirect(`/waiter/session/${sessionId}`); }
 
-  await prisma.tableMerge.create({ data: { sessionId, tableId } });
+  try {
+    await prisma.tableMerge.create({ data: { sessionId, tableId } });
+  } catch (e) {
+    // TableMerge.tableId is unique: a double-tap, or another waiter merging the same
+    // table a moment earlier, just means it's already merged — show the session as-is.
+    if (!isPrismaError(e, "P2002")) throw e;
+    revalidatePath(`/waiter/session/${sessionId}`);
+    redirect(`/waiter/session/${sessionId}`);
+  }
   emitFloor("table:update", { tableId });
   revalidatePath(`/waiter/session/${sessionId}`);
   revalidatePath("/waiter");

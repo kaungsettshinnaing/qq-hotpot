@@ -20,6 +20,7 @@ export default async function NewEmployeePage({
   });
 
   const errorMsg = error === "exists" ? t("error_username_exists")
+    : error === "employee-no-taken" ? t("error_employee_no_taken")
     : error === "no-role" ? t("error_no_role_configured")
     : error ? t("error_fill_required")
     : null;

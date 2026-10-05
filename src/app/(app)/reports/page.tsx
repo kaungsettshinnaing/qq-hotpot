@@ -1130,7 +1130,7 @@ async function DailySummaryTab({
                 .map((a) => (
                   <li key={a.id} className="flex justify-between py-1">
                     <span>{a.employee.user.name}</span>
-                    <span className="text-gray-400">{fmtTime(a.clockInAt!)} – {a.clockOutAt ? fmtTime(a.clockOutAt) : "—"}</span>
+                    <span className="text-gray-400">{a.clockInAt ? fmtTime(a.clockInAt) : "—"} – {a.clockOutAt ? fmtTime(a.clockOutAt) : "—"}</span>
                   </li>
                 ))}
             </ul>

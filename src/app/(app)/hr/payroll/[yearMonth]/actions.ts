@@ -131,6 +131,21 @@ export async function lockPayroll(fd: FormData) {
   const payroll = await prisma.payroll.findUnique({ where: { month_year: { month, year } } });
   if (!payroll || payroll.status === "LOCKED") return;
 
+  // Rows generated before PayrollItem.grossPay existed carry grossPay = 0 (the column
+  // was added with DEFAULT 0 and never backfilled). Locking would allocate deductions
+  // against 0 and write netPay = 0 for the employee — irreversibly, since locked
+  // payrolls are immutable. Regenerating recomputes grossPay, so make HR do that first.
+  // A genuine zero (absent all month, nothing earned) has components that net to 0 too,
+  // so only flag rows whose own components say gross should be positive.
+  const zeroGross = await prisma.payrollItem.findMany({
+    where: { payrollId: payroll.id, grossPay: { lte: 0 } },
+    select: { basicSalary: true, absenceDeduction: true, otPremium: true, adHocBonuses: true },
+  });
+  const stale = zeroGross.some(
+    (i) => i.basicSalary - i.absenceDeduction + i.otPremium + i.adHocBonuses > 0,
+  );
+  if (stale) redirect(`/hr/payroll/${slug}?error=regenerate`);
+
   const lockedAt = new Date();
   await prisma.$transaction(async (tx) => {
     await tx.payroll.update({
@@ -201,7 +216,7 @@ export async function lockPayroll(fd: FormData) {
         lockedAt,
       );
     }
-  });
+  }, { timeout: 60_000, maxWait: 10_000 });
 
   revalidatePath(`/hr/payroll/${slug}`);
   revalidatePath("/hr/payroll");

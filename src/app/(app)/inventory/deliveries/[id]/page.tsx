@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/rbac";
@@ -31,7 +32,7 @@ export default async function DeliveryDetailPage({
 
   const [session, delivery] = await Promise.all([
     getSession(),
-    prisma.stockDelivery.findUniqueOrThrow({
+    prisma.stockDelivery.findUnique({
       where: { id },
       include: {
         supplier: true,
@@ -52,6 +53,7 @@ export default async function DeliveryDetailPage({
       },
     }),
   ]);
+  if (!delivery) notFound();
 
   const isCashier = session && hasAnyRole(session.roles, ["CASHIER", "MANAGER", "ADMIN"]);
   const isCounter = session && hasAnyRole(session.roles, ["WAITER", "KITCHEN", "MANAGER", "ADMIN"]);

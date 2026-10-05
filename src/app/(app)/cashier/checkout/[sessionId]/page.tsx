@@ -18,11 +18,11 @@ export default async function CheckoutPage({
   searchParams,
 }: {
   params: Promise<{ sessionId: string }>;
-  searchParams: Promise<{ settled?: string }>;
+  searchParams: Promise<{ settled?: string; error?: string }>;
 }) {
   const user = await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
   const { sessionId } = await params;
-  const { settled } = await searchParams;
+  const { settled, error } = await searchParams;
   const t = await getT();
 
   const detail = await getSessionDetail(sessionId);
@@ -57,6 +57,12 @@ export default async function CheckoutPage({
           {t("btn_print_receipt")}
         </PrintButton>
       </div>
+
+      {error === "overpaid" && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 no-print">
+          {t("checkout_overpaid_error")}
+        </p>
+      )}
 
       {isSettled && (
         <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 no-print">

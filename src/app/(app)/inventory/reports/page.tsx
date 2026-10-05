@@ -13,7 +13,8 @@ export default async function InventoryReportsPage({
   const { months } = await searchParams;
   const t = await getT();
 
-  const lookbackMonths = Math.min(Math.max(parseInt(months ?? "3", 10), 1), 12);
+  const parsedMonths = parseInt(months ?? "3", 10);
+  const lookbackMonths = Math.min(Math.max(Number.isFinite(parsedMonths) ? parsedMonths : 3, 1), 12);
   const nowMM = mmNow();
   const firstOfMonth = new Date(Date.UTC(nowMM.getUTCFullYear(), nowMM.getUTCMonth() - lookbackMonths, 1));
   const since = mmDayRange(firstOfMonth.toISOString().slice(0, 10)).start;

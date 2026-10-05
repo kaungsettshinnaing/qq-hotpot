@@ -45,7 +45,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ id: 
             {emp.documents.map((d) => (
               <li key={d.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <a href={d.filePath} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                  <a href={`/api${d.filePath}`} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
                     {d.name}
                   </a>
                   <div className="text-xs text-gray-400">{formatDate(d.uploadedAt)}</div>

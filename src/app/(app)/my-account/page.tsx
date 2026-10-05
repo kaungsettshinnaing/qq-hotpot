@@ -58,7 +58,7 @@ export default async function MyPayslipsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right">
-                      <Link href={`/hr/payroll/${slug}/slip/${session.id}`}
+                      <Link href={`/my-account/payslips/${slug}`}
                         className="text-sm text-brand hover:underline">
                         {t("btn_view_report")} →
                       </Link>

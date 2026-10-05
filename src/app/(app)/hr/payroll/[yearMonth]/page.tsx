@@ -10,8 +10,10 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 
 export default async function PayrollDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ yearMonth: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   // MANAGER can see the /hr/payroll layout tab-less (MANAGER_TABS excludes
   // it), but this specific page has full net-pay figures per employee —
@@ -19,6 +21,7 @@ export default async function PayrollDetailPage({
   await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const { yearMonth } = await params;
+  const { error } = await searchParams;
   const [yearStr, monthStr] = yearMonth.split("-");
   const year = parseInt(yearStr);
   const month = parseInt(monthStr);
@@ -50,6 +53,12 @@ export default async function PayrollDetailPage({
         )}
         <Link href="/hr/payroll" className="ml-auto text-sm text-brand hover:underline">{t("link_all_payrolls")}</Link>
       </div>
+
+      {error === "regenerate" && !isLocked && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+          {t("payroll_regenerate_first")}
+        </p>
+      )}
 
       {!isLocked && (
         <div className="flex gap-3">

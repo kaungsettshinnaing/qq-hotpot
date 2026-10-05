@@ -35,6 +35,9 @@ function str(v: unknown, max = 300): string {
 // Discounts (cashier may apply freely)
 // --------------------------------------------------------------------------
 
+/** Postgres Int columns overflow at ~2.1 billion; an extra-zero typo must be rejected, not crash. */
+const MAX_MONEY = 1_000_000_000;
+
 export async function applyDiscount(
   sessionId: string,
   type: "PERCENT" | "FIXED",
@@ -43,7 +46,7 @@ export async function applyDiscount(
 ): Promise<ActionResult> {
   await requireAnyRole(CASHIER_ROLES);
   const t = await getT();
-  const v = Math.max(0, Math.floor(value || 0));
+  const v = Math.min(MAX_MONEY, Math.max(0, Math.floor(value || 0)));
   if (type === "PERCENT" && v > 100) return { ok: false, error: t("error_percent_exceeds_100") };
   const s = await prisma.tableSession.findUnique({ where: { id: sessionId } });
   if (!s || s.status !== "OPEN") return { ok: false, error: t("error_bill_not_open") };
@@ -78,7 +81,7 @@ export async function addPayment(
   const user = await requireAnyRole(CASHIER_ROLES);
   const t = await getT();
   const amt = Math.floor(amount || 0);
-  if (amt <= 0) return { ok: false, error: t("error_enter_positive_amount") };
+  if (amt <= 0 || amt > MAX_MONEY) return { ok: false, error: t("error_enter_positive_amount") };
   const shift = await getOpenShift(user.id);
   if (!shift) return { ok: false, error: t("error_open_shift_before_payment") };
   const session = await prisma.tableSession.findUnique({ where: { id: sessionId } });
@@ -120,6 +123,13 @@ export async function settleSession(formData: FormData): Promise<void> {
   const detail = await getSessionDetail(sessionId);
   if (!detail || detail.session.status !== "OPEN") redirect("/cashier");
   if (detail.balance > 0) redirect(`/cashier/checkout/${sessionId}`);
+  // Cash can give change; KBZPay/Other cannot. If digital payments alone exceed the
+  // bill, the journal entry can't balance — send the cashier back to void and
+  // re-enter the exact amount instead of crashing the transaction.
+  const nonCashPaid = detail.session.payments
+    .filter((p) => p.method !== "CASH" && !p.voidedAt)
+    .reduce((s, p) => s + p.amount, 0);
+  if (nonCashPaid > detail.bill.total) redirect(`/cashier/checkout/${sessionId}?error=overpaid`);
 
   const closedAt = new Date();
   await prisma.$transaction(async (tx) => {

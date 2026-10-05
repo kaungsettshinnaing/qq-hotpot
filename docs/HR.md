@@ -325,7 +325,7 @@ src/app/(app)/
       [yearMonth]/
         page.tsx         generate/view/lock payroll for a month
         actions.ts       generatePayroll (excludes isSystem; includes active + this-month leavers via endDate), lockPayroll
-        slip/[employeeId]/page.tsx  printable individual payslip
+        slip/[employeeId]/page.tsx  printable individual payslip (HR/ADMIN; renders PayslipView)
 
   manager/
     layout.tsx           requireAnyRole([MANAGER, ADMIN]), tab nav
@@ -341,7 +341,8 @@ src/app/(app)/
   my-account/
     layout.tsx           any authenticated user; tabs: Payslips | My Leave | Clock In/Out | Account
     page.tsx             employee's own payslip list
-    [yearMonth]/slip/page.tsx   view own payslip
+    payslips/[yearMonth]/page.tsx   view own payslip (always the signed-in user's; shares
+                         src/components/PayslipView.tsx with the HR slip route)
     leave/
       page.tsx           own leave history — shows rest days banner, single "Date" column
                          (existing multi-day records show as "startDate – endDate")

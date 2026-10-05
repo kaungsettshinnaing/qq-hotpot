@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import StockInvoiceForm, { type StockInvoiceLabels } from "./StockInvoiceForm";
@@ -19,7 +19,7 @@ export default async function CashierEntryPage({
   const { id } = await params;
   const t = await getT();
 
-  const delivery = await prisma.stockDelivery.findUniqueOrThrow({
+  const delivery = await prisma.stockDelivery.findUnique({
     where: { id },
     include: {
       supplier: true,
@@ -34,6 +34,7 @@ export default async function CashierEntryPage({
     },
   });
 
+  if (!delivery) notFound();
   if (delivery.cashierSubmittedAt) {
     redirect(`/inventory/deliveries/${id}`);
   }

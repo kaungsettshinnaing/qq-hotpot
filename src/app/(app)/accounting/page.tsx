@@ -2,7 +2,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { formatMoney } from "@/lib/format";
-import { mmNow, mmDayRange, mmDayOf } from "@/lib/business-day";
+import { mmNow, mmDayRange, mmDayOf, dayOr } from "@/lib/business-day";
 import { getPLReport, emptyPLReport } from "@/lib/pl-report";
 import { getT } from "@/lib/lang";
 import MovementsTable from "../reports/MovementsTable";
@@ -76,8 +76,8 @@ export default async function AccountingPage({
   const defaultFrom = `${cy}-${cm}-01`;
   const defaultTo   = `${cy}-${cm}-${String(lastDay).padStart(2, "0")}`;
 
-  const fromStr = sp.from ?? defaultFrom;
-  const toStr   = sp.to   ?? defaultTo;
+  const fromStr = dayOr(sp.from, defaultFrom);
+  const toStr   = dayOr(sp.to, defaultTo);
 
   // Myanmar calendar-day boundaries — same convention as /reports
   const rangeStart = mmDayRange(fromStr).start;

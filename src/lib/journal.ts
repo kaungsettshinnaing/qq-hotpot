@@ -28,14 +28,22 @@ let coreAccountCache: Map<string, string> | null = null;
 /** Resolves a core account code to its Account.id, seeding it on first use. */
 export async function getCoreAccount(tx: Tx, code: CoreAccountCode): Promise<string> {
   if (coreAccountCache?.has(code)) return coreAccountCache.get(code)!;
+  // Only cache ids that are committed. Reading through the root client sees committed
+  // rows only; an account first created by the caller's own transaction is NOT cached,
+  // because if that transaction rolls back the cached id would point at a row that
+  // never existed and every later posting would fail with a foreign-key error.
+  const committed = await prisma.account.findUnique({ where: { code } });
+  if (committed) {
+    if (!coreAccountCache) coreAccountCache = new Map();
+    coreAccountCache.set(code, committed.id);
+    return committed.id;
+  }
   const def = CORE_ACCOUNTS.find((a) => a.code === code)!;
   const account = await tx.account.upsert({
     where: { code },
     update: {},
     create: { code: def.code, name: def.name, type: def.type },
   });
-  if (!coreAccountCache) coreAccountCache = new Map();
-  coreAccountCache.set(code, account.id);
   return account.id;
 }
 

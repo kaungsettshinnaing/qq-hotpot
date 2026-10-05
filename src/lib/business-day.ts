@@ -14,6 +14,20 @@ export function mmNow(): Date {
   return new Date(Date.now() + MM_OFFSET_MS);
 }
 
+/** True when the string is a real calendar day in "YYYY-MM-DD" form. */
+export function isDayStr(s: unknown): s is string {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/** A day string taken from the URL/query: the value if valid, else the fallback.
+ *  Empty ("?from="), malformed or impossible dates (2026-02-31) all fall back, so a
+ *  cleared date field can never reach Prisma as an Invalid Date. */
+export function dayOr(input: string | null | undefined, fallback: string): string {
+  return isDayStr(input) ? input : fallback;
+}
+
 /** [start, end) instants covering one Myanmar calendar day, for timestamp columns. */
 export function mmDayRange(dayStr: string): { start: Date; end: Date } {
   const start = new Date(`${dayStr}T00:00:00+06:30`);

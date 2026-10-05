@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { requireAnyRole } from "@/lib/auth";
-import { mmDayRange, mmDayOf, mmStamp } from "@/lib/business-day";
+import { isDayStr, mmDayRange, mmDayOf, mmStamp } from "@/lib/business-day";
 import { getPLReport } from "@/lib/pl-report";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const fromStr = searchParams.get("from");
   const toStr = searchParams.get("to");
-  if (!fromStr || !toStr) return new NextResponse("Missing from/to", { status: 400 });
+  if (!isDayStr(fromStr) || !isDayStr(toStr)) return new NextResponse("Missing or invalid from/to (YYYY-MM-DD)", { status: 400 });
 
   const rangeStart = mmDayRange(fromStr).start;
   const rangeEnd = mmDayRange(toStr).end;
