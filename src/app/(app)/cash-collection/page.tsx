@@ -1,7 +1,7 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getCashStanding, createCashMovement } from "@/lib/shift";
+import { getCashStanding, createCashMovement, cleanRequestId } from "@/lib/shift";
 import { netCashChange } from "@/lib/pricing";
 import { formatMoney, formatDateTime, formatTime } from "@/lib/format";
 import { mmToday, mmDayOf, mmDayRange, dayOr } from "@/lib/business-day";
@@ -16,11 +16,11 @@ async function recordCollection(fd: FormData) {
   const user = await requireAnyRole(["ADMIN"]);
   const type = fd.get("type") as "COLLECT" | "INJECT";
   const amount = Math.round(Math.abs(Number(fd.get("amount")) || 0));
-  const note = (fd.get("note") as string | null)?.trim() || null;
-  if (!amount || !["COLLECT", "INJECT"].includes(type)) return;
+  const note = (fd.get("note") as string | null)?.trim().slice(0, 300) || null;
+  if (!amount || amount > 1_000_000_000 || !["COLLECT", "INJECT"].includes(type)) return;
   // Auto-tags whichever shift is open, so this stays consistent with that
   // shift's expected-cash total instead of only affecting the standalone standing.
-  await createCashMovement(type, amount, note, user.id);
+  await createCashMovement(type, amount, note, user.id, cleanRequestId(fd.get("requestId")));
   revalidatePath("/cash-collection");
   revalidatePath("/cashier");
   revalidatePath("/cashier/shift");
@@ -181,6 +181,8 @@ export default async function CashCollectionPage({
           subtitle={t("label_collect_subtitle")}
           notePlaceholder={t("placeholder_collect_note")}
           submitLabel={t("btn_collect_submit")}
+          pendingLabel={t("pending_recording")}
+          successLabel={t("cash_movement_recorded")}
           standingLabel={t("label_expected_after")}
           overLabel={t("label_over_standing")}
           labelAmount={t("col_amount")}
@@ -195,6 +197,8 @@ export default async function CashCollectionPage({
           subtitle={t("label_inject_subtitle")}
           notePlaceholder={t("placeholder_inject_note")}
           submitLabel={t("btn_inject_submit")}
+          pendingLabel={t("pending_recording")}
+          successLabel={t("cash_movement_recorded")}
           standingLabel={t("label_expected_after")}
           overLabel={t("label_over_standing")}
           labelAmount={t("col_amount")}

@@ -5,13 +5,14 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { getSessionDetail } from "@/lib/orders";
-import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding, createCashMovement } from "@/lib/shift";
+import { getOpenShift, getAnyOpenShift, computeShiftTotals, getCashStanding, createCashMovement, cleanRequestId } from "@/lib/shift";
 import { runComparison } from "@/lib/deliveries";
 import { emitFloor } from "@/lib/realtime";
 import { postSessionClose, postExpenseEntry } from "@/lib/journal-postings";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
 import { getT } from "@/lib/lang";
+import { isPrismaError } from "@/lib/prisma-errors";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -60,10 +61,15 @@ export async function applyDiscount(
 
 export async function removeDiscount(sessionId: string): Promise<ActionResult> {
   await requireAnyRole(CASHIER_ROLES);
-  await prisma.tableSession.update({
-    where: { id: sessionId },
+  const t = await getT();
+  // Only an OPEN bill can change — a settled session's bill is frozen in billTotal
+  // and the journal, so removing its discount later would make the reprinted
+  // receipt disagree with the books.
+  const changed = await prisma.tableSession.updateMany({
+    where: { id: sessionId, status: "OPEN" },
     data: { discountType: null, discountValue: null, discountReason: null },
   });
+  if (changed.count === 0) return { ok: false, error: t("error_bill_not_open") };
   revalidatePath(`/cashier/checkout/${sessionId}`);
   return { ok: true };
 }
@@ -84,8 +90,17 @@ export async function addPayment(
   if (amt <= 0 || amt > MAX_MONEY) return { ok: false, error: t("error_enter_positive_amount") };
   const shift = await getOpenShift(user.id);
   if (!shift) return { ok: false, error: t("error_open_shift_before_payment") };
-  const session = await prisma.tableSession.findUnique({ where: { id: sessionId } });
-  if (!session || session.status !== "OPEN") return { ok: false, error: t("error_bill_not_open") };
+  const detail = await getSessionDetail(sessionId);
+  if (!detail || detail.session.status !== "OPEN") return { ok: false, error: t("error_bill_not_open") };
+  // Cash can give change; KBZPay/Other cannot. settleSession already refuses a bill
+  // whose digital tenders exceed the total (?error=overpaid), so reject it here,
+  // at entry, instead of letting the cashier find out at settle and have to void.
+  if (method !== "CASH") {
+    const nonCashPaid = detail.session.payments
+      .filter((p) => p.method !== "CASH")
+      .reduce((s, p) => s + p.amount, 0);
+    if (nonCashPaid + amt > detail.bill.total) return { ok: false, error: t("error_noncash_over_balance") };
+  }
 
   await prisma.payment.create({
     data: {
@@ -132,12 +147,19 @@ export async function settleSession(formData: FormData): Promise<void> {
   if (nonCashPaid > detail.bill.total) redirect(`/cashier/checkout/${sessionId}?error=overpaid`);
 
   const closedAt = new Date();
+  let settledHere = false;
   await prisma.$transaction(async (tx) => {
-    await tx.tableMerge.deleteMany({ where: { sessionId } });
-    await tx.tableSession.update({
-      where: { id: sessionId },
+    // Claim the close conditionally: two devices settling the same bill at once both
+    // pass the OPEN check above, and the loser used to overwrite closedBy/closedAt
+    // and then crash on the journal's unique (sourceType, sourceId). Now only the
+    // first UPDATE wins; the second finds 0 rows and just lands on the receipt.
+    const claimed = await tx.tableSession.updateMany({
+      where: { id: sessionId, status: "OPEN" },
       data: { status: "CLOSED", closedById: user.id, closedAt, billTotal: detail.bill.total, note },
     });
+    if (claimed.count !== 1) return;
+    settledHere = true;
+    await tx.tableMerge.deleteMany({ where: { sessionId } });
     await postSessionClose(
       tx,
       { id: sessionId, closedAt, tableLabel: detail.session.table.label },
@@ -145,6 +167,7 @@ export async function settleSession(formData: FormData): Promise<void> {
       detail.session.payments,
     );
   });
+  if (!settledHere) redirect(`/cashier/checkout/${sessionId}?settled=1`);
   emitFloor("table:update", { tableId: detail.session.tableId });
   revalidatePath("/cashier");
   revalidatePath("/waiter");
@@ -177,8 +200,10 @@ export async function closeShift(formData: FormData): Promise<void> {
   if (!shift) redirect("/cashier/shift");
   const closedAt = new Date();
   const { expected } = await computeShiftTotals(shift.id, shift.openingFloat, { openedAt: shift.openedAt, closedAt });
-  await prisma.cashierShift.update({
-    where: { id: shift.id },
+  // Conditional on still being OPEN — a second submit (or a manager force-closing at
+  // the same moment) must not overwrite the counted figure already reconciled.
+  await prisma.cashierShift.updateMany({
+    where: { id: shift.id, status: "OPEN" },
     data: {
       status: "CLOSED",
       closedAt,
@@ -207,8 +232,8 @@ export async function forceCloseShift(formData: FormData): Promise<void> {
     openedAt: shift.openedAt,
     closedAt,
   });
-  await prisma.cashierShift.update({
-    where: { id: shift.id },
+  await prisma.cashierShift.updateMany({
+    where: { id: shift.id, status: "OPEN" },
     data: {
       status: "CLOSED",
       closedAt,
@@ -232,8 +257,8 @@ export async function recordCashMovement(formData: FormData): Promise<void> {
   const type = formData.get("type") as "COLLECT" | "INJECT";
   const amount = Math.round(Math.abs(Number(formData.get("amount")) || 0));
   const note = str(formData.get("note"), 300) || null;
-  if (!amount || !["COLLECT", "INJECT"].includes(type)) return;
-  await createCashMovement(type, amount, note, user.id);
+  if (!amount || amount > MAX_MONEY || !["COLLECT", "INJECT"].includes(type)) return;
+  await createCashMovement(type, amount, note, user.id, cleanRequestId(formData.get("requestId")));
   revalidatePath("/cashier");
   revalidatePath("/cashier/shift");
   revalidatePath("/cash-collection");
@@ -263,7 +288,7 @@ export async function addExpense(formData: FormData): Promise<void> {
     .map((desc, i) => ({
       description: desc.trim(),
       unit: lineUnits[i]?.trim() || null,
-      qty: lineQtys[i],
+      qty: Number.isFinite(lineQtys[i]) ? lineQtys[i] : 1,
       price: linePrices[i],
       sortOrder: i,
     }))
@@ -274,8 +299,15 @@ export async function addExpense(formData: FormData): Promise<void> {
   }
 
   const amount = lines.reduce((sum, l) => sum + l.price, 0);
+  // An extra-zero typo must come back as a message, not as a Prisma Int overflow
+  // on the blank error page (which also loses the whole form).
+  if (amount > MAX_MONEY || lines.some((l) => l.price > MAX_MONEY)) {
+    redirect("/cashier/expenses?error=amount");
+  }
   const description = lines.map((l) => l.description).join(", ").slice(0, 300);
   const businessDate = new Date();
+  const requestId = cleanRequestId(formData.get("requestId"));
+  if (await expenseAlreadyRecorded(requestId)) redirect("/cashier/expenses");
 
   let shiftId: string | null = null;
   if (paymentSource === "CASH_DRAWER") {
@@ -293,11 +325,15 @@ export async function addExpense(formData: FormData): Promise<void> {
         businessDate,
         enteredById: user.id,
         shiftId,
+        requestId,
         lines: { create: lines },
       },
     });
     await postExpenseEntry(tx, created);
     return created;
+  }).catch((e) => {
+    if (requestId && isPrismaError(e, "P2002")) redirect("/cashier/expenses");
+    throw e;
   });
 
   await saveReceipts(expense.id, formData.getAll("receipts") as File[]);
@@ -330,11 +366,19 @@ async function saveReceipts(expenseId: string, files: File[]): Promise<void> {
 
 function posFloat(v: unknown): number {
   const n = parseFloat(String(v ?? ""));
-  return Number.isNaN(n) || n < 0 ? 0 : n;
+  return !Number.isFinite(n) || n < 0 ? 0 : n;
 }
 function posIntOf(v: unknown): number {
   const n = parseInt(String(v ?? ""), 10);
   return Number.isNaN(n) || n < 0 ? 0 : n;
+}
+
+/** True when a cashier form with this requestId has already produced an expense —
+ *  the second submit of the same form (double-tap, retry, stale tab) is then a no-op
+ *  that just returns to the list, never a second expense + delivery + journal entry. */
+async function expenseAlreadyRecorded(requestId: string | null): Promise<boolean> {
+  if (!requestId) return false;
+  return !!(await prisma.expense.findUnique({ where: { requestId }, select: { id: true } }));
 }
 
 export async function addStockInvoice(formData: FormData): Promise<void> {
@@ -365,6 +409,12 @@ export async function addStockInvoice(formData: FormData): Promise<void> {
   if (!categoryId || rows.length === 0) {
     redirect("/cashier/expenses?error=missing");
   }
+  if (rows.some((r) => r.unitCost > MAX_MONEY || r.lineTotal > MAX_MONEY || r.qty > 1_000_000)
+    || rows.reduce((s, r) => s + r.lineTotal, 0) > MAX_MONEY) {
+    redirect("/cashier/expenses?error=amount");
+  }
+  const requestId = cleanRequestId(formData.get("requestId"));
+  if (await expenseAlreadyRecorded(requestId)) redirect("/cashier/expenses");
 
   // Item names from DB (form only posts ids)
   const stockItems = await prisma.stockItem.findMany({
@@ -437,7 +487,14 @@ export async function addStockInvoice(formData: FormData): Promise<void> {
               note: `Prepaid ${tagged.totalCost.toLocaleString()} MMK vs invoice ${total.toLocaleString()} MMK — admin settlement required` },
           });
         }
-      }).catch(() => redirect(`/cashier/expenses?error=already_submitted`));
+      }).catch((e) => {
+        // Only the claim losing (someone submitted this prepaid order a moment
+        // earlier) is "already submitted"; any other DB failure must surface as itself.
+        if (e instanceof Error && e.message === "already_submitted") {
+          redirect(`/cashier/expenses?error=already_submitted`);
+        }
+        throw e;
+      });
 
       // Legacy prepaid deliveries may already have a count (count-first era)
       if (counterAlreadySubmitted) {
@@ -458,7 +515,7 @@ export async function addStockInvoice(formData: FormData): Promise<void> {
     const parentPrepaid = tagged.paymentStatus === "PREPAID";
     await createInvoiceDelivery({
       userId: user.id, categoryId, paymentSource, supplierId: supplierId ?? tagged.supplierId,
-      invoiceNo, rows, merged, total, description, now,
+      invoiceNo, rows, merged, total, description, now, requestId,
       vendor: supplier?.name ?? null,
       parentDeliveryId: taggedDeliveryId,
       skipExpense: parentPrepaid,
@@ -467,7 +524,7 @@ export async function addStockInvoice(formData: FormData): Promise<void> {
   } else {
     await createInvoiceDelivery({
       userId: user.id, categoryId, paymentSource, supplierId, invoiceNo,
-      rows, merged, total, description, now,
+      rows, merged, total, description, now, requestId,
       vendor: supplier?.name ?? null,
       parentDeliveryId: null,
       skipExpense: false,
@@ -494,13 +551,14 @@ async function createInvoiceDelivery(args: {
   total: number;
   description: string;
   now: Date;
+  requestId: string | null;
   vendor: string | null;
   parentDeliveryId: string | null;
   skipExpense: boolean;
   receipts: File[];
 }): Promise<void> {
   const { userId, categoryId, paymentSource, supplierId, invoiceNo, rows, merged,
-    total, description, now, vendor, parentDeliveryId, skipExpense, receipts } = args;
+    total, description, now, requestId, vendor, parentDeliveryId, skipExpense, receipts } = args;
 
   let shiftId: string | null = null;
   if (!skipExpense && paymentSource === "CASH_DRAWER") {
@@ -529,6 +587,7 @@ async function createInvoiceDelivery(args: {
           invoiceType: "STOCK",
           shiftId,
           enteredById: userId,
+          requestId,
           lines: {
             create: rows.map((r, i) => ({
               description: nameById.get(r.stockItemId) ?? "—",
@@ -579,6 +638,9 @@ async function createInvoiceDelivery(args: {
         note: `${merged.size} item(s), ${total.toLocaleString()} MMK` },
     });
     return createdExpenseId;
+  }).catch((e) => {
+    if (requestId && isPrismaError(e, "P2002")) redirect("/cashier/expenses");
+    throw e;
   });
 
   if (expenseId) await saveReceipts(expenseId, receipts);
@@ -594,6 +656,9 @@ export async function recordStockPrepayment(formData: FormData): Promise<void> {
   const description = str(formData.get("description"), 300) || "Stock pre-payment";
 
   if (!categoryId || amount <= 0) redirect("/cashier/expenses?error=missing");
+  if (amount > MAX_MONEY) redirect("/cashier/expenses?error=amount");
+  const requestId = cleanRequestId(formData.get("requestId"));
+  if (await expenseAlreadyRecorded(requestId)) redirect("/cashier/expenses");
 
   let shiftId: string | null = null;
   if (paymentSource === "CASH_DRAWER") {
@@ -618,6 +683,7 @@ export async function recordStockPrepayment(formData: FormData): Promise<void> {
         invoiceType: "STOCK",
         shiftId,
         enteredById: user.id,
+        requestId,
       },
     });
     const delivery = await tx.stockDelivery.create({
@@ -643,6 +709,9 @@ export async function recordStockPrepayment(formData: FormData): Promise<void> {
       data: { deliveryId: delivery.id, actorId: user.id, action: "PREPAID",
         note: `${amount.toLocaleString()} MMK via ${paymentSource}` },
     });
+  }).catch((e) => {
+    if (requestId && isPrismaError(e, "P2002")) redirect("/cashier/expenses");
+    throw e;
   });
 
   revalidatePath("/cashier/expenses");
@@ -715,22 +784,35 @@ export async function seatReservation(formData: FormData): Promise<void> {
   const res = await prisma.reservation.findUnique({ where: { id } });
   if (!res || res.status !== "BOOKED") redirect("/cashier/tables");
 
-  await prisma.reservation.update({ where: { id }, data: { status: "SEATED" } });
-
   if (res.tableId) {
-    const open = await prisma.tableSession.findFirst({
-      where: { tableId: res.tableId, status: "OPEN" },
-    });
-    if (!open) {
-      const session = await prisma.tableSession.create({
-        data: { tableId: res.tableId, adults: res.partySize, children: 0, openedById: user.id },
+    // Check the table BEFORE consuming the booking. It used to be marked SEATED
+    // first, so pressing Seat on a table that was still occupied (or merged into
+    // another party) silently dropped the reservation from the list and opened
+    // nothing — or opened a second session on a merged table.
+    const [open, merged] = await Promise.all([
+      prisma.tableSession.findFirst({ where: { tableId: res.tableId, status: "OPEN" }, select: { id: true } }),
+      prisma.tableMerge.findFirst({ where: { tableId: res.tableId }, select: { id: true } }),
+    ]);
+    if (open || merged) redirect("/cashier/tables?error=table-occupied");
+
+    const session = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.reservation.updateMany({
+        where: { id, status: "BOOKED" },
+        data: { status: "SEATED" },
       });
-      emitFloor("table:update", { tableId: res.tableId });
-      revalidatePath("/cashier/tables");
-      revalidatePath("/waiter");
-      redirect(`/waiter/session/${session.id}`);
-    }
+      if (claimed.count !== 1) return null; // a second tap, or someone else seated it
+      return tx.tableSession.create({
+        data: { tableId: res.tableId!, adults: res.partySize, children: 0, openedById: user.id },
+      });
+    });
+    if (!session) redirect("/cashier/tables");
+    emitFloor("table:update", { tableId: res.tableId });
+    revalidatePath("/cashier/tables");
+    revalidatePath("/waiter");
+    redirect(`/waiter/session/${session.id}`);
   }
+
+  await prisma.reservation.updateMany({ where: { id, status: "BOOKED" }, data: { status: "SEATED" } });
   emitFloor("table:update", {});
   revalidatePath("/cashier/tables");
   redirect("/cashier/tables");

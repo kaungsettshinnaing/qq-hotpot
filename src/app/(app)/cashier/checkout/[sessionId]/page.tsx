@@ -9,6 +9,7 @@ import LiveRefresh from "@/components/LiveRefresh";
 import CheckoutClient from "./CheckoutClient";
 import PrintButton from "./PrintButton";
 import { voidPayment, settleSession } from "../../actions";
+import SubmitButton from "@/components/SubmitButton";
 import { getT } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
@@ -148,14 +149,22 @@ export default async function CheckoutPage({
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                   />
                 </div>
-                <button
-                  disabled={balance > 0}
-                  className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {balance > 0
-                    ? `${t("btn_collect_to_settle")} ${formatMoney(balance, settings.currency)}`
-                    : t("btn_settle_free_table")}
-                </button>
+                {balance > 0 ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {`${t("btn_collect_to_settle")} ${formatMoney(balance, settings.currency)}`}
+                  </button>
+                ) : (
+                  <SubmitButton
+                    className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    pendingText={t("pending_saving")}
+                  >
+                    {t("btn_settle_free_table")}
+                  </SubmitButton>
+                )}
               </form>
             )}
             {!isOpen && session.note && (

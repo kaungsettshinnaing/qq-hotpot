@@ -4,7 +4,15 @@ import { formatDate } from "@/lib/format";
 import { hrReviewLeave, hrMarkAbsence } from "./actions";
 import { getT } from "@/lib/lang";
 
-export default async function HRLeavePage() {
+import { mmToday } from "@/lib/business-day";
+import SubmitButton from "@/components/SubmitButton";
+import ErrorBanner from "@/components/ErrorBanner";
+export default async function HRLeavePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   await requireAnyRole(["HR", "ADMIN"]);
   const t = await getT();
   const now = new Date();
@@ -36,6 +44,7 @@ export default async function HRLeavePage() {
 
   return (
     <div className="space-y-6">
+      <ErrorBanner code={errorCode} />
       <h1 className="text-xl font-bold">{t("heading_leave_management")}</h1>
 
       {pending.length > 0 && (
@@ -55,16 +64,16 @@ export default async function HRLeavePage() {
                   <form action={hrReviewLeave}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="action" value="approve" />
-                    <button type="submit" className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white">
+                    <SubmitButton className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white">
                       {t("btn_approve")}
-                    </button>
+                    </SubmitButton>
                   </form>
                   <form action={hrReviewLeave}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="action" value="reject" />
-                    <button type="submit" className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white">
+                    <SubmitButton className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white">
                       {t("btn_reject")}
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               </div>
@@ -80,12 +89,12 @@ export default async function HRLeavePage() {
             <option value="">{t("label_employee")}…</option>
             {employees.map((e) => <option key={e.userId} value={e.userId}>{e.user.name}</option>)}
           </select>
-          <input name="date" type="date" required className="input" defaultValue={now.toISOString().slice(0, 10)} />
+          <input name="date" type="date" required className="input" defaultValue={mmToday()} />
           <select name="status" className="input">
             <option value="ABSENT">{t("option_absent_unauthorised")}</option>
             <option value="LEAVE">{t("option_leave_authorised")}</option>
           </select>
-          <button type="submit" className="btn-brand">{t("btn_mark_attendance")}</button>
+          <SubmitButton className="btn-brand">{t("btn_mark_attendance")}</SubmitButton>
         </form>
       </div>
 

@@ -25,9 +25,7 @@ export async function generatePayroll(fd: FormData) {
     create: { month, year, status: "DRAFT" },
   });
 
-  if (payroll.status === "LOCKED") {
-    throw new Error("Cannot regenerate a locked payroll.");
-  }
+  if (payroll.status === "LOCKED") redirect(`/hr/payroll/${slug}?error=locked`);
 
   // Include anyone active today, plus anyone who left partway through *this*
   // month (endDate set by toggleEmployeeActive on deactivation) — otherwise a
@@ -83,6 +81,10 @@ export async function generatePayroll(fd: FormData) {
       fineDeduction,
     });
 
+    // Re-check per row: a Lock that landed while this (slow) loop was running must
+    // not have its collected figures overwritten by a stale regenerate.
+    const still = await prisma.payroll.findUnique({ where: { id: payroll.id }, select: { status: true } });
+    if (still?.status !== "DRAFT") redirect(`/hr/payroll/${slug}?error=locked`);
     await prisma.payrollItem.upsert({
       where: { payrollId_employeeId: { payrollId: payroll.id, employeeId: emp.userId } },
       update: {
@@ -148,10 +150,16 @@ export async function lockPayroll(fd: FormData) {
 
   const lockedAt = new Date();
   await prisma.$transaction(async (tx) => {
-    await tx.payroll.update({
-      where: { id: payroll.id },
+    // Claim the lock conditionally. Two Lock submits (two tabs, two HR users) both
+    // passed the LOCKED check above; the second run then found every instalment and
+    // fine already collected and rewrote each item with zero deductions and
+    // netPay = grossPay — a locked payroll that disagreed with its own payslips and
+    // the journal. Only the first UPDATE wins now; the loser does nothing.
+    const claimed = await tx.payroll.updateMany({
+      where: { id: payroll.id, status: "DRAFT" },
       data: { status: "LOCKED", lockedById: session.id, lockedAt },
     });
+    if (claimed.count !== 1) return;
 
     const items = await tx.payrollItem.findMany({ where: { payrollId: payroll.id } });
     for (const item of items) {

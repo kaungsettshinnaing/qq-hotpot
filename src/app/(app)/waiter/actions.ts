@@ -25,6 +25,11 @@ export async function openTable(tableId: string, formData: FormData): Promise<vo
   const adults = clampInt(formData.get("adults"), 0, 999);
   const children = clampInt(formData.get("children"), 0, 999);
 
+  // A stale or hand-crafted tableId used to reach Prisma as a FK violation (blank
+  // error page); an inactive table must not be openable either.
+  const table = await prisma.table.findUnique({ where: { id: tableId }, select: { isActive: true } });
+  if (!table || !table.isActive) redirect("/waiter?error=table-occupied");
+
   const existing = await prisma.tableSession.findFirst({
     where: { tableId, status: "OPEN" },
   });
@@ -121,8 +126,10 @@ export async function voidPot(formData: FormData): Promise<void> {
     where: { id: potId },
     include: { session: true },
   });
-  if (!pot || pot.voidedAt || pot.status === "DELIVERED") return;
-  await prisma.potOrder.update({ where: { id: potId }, data: { voidedAt: new Date() } });
+  // A settled/cancelled session's pots are frozen with its bill — voiding one later
+  // would change the recomputed receipt without touching billTotal or the journal.
+  if (!pot || pot.voidedAt || pot.status === "DELIVERED" || pot.session.status !== "OPEN") return;
+  await prisma.potOrder.updateMany({ where: { id: potId, voidedAt: null }, data: { voidedAt: new Date() } });
   emitKitchen("pot:void", { potId });
   emitFloor("table:update", { tableId: pot.session.tableId });
   revalidatePath(`/waiter/session/${pot.sessionId}`);
@@ -174,7 +181,14 @@ export async function setItemQty(
     include: { orderItems: { where: { itemCode, voidedAt: null } } },
   });
   if (!session || session.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
-  const unitPrice = (await prisma.menuItem.findUnique({ where: { code: itemCode } }))?.price ?? 0;
+  // Only a real, active, orderable menu item — an unknown code used to be created at
+  // unit price 0, and the system codes (ADULT/BEER/…) have their own paths.
+  const SYSTEM_CODES = ["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"];
+  const menuItem = await prisma.menuItem.findUnique({ where: { code: itemCode }, select: { price: true, isActive: true } });
+  if (!menuItem || !menuItem.isActive || SYSTEM_CODES.includes(itemCode)) {
+    return { ok: false, error: t("error_invalid_item") };
+  }
+  const unitPrice = menuItem.price;
   const [first, ...rest] = session.orderItems;
   if (rest.length) {
     await prisma.orderItem.updateMany({
@@ -213,19 +227,27 @@ export async function cancelSession(formData: FormData): Promise<void> {
   const s = await prisma.tableSession.findUnique({
     where: { id: sessionId },
     include: {
-      potOrders: { where: { voidedAt: null } },
+      potOrders: { where: { voidedAt: null }, select: { id: true } },
+      orderItems: { where: { voidedAt: null, qty: { gt: 0 } }, select: { id: true } },
       payments: true,
       mergedTables: { select: { tableId: true } },
     },
   });
   if (!s || s.status !== "OPEN") redirect("/waiter");
   if (s.payments.length > 0) redirect(`/waiter/session/${sessionId}`);
+  // "Cancel table" is for a table that was opened by mistake. The page hides the
+  // button once anything was ordered, but a stale tab (another waiter sent a pot
+  // meanwhile) could still cancel a table with delivered food and lose that revenue
+  // without a trace — so the rule is enforced here too.
+  if (s.potOrders.length > 0 || s.orderItems.length > 0 || s.wastageGrams > 0) {
+    redirect(`/waiter/session/${sessionId}?error=table-not-empty`);
+  }
 
   await prisma.$transaction([
     prisma.tableMerge.deleteMany({ where: { sessionId } }),
     prisma.potOrder.updateMany({ where: { sessionId }, data: { voidedAt: new Date() } }),
-    prisma.tableSession.update({
-      where: { id: sessionId },
+    prisma.tableSession.updateMany({
+      where: { id: sessionId, status: "OPEN" },
       data: { status: "CANCELLED", closedAt: new Date() },
     }),
   ]);
@@ -269,7 +291,8 @@ export async function unmergeTable(formData: FormData): Promise<void> {
   const mergeId = String(formData.get("mergeId") ?? "");
   const merge = await prisma.tableMerge.findUnique({ where: { id: mergeId } });
   if (!merge) return;
-  await prisma.tableMerge.delete({ where: { id: mergeId } });
+  // deleteMany: a second tap (or another device) racing this one must not throw P2025.
+  await prisma.tableMerge.deleteMany({ where: { id: mergeId } });
   emitFloor("table:update", { tableId: merge.tableId });
   revalidatePath(`/waiter/session/${merge.sessionId}`);
   revalidatePath("/waiter");

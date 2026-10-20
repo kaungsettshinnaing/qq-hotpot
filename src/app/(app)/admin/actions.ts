@@ -101,6 +101,9 @@ export async function updateMenuItem(formData: FormData): Promise<void> {
   const code = str(formData.get("code"), 50);
   const name = str(formData.get("name"), 100);
   const category = str(formData.get("category"), 100);
+  // A cleared price field used to save as 0 (clampInt → min on NaN), silently making
+  // a live menu item free. An empty/non-numeric price is now ignored.
+  if (!Number.isFinite(parseInt(String(formData.get("price") ?? ""), 10))) return;
   const price = clampInt(formData.get("price"), 0, 1_000_000_000);
   await prisma.menuItem.update({
     where: { code },
@@ -115,7 +118,7 @@ export async function createMenuItem(formData: FormData): Promise<void> {
   const category = str(formData.get("category"), 100);
   const price = clampInt(formData.get("price"), 0, 1_000_000_000);
   const unit = str(formData.get("unit")) === "GRAM" ? ("GRAM" as const) : ("UNIT" as const);
-  if (!name) redirect("/admin/menu?error=missing");
+  if (!name || !Number.isFinite(parseInt(String(formData.get("price") ?? ""), 10))) redirect("/admin/menu?error=missing");
   
   let baseCode = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
   if (!baseCode) baseCode = "ITEM";

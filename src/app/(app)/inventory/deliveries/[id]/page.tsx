@@ -7,6 +7,8 @@ import { formatDate } from "@/lib/format";
 import { resolveDelivery, settlePrepaidDelivery } from "./actions";
 import { getT } from "@/lib/lang";
 
+import SubmitButton from "@/components/SubmitButton";
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 const UNIT_ABBR: Record<string, string> = {
@@ -15,9 +17,12 @@ const UNIT_ABBR: Record<string, string> = {
 
 export default async function DeliveryDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { error: errorCode } = await searchParams;
   const { id } = await params;
   const t = await getT();
 
@@ -64,6 +69,7 @@ export default async function DeliveryDetailPage({
 
   return (
     <div className="space-y-5">
+      <ErrorBanner code={errorCode} />
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -283,10 +289,10 @@ export default async function DeliveryDetailPage({
               <input type="checkbox" name="isPartial" className="rounded" />
               {t("checkbox_more_items_expected")}
             </label>
-            <button type="submit"
+            <SubmitButton
               className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">
               {t("btn_confirm_resolution")}
-            </button>
+            </SubmitButton>
           </form>
         </section>
       )}
@@ -319,10 +325,10 @@ export default async function DeliveryDetailPage({
               <textarea name="settleNote" placeholder={t("placeholder_settle_note")}
                 required rows={2}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-              <button type="submit"
+              <SubmitButton
                 className="rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-700">
                 {t("btn_settle_prepayment")}
-              </button>
+              </SubmitButton>
             </form>
           </section>
         ) : (

@@ -1,10 +1,13 @@
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import { mmDayOf } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
+import SubmitButton from "@/components/SubmitButton";
+import ErrorBanner from "@/components/ErrorBanner";
 async function reviewLeave(fd: FormData) {
   "use server";
   const session = await requireAnyRole(["MANAGER", "ADMIN"]);
@@ -12,9 +15,14 @@ async function reviewLeave(fd: FormData) {
   const action = fd.get("action") as "approve" | "reject";
   const status = action === "approve" ? "APPROVED" : "REJECTED";
 
-  const req = await prisma.leaveRequest.update({
-    where: { id },
+  // Review once, and only a PENDING request (see hrReviewLeave for the why).
+  const claimed = await prisma.leaveRequest.updateMany({
+    where: { id, status: "PENDING" },
     data: { status, reviewedById: session.id, reviewedAt: new Date() },
+  });
+  if (claimed.count !== 1) redirect("/manager/leave?error=already-reviewed");
+  const req = await prisma.leaveRequest.findUniqueOrThrow({
+    where: { id },
     include: { employee: { include: { user: { select: { id: true, name: true } } } } },
   });
 
@@ -51,7 +59,12 @@ async function reviewLeave(fd: FormData) {
   revalidatePath("/manager/leave");
 }
 
-export default async function ManagerLeavePage() {
+export default async function ManagerLeavePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   const t = await getT();
 
   const [pending, recent] = await Promise.all([
@@ -76,6 +89,7 @@ export default async function ManagerLeavePage() {
 
   return (
     <div className="space-y-6">
+      <ErrorBanner code={errorCode} />
       <h1 className="text-xl font-bold">{t("heading_leave_requests")}</h1>
 
       {pending.length > 0 ? (
@@ -95,16 +109,16 @@ export default async function ManagerLeavePage() {
                   <form action={reviewLeave}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="action" value="approve" />
-                    <button type="submit" className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700">
+                    <SubmitButton className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700">
                       {t("btn_approve")}
-                    </button>
+                    </SubmitButton>
                   </form>
                   <form action={reviewLeave}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="action" value="reject" />
-                    <button type="submit" className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
+                    <SubmitButton className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
                       {t("btn_reject")}
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               </div>

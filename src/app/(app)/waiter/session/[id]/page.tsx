@@ -10,13 +10,17 @@ import SessionControls from "./SessionControls";
 import { voidPot, cancelSession, mergeTable, unmergeTable, changeTable } from "../../actions";
 import { getT } from "@/lib/lang";
 
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 export default async function SessionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
+  const { error: errorCode } = await searchParams;
   await requireAnyRole(["WAITER", "MANAGER", "ADMIN"]);
   const t = await getT();
   const { id } = await params;
@@ -67,6 +71,7 @@ export default async function SessionPage({
 
   return (
     <div className="space-y-4">
+      <ErrorBanner code={errorCode} />
       <LiveRefresh room="floor" events={["table:update"]} seconds={12} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">

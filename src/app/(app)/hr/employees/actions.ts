@@ -171,12 +171,26 @@ export async function updateEmployee(fd: FormData) {
   redirect(`/hr/employees/${userId}`);
 }
 
+/** True when this user is the only active account holding ADMIN. */
+async function isLastActiveAdmin(userId: string): Promise<boolean> {
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true, isActive: true } });
+  if (!target || !target.isActive || !target.roles.includes("ADMIN")) return false;
+  const others = await prisma.user.count({
+    where: { id: { not: userId }, isActive: true, roles: { has: "ADMIN" } },
+  });
+  return others === 0;
+}
+
 export async function toggleEmployeeActive(fd: FormData) {
-  await requireAnyRole(["HR", "ADMIN"]);
+  const actor = await requireAnyRole(["HR", "ADMIN"]);
   const userId = fd.get("userId") as string;
   const emp = await prisma.employee.findUnique({ where: { userId } });
   if (!emp) return;
   const newActive = !emp.isActive;
+  // Never lock everyone out: you can't deactivate yourself, nor the last active ADMIN.
+  if (!newActive && (userId === actor.id || (await isLastActiveAdmin(userId)))) {
+    redirect(`/hr/employees/${userId}?error=invalid`);
+  }
   // Deactivating an employee also revokes login (User.isActive) — previously
   // this only flipped the HR-facing flag, leaving a "deactivated" employee
   // still able to log in with their old credentials.
@@ -212,8 +226,11 @@ export async function toggleEmployeeSystem(fd: FormData) {
 }
 
 export async function deleteEmployee(fd: FormData) {
-  await requireAnyRole(["HR", "ADMIN"]);
+  const actor = await requireAnyRole(["HR", "ADMIN"]);
   const userId = fd.get("userId") as string;
+  if (userId === actor.id || (await isLastActiveAdmin(userId))) {
+    redirect(`/hr/employees/${userId}?error=invalid`);
+  }
 
   const lockedItem = await prisma.payrollItem.findFirst({
     where: { employeeId: userId, payroll: { status: "LOCKED" } },

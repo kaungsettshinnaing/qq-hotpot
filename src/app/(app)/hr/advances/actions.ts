@@ -1,22 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isPayrollLocked } from "@/lib/payroll-lock";
+import { isPayrollLocked, validMoneyMonth, employeeExists } from "@/lib/payroll-lock";
 import { postAdvanceGiven } from "@/lib/journal-postings";
 
 export async function createAdvance(fd: FormData) {
   const session = await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
-  const employeeId = fd.get("employeeId") as string;
-  const amount = parseInt(fd.get("amount") as string);
-  const note = ((fd.get("note") as string) ?? "").trim();
-  const month = parseInt(fd.get("month") as string);
-  const year = parseInt(fd.get("year") as string);
-  if (!employeeId || !amount || !month || !year) return;
-  if (await isPayrollLocked(month, year)) {
-    throw new Error("Payroll for this month is already locked; cannot add an advance to it.");
+  const employeeId = String(fd.get("employeeId") ?? "");
+  const amount = parseInt(String(fd.get("amount") ?? ""), 10);
+  const note = String(fd.get("note") ?? "").trim().slice(0, 300);
+  const month = parseInt(String(fd.get("month") ?? ""), 10);
+  const year = parseInt(String(fd.get("year") ?? ""), 10);
+  // Server-side validation (a negative advance used to pass and a month of 13 was
+  // scheduled against a month that never comes); errors show as a banner instead
+  // of a silent return or the blank error page.
+  if (!validMoneyMonth(amount, month, year) || !(await employeeExists(employeeId))) {
+    redirect("/hr/advances?error=invalid");
   }
+  if (await isPayrollLocked(month, year)) redirect("/hr/advances?error=locked");
 
   await prisma.$transaction(async (tx) => {
     const advance = await tx.salaryAdvance.create({
@@ -32,14 +36,13 @@ export async function createAdvance(fd: FormData) {
 
 export async function addInstalment(fd: FormData) {
   await requireAnyRole(["HR", "ADMIN", "MANAGER"]);
-  const advanceId = fd.get("advanceId") as string;
-  const month = parseInt(fd.get("month") as string);
-  const year = parseInt(fd.get("year") as string);
-  const amount = parseInt(fd.get("amount") as string);
+  const advanceId = String(fd.get("advanceId") ?? "");
+  const month = parseInt(String(fd.get("month") ?? ""), 10);
+  const year = parseInt(String(fd.get("year") ?? ""), 10);
+  const amount = parseInt(String(fd.get("amount") ?? ""), 10);
 
-  if (await isPayrollLocked(month, year)) {
-    throw new Error("Payroll for this month is already locked; cannot add an instalment to it.");
-  }
+  if (!advanceId || !validMoneyMonth(amount, month, year)) redirect("/hr/advances?error=invalid");
+  if (await isPayrollLocked(month, year)) redirect("/hr/advances?error=locked");
 
   // createAdvance disburses totalAmount as cash in full up front (one
   // postAdvanceGiven entry) and schedules it as a single instalment — this
@@ -51,13 +54,9 @@ export async function addInstalment(fd: FormData) {
     where: { id: advanceId },
     include: { instalments: { select: { amount: true } } },
   });
-  if (!advance) throw new Error("Advance not found.");
+  if (!advance) redirect("/hr/advances?error=invalid");
   const alreadyScheduled = advance.instalments.reduce((s, i) => s + i.amount, 0);
-  if (alreadyScheduled + amount > advance.totalAmount) {
-    throw new Error(
-      `This would schedule ${alreadyScheduled + amount} in repayments against an advance of only ${advance.totalAmount} already disbursed.`,
-    );
-  }
+  if (alreadyScheduled + amount > advance.totalAmount) redirect("/hr/advances?error=invalid");
 
   await prisma.advanceInstalment.create({ data: { advanceId, month, year, amount } });
   revalidatePath("/hr/advances");

@@ -374,6 +374,10 @@ model Expense {
   rejectionReason String?
   attachments     ExpenseAttachment[]
   lines           ExpenseLine[]
+  // Client-minted id of the cashier form submission that created this expense (same
+  // guard as CashCollection.requestId): a double-tap or retry of the same form can
+  // never book the expense twice.
+  requestId       String?             @unique
   createdAt       DateTime            @default(now())
 
   @@index([businessDate])
@@ -935,6 +939,10 @@ model CashCollection {
   // (null if no shift was open — those just adjust the standalone cash standing).
   shiftId      String?
   shift        CashierShift?  @relation(fields: [shiftId], references: [id])
+  // Client-generated id for the form submission that created this row. Unique, so a
+  // double-tap / retry of the same Cash in / Cash out form can never produce two rows
+  // (the second insert is rejected and the first row is returned instead).
+  requestId    String?        @unique
   createdAt    DateTime       @default(now())
 
   @@index([createdAt])

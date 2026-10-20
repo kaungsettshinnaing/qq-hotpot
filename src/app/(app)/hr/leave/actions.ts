@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { mmDayOf } from "@/lib/business-day";
@@ -11,10 +12,15 @@ export async function hrReviewLeave(fd: FormData) {
   const action = fd.get("action") as "approve" | "reject";
   const status = action === "approve" ? "APPROVED" : "REJECTED";
 
-  const req = await prisma.leaveRequest.update({
-    where: { id },
+  // Only a PENDING request can be reviewed, and only once: a double-click or a
+  // stale tab used to re-run the review (duplicate notifications, and a later
+  // "reject" flipping an approved request without undoing its LEAVE days).
+  const claimed = await prisma.leaveRequest.updateMany({
+    where: { id, status: "PENDING" },
     data: { status, reviewedById: session.id, reviewedAt: new Date() },
   });
+  if (claimed.count !== 1) redirect("/hr/leave?error=already-reviewed");
+  const req = await prisma.leaveRequest.findUniqueOrThrow({ where: { id } });
 
   if (status === "APPROVED") {
     // Attendance.date convention is UTC midnight of the Myanmar calendar day

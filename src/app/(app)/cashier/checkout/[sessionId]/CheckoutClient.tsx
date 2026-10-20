@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { applyDiscount, removeDiscount, addPayment } from "../../actions";
 import type { ActionResult } from "@/lib/action-result";
@@ -38,6 +38,13 @@ export default function CheckoutClient(props: {
   const [method, setMethod] = useState<Method>("CASH");
   const [amount, setAmount] = useState<number>(Math.max(0, props.balance));
   const [reference, setReference] = useState("");
+
+  // The default amount follows the live balance. It was seeded once on mount, so
+  // after a discount, a partial payment or the periodic refresh the field still
+  // showed the OLD balance and one more tap overpaid the bill.
+  useEffect(() => {
+    setAmount(Math.max(0, props.balance));
+  }, [props.balance]);
 
   function run(p: Promise<ActionResult>, onOk?: () => void) {
     setMsg(null);

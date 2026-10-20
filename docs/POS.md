@@ -145,7 +145,12 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
   a **handover banner** (who has the shift, since when, instructions to close it).
   A new shift cannot be opened until the prior one is closed.
 - **Open Shift**: opening float is auto-computed from `getCashStanding()` (last
-  shift's counted cash + injections − collections since then).
+  shift's *expected* cash + injections − collections since then — see §6.6; the
+  counted figure is only ever a discrepancy check).
+- **Cash in / Cash out** (`CollectionCard`, manager/admin on `/cashier`, admin on
+  `/cash-collection`): one tap = one `CashCollection` row. The form mints a
+  `requestId` per submission; `createCashMovement` is idempotent on it (unique
+  column), so a double-tap or a retried request can never record the movement twice.
 - **Close Shift**: counts actual cash in drawer → system computes
   `expected = openingFloat + cashSales_net − cash_drawer_expenses` → shows `variance`.
 
@@ -401,6 +406,9 @@ If a payment error occurs after settlement, the correction must be logged as a c
 ```
 openingFloat  = lastShift.expectedCash + injections − collections
                   − (CASH_DRAWER expenses entered since with no shift open)
+                  (injections/collections = CashCollection rows; each carries the
+                   submitting form's requestId, unique, so a repeated submit of the
+                   same form resolves to the one existing row instead of a second)
                   (getCashStanding() — never lastShift.countedCash; a manual
                    count must only ever flag a discrepancy, never silently
                    become the baseline every subsequent day carries forward)

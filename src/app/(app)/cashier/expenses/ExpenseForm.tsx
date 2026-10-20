@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { addExpense, addStockInvoice, recordStockPrepayment } from "../actions";
+
+function mintRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 interface Category {
   id: string;
@@ -97,6 +102,24 @@ export default function ExpenseForm({
   const [taggedDeliveryId, setTaggedDeliveryId] = useState("");
   const [rows, setRows] = useState<LineRow[]>([newRow()]);
   const [pending, start] = useTransition();
+  // One id per form "fill". The server books at most one expense per id, so a
+  // re-tap of a form that is still showing the old figures (the action redirects
+  // back to this same page, which keeps this component mounted) cannot create a
+  // second expense + delivery + journal entry. Minted after mount (never during
+  // SSR) and re-minted after every submit.
+  const [requestId, setRequestId] = useState("");
+  const [formEpoch, setFormEpoch] = useState(0);
+  useEffect(() => {
+    setRequestId(mintRequestId());
+  }, [formEpoch]);
+
+  function resetAfterSubmit() {
+    setCategoryId("");
+    setSupplierId("");
+    setTaggedDeliveryId("");
+    setRows([newRow()]);
+    setFormEpoch((n) => n + 1); // → fresh requestId, and `key` remounts the uncontrolled fields
+  }
 
   const isStock = mode === "STOCK";
   const shownCategories = isStock ? stockCategories : allCategories;
@@ -164,13 +187,17 @@ export default function ExpenseForm({
     start(async () => {
       if (mode === "STOCK") await addStockInvoice(fd);
       else await addExpense(fd);
+      resetAfterSubmit();
     });
   }
 
   function handlePrepaymentSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    start(async () => { await recordStockPrepayment(fd); });
+    start(async () => {
+      await recordStockPrepayment(fd);
+      resetAfterSubmit();
+    });
   }
 
   return (
@@ -198,7 +225,8 @@ export default function ExpenseForm({
       </div>
 
       {mode === "PREPAYMENT" ? (
-        <form onSubmit={handlePrepaymentSubmit} className="space-y-4 text-sm">
+        <form key={`prepay-${formEpoch}`} onSubmit={handlePrepaymentSubmit} className="space-y-4 text-sm">
+          <input type="hidden" name="requestId" value={requestId} />
           <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-xs text-yellow-800">
             {labels.prepaymentHint}
           </div>
@@ -246,8 +274,9 @@ export default function ExpenseForm({
           </button>
         </form>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+        <form key={`expense-${formEpoch}`} onSubmit={handleSubmit} className="space-y-4 text-sm">
           <input type="hidden" name="invoiceType" value={mode} />
+          <input type="hidden" name="requestId" value={requestId} />
 
           {/* Category */}
           <div>

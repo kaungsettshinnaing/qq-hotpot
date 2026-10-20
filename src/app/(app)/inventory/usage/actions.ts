@@ -13,7 +13,8 @@ export async function recordUsage(formData: FormData): Promise<void> {
   const qty = parseFloat(String(formData.get("qty") ?? ""));
   const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
 
-  if (!stockItemId || Number.isNaN(qty) || qty <= 0) {
+  // isFinite, not just NaN: "1e999" parses to Infinity and would poison the item's sum.
+  if (!stockItemId || !Number.isFinite(qty) || qty <= 0 || qty > 1_000_000) {
     redirect("/inventory/usage/new?error=invalid");
   }
 
@@ -41,7 +42,7 @@ export async function recordAdjustment(formData: FormData): Promise<void> {
   const qty = parseFloat(String(formData.get("qty") ?? ""));
   const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
 
-  if (!stockItemId || Number.isNaN(qty) || qty <= 0) {
+  if (!stockItemId || !Number.isFinite(qty) || qty <= 0 || qty > 1_000_000) {
     redirect("/inventory/usage?error=invalid");
   }
 

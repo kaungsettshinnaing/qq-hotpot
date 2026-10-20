@@ -55,39 +55,46 @@ export async function approveStockIn(formData: FormData): Promise<void> {
     where: { id: deliveryId },
     include: { items: { where: { stockItemId: { not: null } } } },
   });
-  if (!delivery || delivery.status !== "OPEN") return;
+  if (!delivery || delivery.status !== "OPEN") redirect("/manager/inventory?error=already_completed");
 
-  for (const item of delivery.items) {
-    if (!item.stockItemId || !item.cashierQty) continue;
-    const qty = item.cashierQty;
-    await prisma.stockDeliveryItem.update({
-      where: { id: item.id },
-      data: { finalQty: qty, counterQty: qty },
+  // Claim first, then credit stock — all in one transaction. The status check above
+  // alone let a double-tap credit DELIVERY_IN twice (stock double-counted).
+  const applied = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.stockDelivery.updateMany({
+      where: { id: deliveryId, status: "OPEN" },
+      data: { status: "COMPLETE" },
     });
-    await prisma.stockMovement.create({
+    if (claimed.count !== 1) return false;
+
+    for (const item of delivery.items) {
+      if (!item.stockItemId || !item.cashierQty) continue;
+      const qty = item.cashierQty;
+      await tx.stockDeliveryItem.update({
+        where: { id: item.id },
+        data: { finalQty: qty, counterQty: qty },
+      });
+      await tx.stockMovement.create({
+        data: {
+          stockItemId: item.stockItemId,
+          type: "DELIVERY_IN",
+          qty,
+          deliveryId: delivery.id,
+          recordedById: session.id,
+        },
+      });
+    }
+
+    await tx.stockDeliveryLog.create({
       data: {
-        stockItemId: item.stockItemId,
-        type: "DELIVERY_IN",
-        qty,
-        deliveryId: delivery.id,
-        recordedById: session.id,
+        deliveryId,
+        actorId: session.id,
+        action: "MANAGER_APPROVED",
+        note: `Approved by manager — stock credited for ${delivery.items.length} item(s)`,
       },
     });
-  }
-
-  await prisma.stockDelivery.update({
-    where: { id: deliveryId },
-    data: { status: "COMPLETE" },
+    return true;
   });
-
-  await prisma.stockDeliveryLog.create({
-    data: {
-      deliveryId,
-      actorId: session.id,
-      action: "MANAGER_APPROVED",
-      note: `Approved by manager — stock credited for ${delivery.items.length} item(s)`,
-    },
-  });
+  if (!applied) redirect("/manager/inventory?error=already_completed");
 
   await confirmLinkedExpense(deliveryId, session.id);
 
@@ -215,49 +222,57 @@ export async function submitStockCount(formData: FormData): Promise<void> {
   // Get current stock levels for previousQty on adjustments
   const levels = await computeAllStockLevels();
 
-  for (const item of count.items) {
-    const confirmedRaw = formData.get(`confirm_${item.id}`);
-    const actualQtyRaw = formData.get(`actual_${item.id}`);
-
-    const confirmed = confirmedRaw === "on";
-    const actualQty = actualQtyRaw !== null && actualQtyRaw !== "" ? posInt(actualQtyRaw) : null;
-
-    const resolvedActual = confirmed ? item.systemQty : (actualQty ?? null);
-
-    await prisma.stockCountItem.update({
-      where: { id: item.id },
-      data: {
-        confirmed,
-        actualQty: resolvedActual,
-      },
+  // Claim the count first (completedAt is the lock), then write every adjustment in
+  // the same transaction. Two submits used to both pass the check above and both
+  // write ADJUSTMENT = actual − stale level, doubling every correction.
+  const applied = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.stockCount.updateMany({
+      where: { id: countId, completedAt: null },
+      data: { completedAt: new Date(), note: note || null },
     });
+    if (claimed.count !== 1) return false;
 
-    // Create adjustment movement if actual differs from system. The trigger
-    // condition stays keyed off the snapshot (systemQty) — that's what "did
-    // the count find a discrepancy vs. what we expected" means — but the
-    // movement qty is computed against the live level, so it corrects stock
-    // relative to what it actually is now, not what it was when the count
-    // started (deliveries/usage may have happened mid-count).
-    if (resolvedActual !== null && resolvedActual !== item.systemQty) {
-      const currentLevel = levels.get(item.stockItemId) ?? 0;
-      const diff = resolvedActual - currentLevel;
-      await prisma.stockMovement.create({
+    for (const item of count.items) {
+      const confirmedRaw = formData.get(`confirm_${item.id}`);
+      const actualQtyRaw = formData.get(`actual_${item.id}`);
+
+      const confirmed = confirmedRaw === "on";
+      const actualQty = actualQtyRaw !== null && actualQtyRaw !== "" ? posInt(actualQtyRaw) : null;
+
+      const resolvedActual = confirmed ? item.systemQty : (actualQty ?? null);
+
+      await tx.stockCountItem.update({
+        where: { id: item.id },
         data: {
-          stockItemId: item.stockItemId,
-          type: "ADJUSTMENT",
-          qty: diff,
-          previousQty: currentLevel,
-          note: `Stock count adjustment (${count.type === "SPOT" ? "spot check" : "weekly count"})`,
-          recordedById: session.id,
+          confirmed,
+          actualQty: resolvedActual,
         },
       });
-    }
-  }
 
-  await prisma.stockCount.update({
-    where: { id: countId },
-    data: { completedAt: new Date(), note: note || null },
+      // Create adjustment movement if actual differs from system. The trigger
+      // condition stays keyed off the snapshot (systemQty) — that's what "did
+      // the count find a discrepancy vs. what we expected" means — but the
+      // movement qty is computed against the live level, so it corrects stock
+      // relative to what it actually is now, not what it was when the count
+      // started (deliveries/usage may have happened mid-count).
+      if (resolvedActual !== null && resolvedActual !== item.systemQty) {
+        const currentLevel = levels.get(item.stockItemId) ?? 0;
+        const diff = resolvedActual - currentLevel;
+        await tx.stockMovement.create({
+          data: {
+            stockItemId: item.stockItemId,
+            type: "ADJUSTMENT",
+            qty: diff,
+            previousQty: currentLevel,
+            note: `Stock count adjustment (${count.type === "SPOT" ? "spot check" : "weekly count"})`,
+            recordedById: session.id,
+          },
+        });
+      }
+    }
+    return true;
   });
+  if (!applied) redirect("/manager/inventory?error=already_completed");
 
   revalidatePath("/manager/inventory");
   const tab = count.type === "SPOT" ? "spot-check" : "weekly";

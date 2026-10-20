@@ -11,9 +11,15 @@ import { formatTime } from "@/lib/format";
 import LiveRefresh from "@/components/LiveRefresh";
 import { getT } from "@/lib/lang";
 
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
-export default async function WaiterPage() {
+export default async function WaiterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   await requireAnyRole(["WAITER", "MANAGER", "ADMIN"]);
   const settings = await getSettings();
   const t = await getT();
@@ -49,6 +55,7 @@ export default async function WaiterPage() {
 
   return (
     <div className="space-y-6">
+      <ErrorBanner code={errorCode} />
       <LiveRefresh room="floor" events={["table:update"]} seconds={10} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">

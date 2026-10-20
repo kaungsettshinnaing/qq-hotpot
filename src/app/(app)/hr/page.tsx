@@ -3,15 +3,17 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getT } from "@/lib/lang";
 
+import { mmNow } from "@/lib/business-day";
 export default async function HRDashboard() {
   const session = await getSession();
   if (session && session.roles.includes("MANAGER") && !session.roles.some((r) => r === "HR" || r === "ADMIN")) {
     redirect("/hr/advances");
   }
   const t = await getT();
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  // Myanmar calendar month, independent of the server's TZ setting
+  const now = mmNow();
+  const month = now.getUTCMonth() + 1;
+  const year = now.getUTCFullYear();
 
   const [total, active, pendingLeave, pendingAttendance, payroll] = await Promise.all([
     prisma.employee.count(),

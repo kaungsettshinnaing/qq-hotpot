@@ -5,6 +5,7 @@ import { uploadDocument, deleteDocument } from "../../actions";
 import { getT } from "@/lib/lang";
 import { requireAnyRole } from "@/lib/auth";
 
+import SubmitButton from "@/components/SubmitButton";
 export default async function DocumentsPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAnyRole(["HR", "ADMIN"]);
   const { id } = await params;
@@ -34,7 +35,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ id: 
             <input name="file" type="file" required className="input" />
           </div>
         </div>
-        <button type="submit" className="btn-brand">{t("btn_upload")}</button>
+        <SubmitButton className="btn-brand">{t("btn_upload")}</SubmitButton>
       </form>
 
       <div className="rounded-xl border bg-white shadow-sm">
@@ -52,7 +53,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ id: 
                 </div>
                 <form action={deleteDocument}>
                   <input type="hidden" name="id" value={d.id} />
-                  <button type="submit" className="text-xs text-red-500 hover:underline">{t("btn_delete")}</button>
+                  <SubmitButton className="text-xs text-red-500 hover:underline">{t("btn_delete")}</SubmitButton>
                 </form>
               </li>
             ))}

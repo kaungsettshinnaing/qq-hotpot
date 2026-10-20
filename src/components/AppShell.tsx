@@ -1,5 +1,5 @@
 import { modulesFor, hasAnyRole } from "@/lib/rbac";
-import type { SessionUser } from "@/lib/auth";
+import { requireSession, type SessionUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/session-actions";
 import { prisma } from "@/lib/db";
 import { getT } from "@/lib/lang";
@@ -20,7 +20,10 @@ function primaryRole(roles: string[], labels: Record<string, string>, staffFallb
 
 async function markReadAction(id: string): Promise<void> {
   "use server";
-  await prisma.notification.update({ where: { id }, data: { isRead: true } });
+  // Scoped to the caller's own notifications (updateMany, so an unknown id is a
+  // no-op rather than a P2025 crash) — it had no session or ownership check at all.
+  const user = await requireSession();
+  await prisma.notification.updateMany({ where: { id, userId: user.id }, data: { isRead: true } });
 }
 
 export default async function AppShell({

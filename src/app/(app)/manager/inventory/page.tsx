@@ -7,6 +7,8 @@ import { mmTodayUTC } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 import ExpenseRejectButton from "../../reports/ExpenseRejectButton";
 
+import SubmitButton from "@/components/SubmitButton";
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 const UNIT_ABBR: Record<string, string> = {
@@ -16,8 +18,9 @@ const UNIT_ABBR: Record<string, string> = {
 export default async function ManagerInventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; countId?: string }>;
+  searchParams: Promise<{ tab?: string; countId?: string; error?: string }>;
 }) {
+  const { error: errorCode } = (await searchParams);
   const t = await getT();
   const { tab = "review", countId } = await searchParams;
 
@@ -29,6 +32,7 @@ export default async function ManagerInventoryPage({
 
   return (
     <div className="space-y-5">
+      <ErrorBanner code={errorCode} />
       <h2 className="text-base font-semibold text-gray-800">{t("heading_inventory_manager_review")}</h2>
 
       <div className="flex overflow-x-auto border-b border-gray-200">
@@ -134,10 +138,10 @@ async function DiscrepancyTab() {
                   <div className="flex flex-wrap items-start gap-2">
                     <form action={confirmExpense}>
                       <input type="hidden" name="expenseId" value={exp.id} />
-                      <button type="submit"
+                      <SubmitButton
                         className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
                         {t("btn_confirm_expense")}
-                      </button>
+                      </SubmitButton>
                     </form>
                     <ExpenseRejectButton
                       expenseId={exp.id}
@@ -189,10 +193,10 @@ async function DiscrepancyTab() {
                   </div>
                   <form action={approveStockIn}>
                     <input type="hidden" name="deliveryId" value={d.id} />
-                    <button type="submit"
+                    <SubmitButton
                       className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
                       {t("btn_approve_stock_in")}
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
                 <table className="w-full text-xs px-3 py-2">
@@ -330,10 +334,10 @@ async function DiscrepancyTab() {
                     <input type="checkbox" name="isPartial" className="rounded" />
                     {t("label_partial_delivery")}
                   </label>
-                  <button type="submit"
+                  <SubmitButton
                     className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">
                     {t("btn_confirm_complete")}
-                  </button>
+                  </SubmitButton>
                 </div>
               </form>
             </section>
@@ -379,10 +383,10 @@ async function SpotCheckTab({ countId }: { countId?: string }) {
         <div className="rounded-xl bg-white p-6 shadow-sm text-center space-y-3">
           <p className="text-sm text-gray-500">{t("empty_no_active_count")}</p>
           <form action={startSpotCheck}>
-            <button type="submit"
+            <SubmitButton
               className="rounded-lg bg-brand px-6 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
               {t("btn_start_spot_check")}
-            </button>
+            </SubmitButton>
           </form>
         </div>
       ) : (
@@ -428,10 +432,10 @@ async function SpotCheckTab({ countId }: { countId?: string }) {
               <input name="note" maxLength={500} placeholder={t("placeholder_notes_discrepancies")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             </div>
-            <button type="submit"
+            <SubmitButton
               className="w-full rounded-lg bg-brand py-2 text-sm font-semibold text-white hover:bg-brand-dark">
               {t("btn_complete_count")}
-            </button>
+            </SubmitButton>
           </form>
         </section>
       )}
@@ -490,10 +494,10 @@ async function WeeklyCountTab({ countId }: { countId?: string }) {
         <div className="rounded-xl bg-white p-6 shadow-sm text-center space-y-3">
           <p className="text-sm text-gray-500">{t("empty_no_active_count")}</p>
           <form action={startWeeklyCount}>
-            <button type="submit"
+            <SubmitButton
               className="rounded-lg bg-purple-600 px-6 py-2 text-sm font-semibold text-white hover:bg-purple-700">
               {t("btn_start_weekly_count")}
-            </button>
+            </SubmitButton>
           </form>
         </div>
       ) : (
@@ -554,10 +558,10 @@ async function WeeklyCountTab({ countId }: { countId?: string }) {
               <input name="note" maxLength={500} placeholder={t("placeholder_notes_ellipsis")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             </div>
-            <button type="submit"
+            <SubmitButton
               className="w-full rounded-lg bg-purple-600 py-2 text-sm font-semibold text-white hover:bg-purple-700">
               {t("btn_complete_count")}
-            </button>
+            </SubmitButton>
           </form>
         </section>
       )}

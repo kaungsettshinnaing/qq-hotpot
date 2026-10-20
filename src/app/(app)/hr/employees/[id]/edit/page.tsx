@@ -6,6 +6,7 @@ import { getT } from "@/lib/lang";
 import DateField from "@/components/DateField";
 import { requireAnyRole } from "@/lib/auth";
 
+import SubmitButton from "@/components/SubmitButton";
 export const dynamic = "force-dynamic";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -145,7 +146,7 @@ export default async function EditEmployeePage({
         )}
 
         <div className="flex gap-2 pt-2">
-          <button type="submit" className="btn-brand">{t("btn_save_changes")}</button>
+          <SubmitButton className="btn-brand">{t("btn_save_changes")}</SubmitButton>
           <a href={`/hr/employees/${emp.userId}`} className="btn-outline">{t("btn_cancel")}</a>
         </div>
       </form>

@@ -9,9 +9,15 @@ import { computeAllStockLevels } from "@/lib/inventory";
 import { getT } from "@/lib/lang";
 import AdjustmentItemQtyFields from "./AdjustmentItemQtyFields";
 
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
-export default async function UsagePage() {
+export default async function UsagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   const t = await getT();
   const session = await getSession();
   const isManager = session && hasAnyRole(session.roles, ["MANAGER", "ADMIN"]);
@@ -65,6 +71,7 @@ export default async function UsagePage() {
 
   return (
     <div className="space-y-5">
+      <ErrorBanner code={errorCode} />
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">{t("heading_stock_usage")}</h2>
         <Link href="/inventory/usage/new"

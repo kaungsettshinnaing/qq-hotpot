@@ -7,6 +7,7 @@ import LiveDuration from "./LiveDuration";
 import ClockOutButton from "./ClockOutButton";
 import { getT } from "@/lib/lang";
 
+import SubmitButton from "@/components/SubmitButton";
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -86,9 +87,9 @@ export default async function ClockPage() {
         <div className="grid gap-2">
           {!clockedIn && !clockedOut && (
             <form action={clockIn}>
-              <button type="submit" className="w-full rounded-2xl bg-green-600 py-5 text-xl font-bold text-white hover:bg-green-700 active:scale-95 transition">
+              <SubmitButton className="w-full rounded-2xl bg-green-600 py-5 text-xl font-bold text-white hover:bg-green-700 active:scale-95 transition">
                 {t("btn_clock_in")}
-              </button>
+              </SubmitButton>
             </form>
           )}
           {clockedIn && !clockedOut && (
@@ -139,16 +140,16 @@ export default async function ClockPage() {
             <div className="grid gap-2">
               {!onBreak && (
                 <form action={breakOut}>
-                  <button type="submit" className="w-full rounded-2xl bg-yellow-500 py-4 text-lg font-bold text-white hover:bg-yellow-600 active:scale-95 transition">
+                  <SubmitButton className="w-full rounded-2xl bg-yellow-500 py-4 text-lg font-bold text-white hover:bg-yellow-600 active:scale-95 transition">
                     {t("btn_break_start")}
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
               {onBreak && (
                 <form action={breakIn}>
-                  <button type="submit" className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-bold text-white hover:bg-blue-700 active:scale-95 transition">
+                  <SubmitButton className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-bold text-white hover:bg-blue-700 active:scale-95 transition">
                     {t("btn_break_end")}
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
             </div>

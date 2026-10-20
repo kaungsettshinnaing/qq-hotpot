@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { netCashChange } from "./pricing";
 import { postCashMovement } from "./journal-postings";
+import { isPrismaError } from "./prisma-errors";
 
 export async function getOpenShift(cashierId: string) {
   return prisma.cashierShift.findFirst({
@@ -104,15 +105,39 @@ export async function createCashMovement(
   amount: number,
   note: string | null,
   recordedById: string,
+  requestId: string | null = null,
 ) {
+  // Idempotent on requestId: the form mints one id per submission, so a double-tap,
+  // a browser retry or a second click while the first request is still in flight all
+  // carry the same id and resolve to the ONE row that was created. The unique index
+  // on CashCollection.requestId is the real guard — the pre-check is just the cheap
+  // path; a race between two requests lands on P2002 and is handled the same way.
+  if (requestId) {
+    const existing = await prisma.cashCollection.findUnique({ where: { requestId } });
+    if (existing) return existing;
+  }
   const openShift = await getAnyOpenShift();
-  return prisma.$transaction(async (tx) => {
-    const movement = await tx.cashCollection.create({
-      data: { type, amount, note, recordedById, shiftId: openShift?.id ?? null },
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const movement = await tx.cashCollection.create({
+        data: { type, amount, note, recordedById, shiftId: openShift?.id ?? null, requestId },
+      });
+      await postCashMovement(tx, movement);
+      return movement;
     });
-    await postCashMovement(tx, movement);
-    return movement;
-  });
+  } catch (e) {
+    if (requestId && isPrismaError(e, "P2002")) {
+      const existing = await prisma.cashCollection.findUnique({ where: { requestId } });
+      if (existing) return existing;
+    }
+    throw e;
+  }
+}
+
+/** A request id is client-minted (UUID); anything else is dropped rather than trusted. */
+export function cleanRequestId(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  return /^[A-Za-z0-9-]{8,64}$/.test(s) ? s : null;
 }
 
 /**

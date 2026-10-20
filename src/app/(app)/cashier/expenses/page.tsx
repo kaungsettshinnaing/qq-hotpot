@@ -8,9 +8,15 @@ import { getT } from "@/lib/lang";
 import ExpenseForm from "./ExpenseForm";
 import ExpenseList from "./ExpenseList";
 
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
   const settings = await getSettings();
   const t = await getT();
@@ -92,6 +98,7 @@ export default async function ExpensesPage() {
 
   return (
     <div className="space-y-5">
+      <ErrorBanner code={errorCode} />
       <div className="flex items-center gap-3">
         <Link href="/cashier" className="text-sm text-brand hover:underline">← {t("nav_cashier")}</Link>
         <h1 className="text-xl font-bold">{t("heading_expenses")}</h1>

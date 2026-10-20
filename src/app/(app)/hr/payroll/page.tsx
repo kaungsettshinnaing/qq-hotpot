@@ -3,6 +3,7 @@ import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getT } from "@/lib/lang";
 
+import { mmNow } from "@/lib/business-day";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default async function PayrollListPage() {
@@ -20,8 +21,8 @@ export default async function PayrollListPage() {
   });
 
   const recentMonths = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    return { month: d.getMonth() + 1, year: d.getFullYear() };
+    const d = new Date(Date.UTC(mmNow().getUTCFullYear(), mmNow().getUTCMonth() - i, 1));
+    return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
   });
 
   return (

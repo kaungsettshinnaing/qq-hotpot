@@ -8,9 +8,17 @@ import SubmitButton from "@/components/SubmitButton";
 import { getT } from "@/lib/lang";
 import { requireAnyRole } from "@/lib/auth";
 
+import ErrorBanner from "@/components/ErrorBanner";
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EmployeeProfilePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   // Full profile has bank account, DOB, home address, basic salary — matches
   // the HR/ADMIN-only restriction already on the employees list page.
   await requireAnyRole(["HR", "ADMIN"]);
@@ -55,6 +63,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   return (
     <div className="max-w-2xl space-y-4">
+      <ErrorBanner code={errorCode} />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold">{emp.user.name}</h1>

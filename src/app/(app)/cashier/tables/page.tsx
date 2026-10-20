@@ -18,6 +18,7 @@ import {
 } from "../actions";
 import { getT } from "@/lib/lang";
 
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 function pad(n: number) { return String(n).padStart(2, "0"); }
@@ -25,7 +26,12 @@ function localInput(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default async function CashierTablesPage() {
+export default async function CashierTablesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   await requireAnyRole(["CASHIER", "MANAGER", "ADMIN"]);
   const settings = await getSettings();
   const t = await getT();
@@ -65,6 +71,7 @@ export default async function CashierTablesPage() {
 
   return (
     <div className="space-y-5">
+      <ErrorBanner code={errorCode} />
       <LiveRefresh room="floor" events={["table:update"]} seconds={15} />
 
       <div className="flex items-center gap-3">

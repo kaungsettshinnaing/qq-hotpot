@@ -164,6 +164,8 @@ export default async function CashierHome({
                     subtitle={t("label_inject_subtitle")}
                     notePlaceholder={t("placeholder_inject_note")}
                     submitLabel={t("btn_inject_submit")}
+                    pendingLabel={t("pending_recording")}
+                    successLabel={t("cash_movement_recorded")}
                     standingLabel={t("label_expected_after")}
                     overLabel={t("label_over_standing")}
                     labelAmount={t("col_amount")}
@@ -178,6 +180,8 @@ export default async function CashierHome({
                     subtitle={t("label_collect_subtitle")}
                     notePlaceholder={t("placeholder_collect_note")}
                     submitLabel={t("btn_collect_submit")}
+                    pendingLabel={t("pending_recording")}
+                    successLabel={t("cash_movement_recorded")}
                     standingLabel={t("label_expected_after")}
                     overLabel={t("label_over_standing")}
                     labelAmount={t("col_amount")}
@@ -252,6 +256,8 @@ export default async function CashierHome({
                   subtitle={t("label_inject_subtitle")}
                   notePlaceholder={t("placeholder_inject_note")}
                   submitLabel={t("btn_inject_submit")}
+                  pendingLabel={t("pending_recording")}
+                  successLabel={t("cash_movement_recorded")}
                   standingLabel={t("label_expected_after")}
                   overLabel={t("label_over_standing")}
                   labelAmount={t("col_amount")}
@@ -266,6 +272,8 @@ export default async function CashierHome({
                   subtitle={t("label_collect_subtitle")}
                   notePlaceholder={t("placeholder_collect_note")}
                   submitLabel={t("btn_collect_submit")}
+                  pendingLabel={t("pending_recording")}
+                  successLabel={t("cash_movement_recorded")}
                   standingLabel={t("label_expected_after")}
                   overLabel={t("label_over_standing")}
                   labelAmount={t("col_amount")}

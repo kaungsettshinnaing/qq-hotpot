@@ -59,7 +59,9 @@ export async function GET(req: NextRequest) {
     for (const l of e.lines) {
       journalSheet.addRow({
         entryNo: `JE-${String(e.entryNo).padStart(6, "0")}`,
-        date: e.date.toISOString().slice(0, 10),
+        // Myanmar calendar day, same as the Daily P&L sheet — the raw UTC date put
+        // every entry between 00:00 and 06:30 on the previous day.
+        date: mmDayOf(e.date).toISOString().slice(0, 10),
         code: l.account.code,
         name: l.account.name,
         description: e.description,

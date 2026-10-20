@@ -5,13 +5,19 @@ import { recordUsage } from "../actions";
 import { getT } from "@/lib/lang";
 import UsageItemQtyFields from "./UsageItemQtyFields";
 
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 const UNIT_LABEL: Record<string, string> = {
   UNIT: "Unit", GRAM: "Gram", KG: "KG", LITRE: "Litre", BOX: "Box", BOTTLE: "Bottle", PACK: "Pack",
 };
 
-export default async function NewUsagePage() {
+export default async function NewUsagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   await requireAnyRole(["WAITER", "KITCHEN", "MANAGER", "ADMIN"]);
   const t = await getT();
 
@@ -42,6 +48,7 @@ export default async function NewUsagePage() {
 
   return (
     <div className="mx-auto max-w-md space-y-5">
+      <ErrorBanner code={errorCode} />
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">{t("heading_record_stock_usage")}</h2>
         <a href="/inventory/usage" className="text-sm text-blue-600 hover:underline">{t("btn_cancel")}</a>

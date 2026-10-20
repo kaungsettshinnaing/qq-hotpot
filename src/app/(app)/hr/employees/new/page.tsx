@@ -4,6 +4,7 @@ import { createEmployee } from "../actions";
 import { getT } from "@/lib/lang";
 import DateField from "@/components/DateField";
 
+import SubmitButton from "@/components/SubmitButton";
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function NewEmployeePage({
@@ -137,7 +138,7 @@ export default async function NewEmployeePage({
           <p className="mt-1 text-xs text-gray-400 ml-6">{t("label_system_account_note")}</p>
         </div>
         <div className="flex gap-2 pt-2">
-          <button type="submit" className="btn-brand">{t("btn_create_employee")}</button>
+          <SubmitButton className="btn-brand">{t("btn_create_employee")}</SubmitButton>
           <Link href="/hr/employees" className="btn-outline">{t("btn_cancel")}</Link>
         </div>
       </form>

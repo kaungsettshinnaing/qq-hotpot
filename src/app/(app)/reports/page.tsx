@@ -7,7 +7,7 @@ import { freePotsAllowed, netCashChange } from "@/lib/pricing";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { getCashStanding } from "@/lib/shift";
 import { getSessionDetail } from "@/lib/orders";
-import { mmToday, mmDayRange, mmDateUTC } from "@/lib/business-day";
+import { mmToday, mmDayRange, mmDateUTC, dayOr } from "@/lib/business-day";
 import { confirmExpense, rejectExpense } from "../manager/inventory/actions";
 import MovementsTable from "./MovementsTable";
 import ExpenseRejectButton from "./ExpenseRejectButton";
@@ -112,7 +112,7 @@ export default async function ReportsPage({
 
   const { tab = "cash", date } = await searchParams;
   const today = mmToday();
-  const dayStr = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : today;
+  const dayStr = dayOr(date, today); // a shape-only regex let 2026-13-45 through to an Invalid Date (500)
   const { start, end } = mmDayRange(dayStr);
 
   const tabs = [

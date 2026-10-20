@@ -2,11 +2,19 @@ import { prisma } from "@/lib/db";
 import { createAdvance, deleteInstalment } from "./actions";
 import { getT } from "@/lib/lang";
 
+import { mmNow } from "@/lib/business-day";
+import SubmitButton from "@/components/SubmitButton";
+import ErrorBanner from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-export default async function AdvancesPage() {
+export default async function AdvancesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   const t = await getT();
   const now = new Date();
 
@@ -28,6 +36,7 @@ export default async function AdvancesPage() {
 
   return (
     <div className="space-y-6">
+      <ErrorBanner code={errorCode} />
       <h1 className="text-xl font-bold">{t("heading_salary_advances")}</h1>
 
       <form action={createAdvance} className="rounded-xl border bg-white p-4 shadow-sm">
@@ -54,16 +63,16 @@ export default async function AdvancesPage() {
             <label className="label">{t("label_deduct_month")}</label>
             <select name="month" className="input">
               {MONTHS.map((m, i) => (
-                <option key={i} value={i + 1} selected={i === now.getMonth()}>{m}</option>
+                <option key={i} value={i + 1} selected={i === mmNow().getUTCMonth()}>{m}</option>
               ))}
             </select>
           </div>
           <div>
             <label className="label">{t("label_year")}</label>
-            <input name="year" type="number" className="input" defaultValue={now.getFullYear()} />
+            <input name="year" type="number" className="input" defaultValue={mmNow().getUTCFullYear()} />
           </div>
         </div>
-        <button type="submit" className="btn-brand mt-3">{t("btn_add_advance")}</button>
+        <SubmitButton className="btn-brand mt-3">{t("btn_add_advance")}</SubmitButton>
       </form>
 
       <div className="rounded-xl border bg-white shadow-sm">
@@ -96,9 +105,9 @@ export default async function AdvancesPage() {
                   {!inst.deducted && (
                     <form action={deleteInstalment}>
                       <input type="hidden" name="id" value={inst.id} />
-                      <button type="submit" className="text-xs text-red-500 hover:underline">
+                      <SubmitButton className="text-xs text-red-500 hover:underline">
                         {t("btn_delete")}
-                      </button>
+                      </SubmitButton>
                     </form>
                   )}
                 </td>

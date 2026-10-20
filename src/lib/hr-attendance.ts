@@ -35,21 +35,48 @@ export async function getAttendanceSummary(
 
   const rows = await prisma.attendance.findMany({
     where: { employeeId, date: { gte: start, lt: end } },
+    select: { date: true, status: true, dayType: true },
   });
+  return summarizeAttendance(rows, year, month, restDays);
+}
+
+export interface AttendanceRowLite {
+  date: Date; // UTC midnight of the Myanmar calendar day (storage convention)
+  status: "PRESENT" | "ABSENT" | "LEAVE" | "REST_DAY" | "OT";
+  dayType?: "FULL" | "HALF" | null;
+}
+
+/** Pure month roll-up behind getAttendanceSummary (unit-tested).
+ *
+ *  Scheduled rest days are not working days, so they never count as absent — but
+ *  an `OT` row on a rest day is exactly the documented case ("worked on a scheduled
+ *  rest day", docs/HR.md) and MUST still count toward otDays. The present-basis
+ *  rewrite skipped rest days before reading the row, so rest-day OT earned nothing. */
+export function summarizeAttendance(
+  rows: AttendanceRowLite[],
+  year: number,
+  month: number,
+  restDays: number[],
+): { workingDays: number; absentDays: number; otDays: number } {
   const byDate = new Map(rows.map((r) => [r.date.toISOString().slice(0, 10), r]));
 
-  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   let workingDays = 0;
   let absentDays = 0;
   let otDays = 0;
 
   for (let d = 1; d <= daysInMonth; d++) {
-    const dow = new Date(year, month - 1, d).getDay(); // 0=Sun
-    if (restDays.includes(dow)) continue; // scheduled rest day — not a working day at all
+    const dayUTC = new Date(Date.UTC(year, month - 1, d));
+    const dow = dayUTC.getUTCDay(); // 0=Sun — UTC parts, so the server TZ can't shift the weekday
+    const row = byDate.get(dayUTC.toISOString().slice(0, 10));
+
+    if (restDays.includes(dow)) {
+      // Scheduled rest day — not a working day, nothing to deduct; only OT counts.
+      if (row?.status === "OT") otDays += row.dayType === "HALF" ? 0.5 : 1;
+      continue;
+    }
 
     workingDays++;
-    const key = new Date(Date.UTC(year, month - 1, d)).toISOString().slice(0, 10);
-    const row = byDate.get(key);
 
     if (!row) {
       // No attendance record on a working day — unpaid under present-basis.
@@ -108,7 +135,11 @@ export async function getLiveAttendanceStatus() {
     const isRestDay = emp.restDays.includes(dayOfWeek);
 
     let status: "not_started" | "working" | "on_break" | "clocked_out" | "on_leave" | "rest" = "not_started";
-    if (att) {
+    if (att && !att.clockInAt && (att.status === "LEAVE" || att.status === "REST_DAY")) {
+      // An approved leave / HR-marked day creates an attendance row with no clock-in;
+      // it used to fall into the `att` branch below and show as "Not clocked in".
+      status = att.status === "LEAVE" ? "on_leave" : "rest";
+    } else if (att) {
       if (att.clockOutAt) status = "clocked_out";
       else if (att.clockInAt) {
         // After 11:30 PM Myanmar, auto-clock-out (display only — DB not modified)

@@ -5,6 +5,7 @@ import { markAttendance, approveAttendance } from "./actions";
 import { mmNow, mmToday } from "@/lib/business-day";
 import { getT } from "@/lib/lang";
 
+import SubmitButton from "@/components/SubmitButton";
 const STATUSES = ["PRESENT", "ABSENT", "LEAVE", "REST_DAY", "OT"] as const;
 const STATUS_COLOR: Record<string, string> = {
   PRESENT: "bg-green-100 text-green-700",
@@ -73,7 +74,7 @@ export default async function HRAttendancePage({
                 <span>{a.employee.user.name} — {formatDate(a.date)} ({a.status})</span>
                 <form action={approveAttendance}>
                   <input type="hidden" name="id" value={a.id} />
-                  <button type="submit" className="text-xs text-brand hover:underline">{t("btn_approve_attendance")}</button>
+                  <SubmitButton className="text-xs text-brand hover:underline">{t("btn_approve_attendance")}</SubmitButton>
                 </form>
               </div>
             ))}
@@ -139,7 +140,7 @@ export default async function HRAttendancePage({
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <input name="note" className="input" placeholder={`${t("col_note")} (optional)`} />
-          <button type="submit" className="btn-brand">{t("btn_mark_attendance")}</button>
+          <SubmitButton className="btn-brand">{t("btn_mark_attendance")}</SubmitButton>
         </form>
       </div>
 

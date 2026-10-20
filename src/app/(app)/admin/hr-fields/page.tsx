@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { getT } from "@/lib/lang";
 
+import SubmitButton from "@/components/SubmitButton";
 async function createField(fd: FormData) {
   "use server";
   await requireAnyRole(["ADMIN"]);
@@ -62,7 +63,7 @@ export default async function HRFieldsPage() {
               <input type="checkbox" name="isRequired" />
               {t("label_required")}
             </label>
-            <button type="submit" className="btn-brand">{t("btn_add")}</button>
+            <SubmitButton className="btn-brand">{t("btn_add")}</SubmitButton>
           </div>
         </div>
       </form>
@@ -95,9 +96,9 @@ export default async function HRFieldsPage() {
                 <td className="px-4 py-2">
                   <form action={toggleField}>
                     <input type="hidden" name="id" value={f.id} />
-                    <button type="submit" className="text-xs text-brand hover:underline">
+                    <SubmitButton className="text-xs text-brand hover:underline">
                       {f.isActive ? t("btn_disable") : t("btn_enable")}
-                    </button>
+                    </SubmitButton>
                   </form>
                 </td>
               </tr>

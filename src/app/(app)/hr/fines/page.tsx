@@ -2,9 +2,17 @@ import { prisma } from "@/lib/db";
 import { createFine, deleteFine } from "./actions";
 import { getT } from "@/lib/lang";
 
+import { mmNow } from "@/lib/business-day";
+import SubmitButton from "@/components/SubmitButton";
+import ErrorBanner from "@/components/ErrorBanner";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-export default async function FinesPage() {
+export default async function FinesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorCode } = await searchParams;
   const t = await getT();
   const now = new Date();
 
@@ -22,6 +30,7 @@ export default async function FinesPage() {
 
   return (
     <div className="space-y-6">
+      <ErrorBanner code={errorCode} />
       <h1 className="text-xl font-bold">{t("heading_fines")}</h1>
 
       <form action={createFine} className="rounded-xl border bg-white p-4 shadow-sm">
@@ -45,15 +54,15 @@ export default async function FinesPage() {
           <div>
             <label className="label">{t("label_deduct_month")}</label>
             <select name="deductMonth" className="input">
-              {MONTHS.map((m, i) => <option key={i} value={i + 1} selected={i + 1 === now.getMonth() + 1}>{m}</option>)}
+              {MONTHS.map((m, i) => <option key={i} value={i + 1} selected={i === mmNow().getUTCMonth()}>{m}</option>)}
             </select>
           </div>
           <div>
             <label className="label">{t("label_year")}</label>
-            <input name="deductYear" type="number" className="input" defaultValue={now.getFullYear()} />
+            <input name="deductYear" type="number" className="input" defaultValue={mmNow().getUTCFullYear()} />
           </div>
         </div>
-        <button type="submit" className="btn-brand mt-3">{t("btn_add_fine")}</button>
+        <SubmitButton className="btn-brand mt-3">{t("btn_add_fine")}</SubmitButton>
       </form>
 
       <div className="rounded-xl border bg-white shadow-sm">
@@ -84,7 +93,7 @@ export default async function FinesPage() {
                   {!f.deducted && (
                     <form action={deleteFine}>
                       <input type="hidden" name="id" value={f.id} />
-                      <button type="submit" className="text-xs text-red-500 hover:underline">{t("btn_delete")}</button>
+                      <SubmitButton className="text-xs text-red-500 hover:underline">{t("btn_delete")}</SubmitButton>
                     </form>
                   )}
                 </td>
