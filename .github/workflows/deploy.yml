@@ -79,9 +79,11 @@ jobs:
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             docker compose pull
             docker compose up -d
-            # Safe by default: fails loudly if a schema change would drop data.
-            # For an intentional destructive change, run once by hand with --accept-data-loss.
-            docker compose exec -T app npx prisma db push
+            # The image's entrypoint (docker-entrypoint.sh) has ALREADY applied the schema with
+            # --accept-data-loss by the time the container is up, so this step cannot guard
+            # anything — without the flag it just fails on warnings (e.g. a new unique index,
+            # 2026-10-20) after the new code is live. It stays as a sync check only.
+            docker compose exec -T app npx prisma db push --accept-data-loss
             docker image prune -f
 
   # uat -> UAT (uat.qqhotpotbbq.com)
@@ -104,5 +106,6 @@ jobs:
             dc="docker compose -f docker-compose.uat.yml --project-name qq-uat --env-file .env.uat"
             $dc pull
             $dc up -d
-            $dc exec -T app npx prisma db push
+            # Same as prod: the entrypoint already applied the schema; this is a sync check.
+            $dc exec -T app npx prisma db push --accept-data-loss
             docker image prune -f

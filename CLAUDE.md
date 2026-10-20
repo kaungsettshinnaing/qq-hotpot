@@ -211,6 +211,13 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
   but behave in production. Don't "fix" them to UTC math; if you touch them, go through
   `business-day.ts` so they stop depending on the TZ env at all. A local `.env` for dev must set
   `TZ=Asia/Yangon` too or dates will differ from prod.
+- **A schema change that adds a unique index "fails" the deploy run while the app is already
+  live (2026-10-20).** `docker-entrypoint.sh` runs `prisma db push --accept-data-loss` on every
+  container start, so by the time `deploy.yml`'s own `db push` step runs, the schema is applied
+  and the new code is serving. That step had no flag and died on the "unique constraint …
+  might be data loss" warning → red run, green site. It now passes `--accept-data-loss` too
+  (it is a sync check, not a guard — the guard it claimed to be never existed). Read the
+  entrypoint log (`docker logs qq-uat-app-1`) if a deploy run is red but the site is up.
 - **Local dev recipe (2026-10-20):** `docker compose -f docker-compose.local.yml up -d qq-db`
   (Postgres on 127.0.0.1:5442, seeded volume `qq-app_qq_pgdata`), a `.env` with
   `DATABASE_URL=postgresql://qq:devpassword@localhost:5442/qq_dev`, `AUTH_SECRET`, `TZ=Asia/Yangon`,
