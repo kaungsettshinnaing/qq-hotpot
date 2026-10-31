@@ -123,6 +123,14 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
   Tests: `src/lib/pricing.test.ts`, `src/app/(app)/waiter/buffet-actions.test.ts`. Verified
   locally: blank choice blocked, Special table billed 29,000/adult, switching from the session
   page and checkout re-prices, entrypoint SQL tested on a prod-like menu and on a blank one.
+  **On prod 2026-10-31** (Simon: "Deploy to prod"; `main` fast-forwarded to `5a8f6d0`, run
+  41179853390): app up, login 200, prod's `SPECIAL`/`SPECIAL_1` adopted as `SPECIAL_ADULT`
+  29,000 / `SPECIAL_CHILD` 15,000, every existing table `NORMAL` (5 open at the time). UAT got blank
+  rows at price 0 (UAT never had them), so Special is greyed out there until priced in Admin → Menu.
+  Both deploy runs show **red with a live site**: the entrypoint and `deploy.yml`'s own `db push`
+  raced to create the new `BuffetType` enum (`P2002` on `pg_type`); on UAT the app lost and
+  restarted once, on prod the deploy step lost. Expect the same on any deploy that adds a type
+  or table — check `docker logs` before treating a red run as down.
 
 - `2026-10-20` — **Cash in / Cash out recorded twice on one tap — fixed with a per-submission
   request id, not just a disabled button.** Simon: "cash in and cash out button adds duplicate
