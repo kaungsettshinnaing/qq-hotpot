@@ -4,6 +4,7 @@ import { getSettings } from "./settings";
 import {
   computeBill,
   freePotsAllowed,
+  SYSTEM_CODES,
   type DiscountType,
 } from "./pricing";
 
@@ -39,12 +40,12 @@ export async function getSessionDetail(sessionId: string) {
   const freePots = Math.min(totalPots, allowance);
   const paidPots = Math.max(0, totalPots - allowance);
 
-  const SYSTEM_CODES = new Set(["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"]);
+  const systemCodes = new Set(SYSTEM_CODES);
   const beerQty = session.orderItems
     .filter((o) => o.itemCode === "BEER")
     .reduce((s, o) => s + o.qty, 0);
   const extraItems = session.orderItems
-    .filter((o) => !SYSTEM_CODES.has(o.itemCode) && o.qty > 0)
+    .filter((o) => !systemCodes.has(o.itemCode) && o.qty > 0)
     .map((o) => ({
       code: o.itemCode,
       label: itemNameMap.get(o.itemCode) ?? o.itemCode,
@@ -58,6 +59,7 @@ export async function getSessionDetail(sessionId: string) {
     wastageGrams: session.wastageGrams,
     beerQty,
     paidPots,
+    buffetType: session.buffetType,
     extraItems,
     discountType: (session.discountType as DiscountType | null) ?? null,
     discountValue: session.discountValue,

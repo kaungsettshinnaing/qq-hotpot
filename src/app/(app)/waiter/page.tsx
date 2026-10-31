@@ -40,7 +40,7 @@ export default async function WaiterPage({
     }),
     prisma.tableSession.findMany({
       where: { status: "OPEN" },
-      select: { id: true, tableId: true, adults: true, children: true, openedAt: true },
+      select: { id: true, tableId: true, adults: true, children: true, openedAt: true, buffetType: true },
     }),
     prisma.reservation.findMany({
       where: { status: "BOOKED" },
@@ -115,6 +115,9 @@ export default async function WaiterPage({
                   {sess && (
                     <div className="text-[10px] opacity-80">
                       {sess.adults + sess.children}p · {formatTime(sess.openedAt)}
+                      {sess.buffetType === "SPECIAL" && (
+                        <span className="ml-1 rounded bg-gold-light px-1 text-[10px] font-semibold text-gold-dark">{t("badge_special")}</span>
+                      )}
                     </div>
                   )}
                   {status === "BLOCKED" && resAt && (

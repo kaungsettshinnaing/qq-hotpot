@@ -157,6 +157,13 @@ enum DiscountType {
   FIXED
 }
 
+// Normal buffet = ADULT / CHILD prices; Special = SPECIAL_ADULT / SPECIAL_CHILD.
+// One type per table, chosen by the waiter when the table is opened.
+enum BuffetType {
+  NORMAL
+  SPECIAL
+}
+
 model TableSession {
   id             String        @id @default(cuid())
   table          Table         @relation(fields: [tableId], references: [id])
@@ -166,6 +173,7 @@ model TableSession {
   openedAt       DateTime      @default(now())
   adults         Int           @default(0)
   children       Int           @default(0)
+  buffetType     BuffetType    @default(NORMAL)
   wastageGrams   Int           @default(0)
   status         SessionStatus @default(OPEN)
   closedBy       User?         @relation("closedBy", fields: [closedById], references: [id])

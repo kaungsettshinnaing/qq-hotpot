@@ -61,6 +61,10 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
 - Free pots per table: `free = ceil(diners / ratio)` (ratio default 4, configurable).
   Extras bill as **Pot Add-on**.
 - Hotpot picks **2** soup flavours, BBQ picks **1** — both count as **one** pot.
+- **Buffet type per table:** the waiter must pick **Normal** or **Special** when opening a
+  table (no default). Special replaces the adult/child prices with `SPECIAL_ADULT` /
+  `SPECIAL_CHILD`; free pots, beer, wastage, extras unchanged. Changeable on the waiter
+  session page and at checkout while the table is OPEN.
 - Tables open ≥ **105 minutes** show an orange **OVERDUE** badge on waiter and cashier
   floor views.
 - Split payments: Cash / KBZPay / Other — **only cash affects the drawer**.
@@ -95,6 +99,30 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
   authority). Treat journal correctness as compliance-critical, not cosmetic.
 
 ## Decisions made — and why
+
+- `2026-10-31` — **Waiter chooses Normal or Special buffet when opening a table** (Simon:
+  "make waiter choose whether the customer is having normal or special buffet when they open
+  table (refer to prod menu)"; his calls: the whole table is one type and Special *replaces*
+  the normal prices; waiter and cashier can switch it while the table is open). Prod's menu
+  had `SPECIAL` "Special လူကြီး ဘူဖေး" 29,000 and `SPECIAL_1` "Special ကလေး ဘူဖေး" 15,000 as
+  ordinary add-on items, never ordered on any of 1,871 closed tables. Built:
+  `TableSession.buffetType` (`BuffetType` NORMAL | SPECIAL, default NORMAL so every old table
+  bills as before); reserved codes `SPECIAL_ADULT` / `SPECIAL_CHILD` added to the one shared
+  `SYSTEM_CODES` (`src/lib/pricing.ts`) so they no longer appear as add-on steppers;
+  `computeBill` bills "Special Adult / Special Child" lines for a SPECIAL table; `openTable`
+  requires the choice (`?error=buffet-required`), `setBuffetType` (`updateMany` on OPEN);
+  `BuffetSwitch` on the waiter session page and checkout; a "Special" tag on the floor card
+  and checkout header. Special is offered only while the `SPECIAL_ADULT` row is shown and
+  priced (`isSpecialBuffetOffered`) — Admin → Menu → Hide turns it off. **Prod menu rows:**
+  `docker-entrypoint.sh` renames `SPECIAL` → `SPECIAL_ADULT` and `SPECIAL_1` → `SPECIAL_CHILD`
+  once (guarded: name says special + adult/child, never ordered, target code free), else
+  inserts blank rows at price 0; idempotent. Also fixed: the entrypoint's `prisma db execute`
+  calls had no `--schema`, so the old "already exists" fallback could never have run.
+  **Not changed (ask Simon):** reservation **Seat** still opens a Normal table (switchable on the
+  session page); the kitchen ticket shows no buffet type; reports don't split covers by type.
+  Tests: `src/lib/pricing.test.ts`, `src/app/(app)/waiter/buffet-actions.test.ts`. Verified
+  locally: blank choice blocked, Special table billed 29,000/adult, switching from the session
+  page and checkout re-prices, entrypoint SQL tested on a prod-like menu and on a blank one.
 
 - `2026-10-20` — **Cash in / Cash out recorded twice on one tap — fixed with a per-submission
   request id, not just a disabled button.** Simon: "cash in and cash out button adds duplicate

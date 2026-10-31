@@ -98,6 +98,13 @@ const dict: Record<string, { en: string; my: string }> = {
   instruction_enter_diners:     { en: "Enter how many diners are seated.", my: "လူဦးရေ အရေအတွက် ထည့်ပါ" },
   label_adults:                 { en: "Adults",                            my: "လူကြီး" },
   label_children:               { en: "Children",                          my: "ကလေး" },
+  section_buffet:               { en: "Buffet",                            my: "ဘူဖေး" },
+  instruction_choose_buffet:    { en: "Which buffet is this table having?", my: "ဒီစားပွဲက ဘယ်ဘူဖေး စားမလဲ?" },
+  buffet_normal:                { en: "Normal buffet",                     my: "ပုံမှန် ဘူဖေး" },
+  buffet_special:               { en: "Special buffet",                    my: "Special ဘူဖေး" },
+  badge_special:                { en: "Special",                           my: "Special" },
+  label_buffet_prices:          { en: "Adult {adult} · Child {child}",     my: "လူကြီး {adult} · ကလေး {child}" },
+  buffet_special_not_set:       { en: "Special price not set — Admin → Menu", my: "Special ဈေးနှုန်း မသတ်မှတ်ရသေး — Admin → Menu" },
   btn_open_table:               { en: "Open table",                        my: "စားပွဲဖွင့်ရန်" },
 
   // ── Waiter — Session ──────────────────────────────────────────────────────
@@ -257,6 +264,8 @@ const dict: Record<string, { en: string; my: string }> = {
 
   // ── Redirect error banners (?error=<code> → error_code_<code>) ────────────
   error_code_table_occupied:    { en: "That table is already in use (open or merged) — pick another one.", my: "ထိုစားပွဲကို အသုံးပြုနေပါသည် (ဖွင့်ထားသည် သို့မဟုတ် ပေါင်းထားသည်) — အခြားတစ်ခု ရွေးပါ" },
+  error_code_buffet_required:   { en: "Choose Normal or Special buffet before opening the table.", my: "စားပွဲမဖွင့်ခင် ပုံမှန် သို့မဟုတ် Special ဘူဖေး ရွေးပါ" },
+  error_code_special_not_set:   { en: "The special buffet price isn't set yet — ask an admin to set it in Admin → Menu.", my: "Special ဘူဖေး ဈေးနှုန်း မသတ်မှတ်ရသေးပါ — Admin → Menu တွင် သတ်မှတ်ရန် Admin ကို ပြောပါ" },
   error_code_table_not_empty:   { en: "This table already has orders — it can't be cancelled. Settle it at the cashier instead.", my: "ဤစားပွဲတွင် အော်ဒါများ ရှိနေပြီ — ပယ်ဖျက်၍မရပါ။ ငွေကောက်တွင် ရှင်းလင်းပါ" },
   error_code_missing:           { en: "Something is missing — check the required fields and try again.", my: "တစ်ခုခု လိုနေသည် — လိုအပ်သောအကွက်များကို စစ်ဆေးပြီး ထပ်စမ်းပါ" },
   error_code_amount:            { en: "That amount is too large — check for an extra zero.", my: "ပမာဏ ကြီးလွန်းသည် — သုညပိုနေခြင်း ရှိမရှိ စစ်ဆေးပါ" },

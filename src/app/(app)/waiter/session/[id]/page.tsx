@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import { requireAnyRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSessionDetail } from "@/lib/orders";
-import { formatTime } from "@/lib/format";
+import { formatTime, formatMoney } from "@/lib/format";
+import { SYSTEM_CODES } from "@/lib/pricing";
+import BuffetSwitch from "@/components/BuffetSwitch";
+import { isSpecialBuffetOffered } from "@/lib/menu";
 import BillSummary from "@/components/BillSummary";
 import LiveRefresh from "@/components/LiveRefresh";
 import SessionControls from "./SessionControls";
@@ -28,7 +31,6 @@ export default async function SessionPage({
   const detail = await getSessionDetail(id);
   if (!detail || detail.session.status !== "OPEN") redirect("/waiter");
 
-  const SYSTEM_CODES = ["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"];
   const [flavours, merges, allMergedIds, allOpenTableIds, orderableItems] = await Promise.all([
     prisma.soupFlavour.findMany({
       where: { isActive: true }, orderBy: { sortOrder: "asc" },
@@ -38,7 +40,7 @@ export default async function SessionPage({
     prisma.tableMerge.findMany({ select: { tableId: true } }),
     prisma.tableSession.findMany({ where: { status: "OPEN" }, select: { tableId: true } }),
     prisma.menuItem.findMany({
-      where: { isActive: true, code: { notIn: SYSTEM_CODES } },
+      where: { isActive: true, code: { notIn: [...SYSTEM_CODES] } },
       orderBy: [{ category: "asc" }, { name: "asc" }],
       select: { code: true, name: true, price: true, category: true },
     }),
@@ -52,6 +54,7 @@ export default async function SessionPage({
   }
 
   const { session } = detail;
+  const specialReady = await isSpecialBuffetOffered();
   const canCancel =
     detail.totalPots === 0 && detail.beerQty === 0 &&
     session.wastageGrams === 0 && detail.paid === 0;
@@ -142,6 +145,20 @@ export default async function SessionPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+        <BuffetSwitch
+          sessionId={session.id}
+          current={session.buffetType}
+          specialReady={specialReady}
+          labels={{
+            title:         t("section_buffet"),
+            normal:        t("buffet_normal"),
+            special:       t("buffet_special"),
+            normalPrices:  t("label_buffet_prices", { adult: formatMoney(detail.prices.ADULT, detail.settings.currency), child: formatMoney(detail.prices.CHILD, detail.settings.currency) }),
+            specialPrices: t("label_buffet_prices", { adult: formatMoney(detail.prices.SPECIAL_ADULT, detail.settings.currency), child: formatMoney(detail.prices.SPECIAL_CHILD, detail.settings.currency) }),
+            specialNotSet: t("buffet_special_not_set"),
+          }}
+        />
         <SessionControls
           sessionId={session.id}
           initialAdults={session.adults}
@@ -174,6 +191,7 @@ export default async function SessionPage({
             menuItems:    t("section_menu_items"),
           }}
         />
+        </div>
 
         <div className="space-y-4">
           <section className="rounded-xl bg-white p-4 shadow-sm">

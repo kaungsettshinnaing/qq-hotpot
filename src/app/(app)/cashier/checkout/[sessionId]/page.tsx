@@ -11,6 +11,8 @@ import PrintButton from "./PrintButton";
 import { voidPayment, settleSession } from "../../actions";
 import SubmitButton from "@/components/SubmitButton";
 import { getT } from "@/lib/lang";
+import BuffetSwitch from "@/components/BuffetSwitch";
+import { isSpecialBuffetOffered } from "@/lib/menu";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,7 @@ export default async function CheckoutPage({
   if (!detail) redirect("/cashier");
 
   const shift = await getOpenShift(user.id);
+  const specialReady = await isSpecialBuffetOffered();
   const { session, bill, paid, balance, settings } = detail;
   const tableLabel = [session.table.label, ...session.mergedTables.map((m) => m.table.label)].join(" + ");
   const isOpen = session.status === "OPEN";
@@ -52,6 +55,11 @@ export default async function CheckoutPage({
           <h1 className="text-xl font-bold">
             {t("heading_checkout")} — Table {tableLabel}
             <span className="ml-2 text-sm font-normal text-gray-400">{detail.diners} pax</span>
+            {session.buffetType === "SPECIAL" && (
+              <span className="ml-2 rounded bg-gold-light px-1.5 py-0.5 align-middle text-xs font-semibold text-gold-dark">
+                {t("badge_special")}
+              </span>
+            )}
           </h1>
         </div>
         <PrintButton className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">
@@ -73,6 +81,23 @@ export default async function CheckoutPage({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
+          {isOpen && (
+            <div className="no-print">
+              <BuffetSwitch
+                sessionId={session.id}
+                current={session.buffetType}
+                specialReady={specialReady}
+                labels={{
+            title:         t("section_buffet"),
+            normal:        t("buffet_normal"),
+            special:       t("buffet_special"),
+            normalPrices:  t("label_buffet_prices", { adult: formatMoney(detail.prices.ADULT, settings.currency), child: formatMoney(detail.prices.CHILD, settings.currency) }),
+            specialPrices: t("label_buffet_prices", { adult: formatMoney(detail.prices.SPECIAL_ADULT, settings.currency), child: formatMoney(detail.prices.SPECIAL_CHILD, settings.currency) }),
+            specialNotSet: t("buffet_special_not_set"),
+          }}
+              />
+            </div>
+          )}
           <section className="rounded-xl bg-white p-4 shadow-sm">
             <h3 className="mb-2 text-sm font-semibold text-gray-700">{t("section_bill")}</h3>
             <BillSummary

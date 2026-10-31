@@ -64,7 +64,10 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
    Reserved / Inactive). Tables occupied ≥ **105 minutes** show an orange
    **OVERDUE** badge on the table card.
 2. Tap an available table → `/waiter/open/[tableId]` → enter **Adults** and
-   **Children** counts → **Open Table** creates a `TableSession` (OPEN).
+   **Children** counts and pick **Normal** or **Special** buffet (no default —
+   `openTable` refuses a blank with `?error=buffet-required`) → **Open Table**
+   creates a `TableSession` (OPEN) with that `buffetType`. Special is offered only
+   while the `SPECIAL_ADULT` menu row is shown and priced (else `?error=special-not-set`).
 3. Session page `/waiter/session/[id]`:
    - **Add Pot** — pick kind (BBQ or Hotpot), pick soup flavours (BBQ = 1,
      Hotpot = 2), submit. Each pot is auto-marked free/paid at creation time
@@ -75,6 +78,9 @@ Source: [`src/lib/rbac.ts`](../src/lib/rbac.ts)
      (items with codes NOT in `SYSTEM_CODES`). Each quantity change calls
      `setItemQty(sessionId, itemCode, qty)` which upserts an `OrderItem` row.
      These items appear on the bill as extra line items.
+   - **Buffet** — Normal / Special switch (`setBuffetType`, also on the cashier
+     checkout; WAITER/CASHIER/MANAGER/ADMIN; OPEN tables only). Re-prices the
+     whole table.
    - **Update Headcount** — changing adults/children recalculates which pots
      are free/paid on the bill (note: `isFree` flag on historical pots is NOT
      retroactively changed; only the computed bill view changes).
@@ -298,8 +304,13 @@ CashierShift
 
 ### SYSTEM_CODES
 
-Codes treated specially by `computeBill()`; never shown as orderable items in the waiter UI:
-`["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"]`
+Codes treated specially by `computeBill()`; never shown as orderable items in the waiter UI
+(one shared list, `SYSTEM_CODES` in `src/lib/pricing.ts`):
+`["ADULT", "CHILD", "SPECIAL_ADULT", "SPECIAL_CHILD", "BEER", "POT_ADDON", "WASTAGE"]`
+
+`SPECIAL_ADULT` / `SPECIAL_CHILD` hold the special buffet prices. `docker-entrypoint.sh`
+ensures both rows exist on every start (adopting prod's original admin-made `SPECIAL` /
+`SPECIAL_1` rows once; elsewhere created at price 0 for an admin to set).
 
 Any `OrderItem` whose code is NOT in SYSTEM_CODES is an **extra item** (a regular menu item). These are exposed as `extraItems` in `BillInput` and shown as a separate section in the waiter session controls.
 
@@ -356,8 +367,8 @@ Enforced in `addPot` server action. Either counts as **1 pot order**.
 ### 6.3 Bill computation
 
 ```
-subtotal = adults × priceAdult
-         + children × priceChild
+subtotal = adults × priceAdult          (SPECIAL table: SPECIAL_ADULT price)
+         + children × priceChild        (SPECIAL table: SPECIAL_CHILD price)
          + paidPots × pricePotAddon      (free pots not charged)
          + beerQty × priceBeer
          + wastageGrams × priceWastage   (MMK per gram)

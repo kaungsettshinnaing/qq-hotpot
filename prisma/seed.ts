@@ -49,6 +49,8 @@ async function main() {
   const menu = [
     { code: "ADULT",    name: "Adult Buffet",         unit: MenuUnit.UNIT, price: 25000 },
     { code: "CHILD",    name: "Child Buffet",          unit: MenuUnit.UNIT, price: 15000 },
+    { code: "SPECIAL_ADULT", name: "Special Adult Buffet", unit: MenuUnit.UNIT, price: 30000 },
+    { code: "SPECIAL_CHILD", name: "Special Child Buffet", unit: MenuUnit.UNIT, price: 18000 },
     { code: "BEER",     name: "Beer",                  unit: MenuUnit.UNIT, price: 3000 },
     { code: "POT_ADDON",name: "Extra Pot (Add-on)",    unit: MenuUnit.UNIT, price: 5000 },
     { code: "WASTAGE",  name: "Wastage",               unit: MenuUnit.GRAM, price: 50 },

@@ -4,9 +4,30 @@
 export interface MenuPrices {
   ADULT: number;
   CHILD: number;
+  SPECIAL_ADULT: number;
+  SPECIAL_CHILD: number;
   BEER: number;
   POT_ADDON: number;
   WASTAGE: number; // per gram
+}
+
+export type BuffetType = "NORMAL" | "SPECIAL";
+
+/** Menu codes billed by computeBill itself — never orderable as extra items. */
+export const SYSTEM_CODES: readonly string[] = [
+  "ADULT", "CHILD", "SPECIAL_ADULT", "SPECIAL_CHILD", "BEER", "POT_ADDON", "WASTAGE",
+];
+
+/** The per-head prices a table pays for its buffet type. */
+export function buffetPrices(prices: MenuPrices, type: BuffetType): { adult: number; child: number } {
+  return type === "SPECIAL"
+    ? { adult: prices.SPECIAL_ADULT, child: prices.SPECIAL_CHILD }
+    : { adult: prices.ADULT, child: prices.CHILD };
+}
+
+/** Special is offered only while its adult row is shown in Admin -> Menu and has a price. */
+export function specialBuffetOffered(adultRow: { price: number; isActive: boolean } | null): boolean {
+  return !!adultRow && adultRow.isActive && adultRow.price > 0;
 }
 
 export type DiscountType = "PERCENT" | "FIXED";
@@ -24,6 +45,8 @@ export interface BillInput {
   wastageGrams: number;
   beerQty: number;
   paidPots: number;
+  /** Defaults to NORMAL (every table opened before buffet types existed). */
+  buffetType?: BuffetType;
   extraItems?: ExtraItem[];
   discountType: DiscountType | null;
   discountValue: number | null;
@@ -112,8 +135,13 @@ export function computeBill(i: BillInput): Bill {
     if (qty > 0) lines.push({ code, label, qty, unitLabel, unitPrice, amount: qty * unitPrice });
   };
 
-  add("ADULT", "Adult", i.adults, "pax", i.prices.ADULT);
-  add("CHILD", "Child", i.children, "pax", i.prices.CHILD);
+  if (i.buffetType === "SPECIAL") {
+    add("SPECIAL_ADULT", "Special Adult", i.adults, "pax", i.prices.SPECIAL_ADULT);
+    add("SPECIAL_CHILD", "Special Child", i.children, "pax", i.prices.SPECIAL_CHILD);
+  } else {
+    add("ADULT", "Adult", i.adults, "pax", i.prices.ADULT);
+    add("CHILD", "Child", i.children, "pax", i.prices.CHILD);
+  }
   add("POT_ADDON", "Extra Pot", i.paidPots, "pot", i.prices.POT_ADDON);
   add("BEER", "Beer", i.beerQty, "btl", i.prices.BEER);
   add("WASTAGE", "Wastage", i.wastageGrams, "g", i.prices.WASTAGE);

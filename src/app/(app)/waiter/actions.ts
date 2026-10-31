@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAnyRole } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
-import { freePotsAllowed } from "@/lib/pricing";
+import { freePotsAllowed, SYSTEM_CODES, type BuffetType } from "@/lib/pricing";
+import { isSpecialBuffetOffered } from "@/lib/menu";
 import { emitKitchen, emitFloor } from "@/lib/realtime";
 import type { Role } from "@/lib/rbac";
 import type { ActionResult } from "@/lib/action-result";
@@ -13,6 +14,12 @@ import { getT } from "@/lib/lang";
 import { isPrismaError } from "@/lib/prisma-errors";
 
 const WAITER_ROLES: Role[] = ["WAITER", "MANAGER", "ADMIN"];
+// The buffet type can be corrected from the waiter's session page or at checkout.
+const BUFFET_ROLES: Role[] = ["WAITER", "CASHIER", "MANAGER", "ADMIN"];
+
+function parseBuffetType(v: unknown): BuffetType | null {
+  return v === "NORMAL" || v === "SPECIAL" ? v : null;
+}
 
 function clampInt(v: unknown, min: number, max: number): number {
   const n = parseInt(String(v ?? ""), 10);
@@ -24,6 +31,12 @@ export async function openTable(tableId: string, formData: FormData): Promise<vo
   const user = await requireAnyRole(WAITER_ROLES);
   const adults = clampInt(formData.get("adults"), 0, 999);
   const children = clampInt(formData.get("children"), 0, 999);
+  // No default: the waiter must say which buffet the table is having.
+  const buffetType = parseBuffetType(formData.get("buffetType"));
+  if (!buffetType) redirect(`/waiter/open/${tableId}?error=buffet-required`);
+  if (buffetType === "SPECIAL" && !(await isSpecialBuffetOffered())) {
+    redirect(`/waiter/open/${tableId}?error=special-not-set`);
+  }
 
   // A stale or hand-crafted tableId used to reach Prisma as a FK violation (blank
   // error page); an inactive table must not be openable either.
@@ -46,11 +59,33 @@ export async function openTable(tableId: string, formData: FormData): Promise<vo
   if (occupiedByMerge) redirect("/waiter?error=table-occupied");
 
   const session = await prisma.tableSession.create({
-    data: { tableId, adults, children, openedById: user.id },
+    data: { tableId, adults, children, buffetType, openedById: user.id },
   });
   emitFloor("table:update", { tableId });
   revalidatePath("/waiter");
   redirect(`/waiter/session/${session.id}`);
+}
+
+export async function setBuffetType(sessionId: string, type: string): Promise<ActionResult> {
+  await requireAnyRole(BUFFET_ROLES);
+  const t = await getT();
+  const buffetType = parseBuffetType(type);
+  if (!buffetType) return { ok: false, error: t("error_code_buffet_required") };
+  if (buffetType === "SPECIAL" && !(await isSpecialBuffetOffered())) {
+    return { ok: false, error: t("error_code_special_not_set") };
+  }
+  // Only an OPEN table changes; a settled bill is never re-priced this way.
+  const s = await prisma.tableSession.findUnique({ where: { id: sessionId }, select: { tableId: true } });
+  const changed = await prisma.tableSession.updateMany({
+    where: { id: sessionId, status: "OPEN" },
+    data: { buffetType },
+  });
+  if (!s || changed.count !== 1) return { ok: false, error: t("error_session_not_open") };
+  emitFloor("table:update", { tableId: s.tableId });
+  revalidatePath(`/waiter/session/${sessionId}`);
+  revalidatePath(`/cashier/checkout/${sessionId}`);
+  revalidatePath("/waiter");
+  return { ok: true };
 }
 
 export async function updateHeadcount(
@@ -183,7 +218,6 @@ export async function setItemQty(
   if (!session || session.status !== "OPEN") return { ok: false, error: t("error_session_not_open") };
   // Only a real, active, orderable menu item — an unknown code used to be created at
   // unit price 0, and the system codes (ADULT/BEER/…) have their own paths.
-  const SYSTEM_CODES = ["ADULT", "CHILD", "BEER", "POT_ADDON", "WASTAGE"];
   const menuItem = await prisma.menuItem.findUnique({ where: { code: itemCode }, select: { price: true, isActive: true } });
   if (!menuItem || !menuItem.isActive || SYSTEM_CODES.includes(itemCode)) {
     return { ok: false, error: t("error_invalid_item") };
