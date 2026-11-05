@@ -41,7 +41,7 @@ export async function generatePayroll(fd: FormData) {
   });
 
   for (const emp of employees) {
-    const { workingDays, absentDays, otDays } = await getAttendanceSummary(
+    const { workingDays, absentDays, otDays, restDayOtDays } = await getAttendanceSummary(
       emp.userId, year, month, emp.restDays,
     );
 
@@ -75,6 +75,7 @@ export async function generatePayroll(fd: FormData) {
       workingDays,
       absentDays,
       otDays,
+      restDayOtDays,
       attendanceBonusAmt: emp.attendanceBonus,
       adHocBonuses,
       advanceDeduction,

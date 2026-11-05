@@ -65,6 +65,62 @@ describe("computePayrollItem attendance bonus", () => {
 });
 
 // ---------------------------------------------------------------------------
+// computePayrollItem — overtime pays 1.5× the daily rate (Simon, 2026-11-05)
+// ---------------------------------------------------------------------------
+
+describe("computePayrollItem overtime", () => {
+  // Oct 2026, Thursday rest day: 26 working days, daily rate round(180000/26) = 6,923.
+  const base = {
+    basicSalary: 180_000,
+    workingDays: 26,
+    absentDays: 0,
+    attendanceBonusAmt: 0,
+    adHocBonuses: 0,
+    advanceDeduction: 0,
+    fineDeduction: 0,
+  };
+
+  it("pays 1.5× the daily rate for each OT day worked on a rest day", () => {
+    // Real prod case: Hnin Ei Kalyar Htun, Oct 2026, 5 rest-day OT days.
+    // The old formula paid 17,308 (0.5×); the rule is 5 × 6,923 × 1.5.
+    const r = computePayrollItem({ ...base, otDays: 5, restDayOtDays: 5 });
+    expect(r.dailyRate).toBe(6_923);
+    expect(r.otPremium).toBe(51_923);
+    expect(r.grossPay).toBe(180_000 + 51_923);
+  });
+
+  it("pays the larger salaries at 1.5× too", () => {
+    // Chit Hein, Oct 2026: 700,000 / 26 = 26,923 × 4 days × 1.5.
+    const r = computePayrollItem({ ...base, basicSalary: 700_000, otDays: 4, restDayOtDays: 4 });
+    expect(r.otPremium).toBe(161_538);
+  });
+
+  it("pays 0.75× for a half OT day on a rest day", () => {
+    const r = computePayrollItem({ ...base, otDays: 0.5, restDayOtDays: 0.5 });
+    expect(r.otPremium).toBe(Math.round(6_923 * 0.75));
+  });
+
+  it("adds only 0.5× for OT marked on a working day — the salary already paid 1×", () => {
+    const r = computePayrollItem({ ...base, otDays: 1, restDayOtDays: 0 });
+    expect(r.otPremium).toBe(Math.round(6_923 * 0.5));
+  });
+
+  it("uses an OT day to cancel an absence first, then pays 1.5× on the rest", () => {
+    // 1 absent + 3 rest-day OT: one OT day cancels the absence (no deduction),
+    // the other two earn 1.5×.
+    const r = computePayrollItem({ ...base, absentDays: 1, otDays: 3, restDayOtDays: 3 });
+    expect(r.absenceDeduction).toBe(0);
+    expect(r.otPremium).toBe(Math.round(2 * 6_923 * 1.5));
+  });
+
+  it("pays no OT premium when OT only covers absences", () => {
+    const r = computePayrollItem({ ...base, absentDays: 2, otDays: 1, restDayOtDays: 1 });
+    expect(r.absenceDeduction).toBe(6_923);
+    expect(r.otPremium).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // allocateDeductions
 // ---------------------------------------------------------------------------
 

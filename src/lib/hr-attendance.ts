@@ -57,13 +57,14 @@ export function summarizeAttendance(
   year: number,
   month: number,
   restDays: number[],
-): { workingDays: number; absentDays: number; otDays: number } {
+): { workingDays: number; absentDays: number; otDays: number; restDayOtDays: number } {
   const byDate = new Map(rows.map((r) => [r.date.toISOString().slice(0, 10), r]));
 
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   let workingDays = 0;
   let absentDays = 0;
   let otDays = 0;
+  let restDayOtDays = 0; // the part of otDays worked on a scheduled rest day
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dayUTC = new Date(Date.UTC(year, month - 1, d));
@@ -72,7 +73,11 @@ export function summarizeAttendance(
 
     if (restDays.includes(dow)) {
       // Scheduled rest day — not a working day, nothing to deduct; only OT counts.
-      if (row?.status === "OT") otDays += row.dayType === "HALF" ? 0.5 : 1;
+      if (row?.status === "OT") {
+        const days = row.dayType === "HALF" ? 0.5 : 1;
+        otDays += days;
+        restDayOtDays += days;
+      }
       continue;
     }
 
@@ -92,7 +97,7 @@ export function summarizeAttendance(
     // accounted for, no deduction.
   }
 
-  return { workingDays, absentDays, otDays };
+  return { workingDays, absentDays, otDays, restDayOtDays };
 }
 
 /** Today's attendance record for an employee, or null if none yet. */

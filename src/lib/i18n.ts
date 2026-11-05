@@ -1247,7 +1247,7 @@ const dict: Record<string, { en: string; my: string }> = {
 
   // ── HR — Payslip ──────────────────────────────────────────────────────────
   label_absence_deduction_calc:{ en: "Absence Deduction ({days} day{s} × {rate})", my: "ပျက်ကွက်ကြောင့်နုတ်ငွေ ({days} ရက်{s} × {rate})" },
-  label_ot_premium_calc:       { en: "OT Premium ({days} day × 0.5×)",     my: "OT ဆောင်ကြေး ({days} ရက် × 0.5×)" },
+  label_ot_premium_calc:       { en: "OT pay ({days} day, 1.5× daily rate)", my: "OT ဆောင်ကြေး ({days} ရက်၊ နေ့စား × 1.5)" },
   label_attendance_bonus_perfect: { en: "Attendance Bonus (perfect attendance)", my: "တက်ရောက်မှုဆု (အပြည့်တက်ရောက်)" },
   label_advance_repayment_note: { en: "Advance repayment{note}",           my: "ကြိုတင်ငွေ ပြန်ဆပ်မှု{note}" },
   label_fine_reason:            { en: "Fine: {reason}",                    my: "ဒဏ်ကြေး: {reason}" },

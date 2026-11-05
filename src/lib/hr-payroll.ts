@@ -6,6 +6,11 @@ export interface PayrollInputs {
   absentDays: number;    // present-basis: ABSENT/LEAVE rows *and* any working day with
                          // no attendance record at all (both unpaid; half-day = 0.5)
   otDays: number;        // days marked OT (extra days worked beyond required)
+  /** The part of otDays worked on the employee's own scheduled rest day. The basic
+   *  salary does not cover a rest day, so each such day pays OT_RATE (1.5×) in full.
+   *  An OT row on a working day is already paid 1× by the salary and adds 0.5×.
+   *  Omitted = 0 (every OT day treated as a working-day OT, the pre-2026-11-05 rule). */
+  restDayOtDays?: number;
   attendanceBonusAmt: number;
   adHocBonuses: number;
   advanceDeduction: number;
@@ -17,7 +22,7 @@ export interface PayrollResult {
   netAbsent: number;    // max(0, absent - ot)
   extraOt: number;      // max(0, ot - absent) → days above working days
   absenceDeduction: number;
-  otPremium: number;    // extra half-pay for days beyond working days
+  otPremium: number;    // overtime pay for OT days left after offsetting absences
   attendanceBonus: number;
   grossPay: number;
   netPay: number;
@@ -34,6 +39,9 @@ export function workingDaysInMonth(year: number, month: number, restDays: number
   return working;
 }
 
+/** Overtime pays 1.5× the daily rate for every OT day (Simon, 2026-11-05). */
+export const OT_RATE = 1.5;
+
 export function computePayrollItem(inputs: PayrollInputs): PayrollResult {
   const {
     basicSalary,
@@ -45,6 +53,7 @@ export function computePayrollItem(inputs: PayrollInputs): PayrollResult {
     advanceDeduction,
     fineDeduction,
   } = inputs;
+  const restDayOt = Math.min(Math.max(0, inputs.restDayOtDays ?? 0), otDays);
 
   const dailyRate = workingDays > 0 ? Math.round(basicSalary / workingDays) : 0;
 
@@ -52,8 +61,16 @@ export function computePayrollItem(inputs: PayrollInputs): PayrollResult {
   const extraOt = Math.max(0, otDays - absentDays);
 
   const absenceDeduction = netAbsent * dailyRate;
-  // Extra OT days already receive a full daily rate via basePay; we add the extra 0.5×
-  const otPremium = Math.round(extraOt * dailyRate * 0.5);
+  // OT days first cancel absences one for one (a rest day worked in place of a missed
+  // working day is a swap, paid 1× by not deducting the absence). Rest-day OT is used
+  // for that first. Every OT day left over earns OT_RATE (1.5×) of the daily rate:
+  //  - on a rest day the salary pays nothing for it, so the full 1.5× is added;
+  //  - on a working day the salary already paid 1×, so 0.5× is added.
+  const restExtra = Math.max(0, restDayOt - absentDays);
+  const workingExtra = Math.max(0, extraOt - restExtra);
+  const otPremium = Math.round(
+    restExtra * dailyRate * OT_RATE + workingExtra * dailyRate * (OT_RATE - 1),
+  );
 
   const attendanceBonus = netAbsent === 0 ? attendanceBonusAmt : 0;
 

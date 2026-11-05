@@ -15,7 +15,7 @@ const allPresent = (restDays: number[]) =>
 describe("summarizeAttendance", () => {
   it("counts 27 working days for a Friday rest day and no absence when every day is present", () => {
     const s = summarizeAttendance(allPresent([5]), Y, M, [5]);
-    expect(s).toEqual({ workingDays: 27, absentDays: 0, otDays: 0 });
+    expect(s).toEqual({ workingDays: 27, absentDays: 0, otDays: 0, restDayOtDays: 0 });
   });
 
   it("treats a working day with no row as absent (present-basis)", () => {
@@ -30,16 +30,26 @@ describe("summarizeAttendance", () => {
     expect(s.workingDays).toBe(27); // the rest day is still not a working day
     expect(s.absentDays).toBe(0);
     expect(s.otDays).toBe(1);
+    expect(s.restDayOtDays).toBe(1);
+  });
+
+  it("keeps OT marked on a working day out of the rest-day count", () => {
+    const rows = allPresent([5]).map((r) => (r.date.getUTCDate() === 3 ? row(3, "OT") : r));
+    const s = summarizeAttendance(rows, Y, M, [5]);
+    expect(s.otDays).toBe(1);
+    expect(s.restDayOtDays).toBe(0);
   });
 
   it("counts a half OT day on a rest day as 0.5", () => {
     const rows = [...allPresent([5]), row(14, "OT", "HALF")];
-    expect(summarizeAttendance(rows, Y, M, [5]).otDays).toBe(0.5);
+    const s = summarizeAttendance(rows, Y, M, [5]);
+    expect(s.otDays).toBe(0.5);
+    expect(s.restDayOtDays).toBe(0.5);
   });
 
   it("ignores a plain PRESENT or REST_DAY row on a rest day (no pay change)", () => {
     const rows = [...allPresent([5]), row(21, "PRESENT"), row(28, "REST_DAY")];
-    expect(summarizeAttendance(rows, Y, M, [5])).toEqual({ workingDays: 27, absentDays: 0, otDays: 0 });
+    expect(summarizeAttendance(rows, Y, M, [5])).toEqual({ workingDays: 27, absentDays: 0, otDays: 0, restDayOtDays: 0 });
   });
 
   it("deducts half a day for a HALF present day and a full day for LEAVE", () => {

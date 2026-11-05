@@ -190,9 +190,12 @@ daily_rate      = round(basicSalary / workingDays)
 
 net_absent      = max(0, absentDays − otDays)      // OT offsets absences first
 extra_ot        = max(0, otDays − absentDays)       // OT days beyond absent count
+rest_extra      = max(0, restDayOtDays − absentDays)  // rest-day OT is used for the offset first
+working_extra   = extra_ot − rest_extra
 
 absence_deduct  = net_absent × daily_rate
-ot_premium      = round(extra_ot × daily_rate × 0.5)   // full day already in base; add 0.5×
+ot_premium      = round(rest_extra × daily_rate × 1.5        // salary pays nothing for a rest day
+                      + working_extra × daily_rate × 0.5)    // salary already paid 1× for a working day
 attendance_bon  = attendanceBonusAmt   if net_absent == 0   else 0
 
 gross = basicSalary − absence_deduct + ot_premium + attendance_bon + Σ(adHocBonuses)
@@ -374,8 +377,11 @@ src/app/(app)/
 
 - An employee who works on a rest day gets an `OT` attendance status (set manually by HR).
 - OT days first offset absences (`net_absent = max(0, absent − ot)`).
-- OT days in excess of absences earn a 0.5× premium on top of the regular daily rate (since the base already includes the full day's pay in the working-days structure).
-- OT premium is only earned when total work days **exceed** the required working days for the month (i.e., when OT count > absent count).
+- **Overtime pays 1.5× the daily rate per OT day** (Simon, 2026-11-05). An OT day on the employee's
+  own rest day is not covered by the basic salary, so it adds the full 1.5× (half day = 0.75×). An
+  OT row on a working day (rare — none in prod) is already paid 1× by the salary, so it adds 0.5×.
+  Before 2026-11-05 every OT day added only 0.5×, so rest-day OT was paid at half a day.
+- OT premium is only earned on OT days left after offsetting absences (i.e., when OT count > absent count).
 
 ### Attendance bonus
 

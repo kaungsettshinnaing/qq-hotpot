@@ -75,6 +75,9 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
 **HR & Payroll**
 - `payroll = basicSalary − absenceDeduction + otPremium + attendanceBonus + adHocBonuses
   − advances − fines`
+- **Overtime = 1.5× the daily rate per OT day** (daily rate = basicSalary / working days that
+  month). OT is a day worked on the employee's own rest day, which the salary does not cover, so
+  the full 1.5× is added (half day 0.75×). An OT day first cancels an absence one for one.
 - **Deductions are month-scoped.** An advance instalment or fine is collected *only* by the
   payroll for the month it was booked against — never swept forward into a later month. If
   a month's payroll is never locked, its instalments stay outstanding and HR must
@@ -100,6 +103,22 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
 
 ## Decisions made — and why
 
+- `2026-11-05` — **Overtime pays 1.5× the daily rate, not 0.5×** (Simon: "overtime pay are supposed
+  to be 1.5x of their daily rate. check prod" → "Yes, fix it" → "deploy to prod"). `computePayrollItem`
+  added `extra_ot × daily × 0.5` on the assumption the salary already paid the day — wrong: every
+  OT row in prod is a FULL day on the person's own rest day, so OT paid half a day. Now
+  `summarizeAttendance` also returns `restDayOtDays`; rest-day OT left after the absence offset pays
+  `× 1.5` (`OT_RATE`), a working-day OT row still adds 0.5× (salary paid 1×). The absence offset is
+  kept as it was (an OT day cancels one absent day, keeps the attendance bonus) — **Simon has not
+  decided whether OT should instead always pay 1.5× on top**; ask before changing. Payslip label
+  "OT pay ({days} day, 1.5× daily rate)". Tests in `hr-payroll.test.ts` use the real Oct 2026 figures.
+  **Prod impact found (read-only, 2026-11-05):** Sept 2026 was locked that day with `otDays = 0`
+  for everyone (its items predate the 10-20 rest-day OT fix) → 15 OT days, 8 staff, 201,232 MMK
+  unpaid at 1.5×; Oct 2026 DRAFT paid 131,567 instead of 394,698 (−263,131) → **HR must press
+  Regenerate on October**. September is locked: back pay only as ad-hoc bonuses on a later month,
+  Simon's call. Full tables in the side-session note `qq-app-overtime-check-2026-11-05.md`.
+  **Still open:** `PayrollItem.absentDays/otDays` are `Int`, so a HALF-day OT/absence makes
+  Generate fail (Prisma refuses 0.5) — the known half-day issue, not fixed here.
 - `2026-10-31` — **Waiter chooses Normal or Special buffet when opening a table** (Simon:
   "make waiter choose whether the customer is having normal or special buffet when they open
   table (refer to prod menu)"; his calls: the whole table is one type and Special *replaces*
