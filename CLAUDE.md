@@ -116,7 +116,9 @@ Roles: WAITER · KITCHEN · CASHIER · MANAGER · HR · ADMIN.
   for everyone (its items predate the 10-20 rest-day OT fix) → 15 OT days, 8 staff, 201,232 MMK
   unpaid at 1.5×; Oct 2026 DRAFT paid 131,567 instead of 394,698 (−263,131) → **HR must press
   Regenerate on October**. September is locked: back pay only as ad-hoc bonuses on a later month,
-  Simon's call. Full tables in the side-session note `qq-app-overtime-check-2026-11-05.md`.
+  Simon's call — **2026-11-05: "Not now"** (not paid; raise it again before anyone treats
+  September as settled). Full tables in the side-session note `qq-app-overtime-check-2026-11-05.md`.
+  **Deployed to prod 2026-11-05** (`006e3d0`, run 42044102153 green, login 200).
   **Still open:** `PayrollItem.absentDays/otDays` are `Int`, so a HALF-day OT/absence makes
   Generate fail (Prisma refuses 0.5) — the known half-day issue, not fixed here.
 - `2026-10-31` — **Waiter chooses Normal or Special buffet when opening a table** (Simon:
